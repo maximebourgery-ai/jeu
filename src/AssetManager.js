@@ -1,0 +1,274 @@
+/* ================================================================
+   ASSET MANAGER
+   Remplace intégralement l'ancien système de textures procédurales
+   (cTex / speck / initTextures / TEX / initMats / matFor).
+
+   · Textures PBR par famille de matériau (color / normal / roughness /
+     metalness) via THREE.TextureLoader, depuis /assets/textures/.
+   · Modèles .glb via GLTFLoader depuis /assets/models/.
+   · HDRI (.hdr) via RGBELoader + PMREMGenerator depuis /assets/hdri/.
+
+   TOUT est optionnel : si un fichier est absent (404), on retombe
+   gracieusement sur une couleur unie équivalente au rendu procédural
+   d'origine (fallback calibré ci-dessous), sur les géométries
+   primitives d'origine, et sur l'éclairage de base. Le jeu tourne
+   donc "out of the box" sans aucun asset.
+   ================================================================ */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+
+/* Familles de textures PBR attendues dans /assets/textures/ */
+const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron'];
+/* Modèles .glb attendus dans /assets/models/ */
+const MODEL_NAMES = [
+  'player_mage', 'player_warrior', 'player_assassin',
+  'enemy_sentinel', 'enemy_wraith', 'enemy_brute', 'enemy_caster',
+  'tree', 'torch'
+];
+const HDRI_URL = '/assets/hdri/environment.hdr';
+
+/* Couleur moyenne des anciennes textures procédurales : sert de teinte de
+   repli quand la map PBR correspondante n'est pas fournie. */
+const FAMILY_FALLBACK = {
+  brick: 0x565a6e, // briques rgb(86,90,110) sur fond #3a3e50
+  stone: 0x4f5266, // pierre #4a4e62 mouchetée
+  slab:  0x50546a, // dalles rgb(80,84,104) sur fond #484c60
+  wood:  0x4c3624, // planches rgb(76,54,36) sur fond #4a3524
+  grass: 0x1c3e26, // brins rgb(26,62,38) sur fond #20402a
+  iron:  0x2a2d38  // fer #2a2d38
+};
+
+/* Définition des matériaux du jeu — identique à l'ancien MATDEF, mais la
+   texture est désormais une famille PBR chargée par l'AssetManager. */
+const MATDEF = {
+  stone:  { tex: 'brick', color: 0xffffff, rough: 0.95 },
+  stoneD: { tex: 'brick', color: 0x9aa0b8, rough: 0.97 },
+  stoneR: { tex: 'stone', color: 0xb0a8c8, rough: 0.96 },
+  slab:   { tex: 'slab',  color: 0xffffff, rough: 0.94 },
+  slabW:  { tex: 'slab',  color: 0xcbb8d8, rough: 0.94 },
+  slabR:  { tex: 'slab',  color: 0xd8a8b0, rough: 0.94 },
+  wood:   { tex: 'wood',  color: 0xffffff, rough: 0.9 },
+  woodD:  { tex: 'wood',  color: 0xb09880, rough: 0.92 },
+  woodF:  { tex: 'wood',  color: 0x706050, rough: 0.95 },
+  grass:  { tex: 'grass', color: 0xffffff, rough: 1 },
+  path:   { tex: 'slab',  color: 0x9aa2c0, rough: 0.96 },
+  iron:   { tex: 'iron',  color: 0xffffff, rough: 0.6, metal: 0.5 },
+  hedge:  { color: 0x1c5230, rough: 1 },
+  hedgeF: { color: 0x143c22, rough: 1 },
+  leaf:   { color: 0x175226, rough: 1 },
+  trunk:  { tex: 'wood',  color: 0x8a7460, rough: 1 },
+  gold:   { color: 0xd9a83c, rough: 0.35, metal: 0.75, emissive: 0x30220a },
+  rune:   { tex: 'stone', color: 0x8a78d8, rough: 0.7, emissive: 0x241a66 },
+  cloth:  { color: 0x7a1f2a, rough: 1 }
+};
+
+const matCache = {};
+
+export const assets = {
+  ready: false,
+  textures: {},   // famille -> {map, normalMap, roughnessMap, metalnessMap} (maps éventuellement nulles)
+  models: {},     // nom -> THREE.Group (scène du glb), ou absent
+  envTexture: null, // texture équirectangulaire HDR brute (background)
+  envMap: null,     // radiance PMREM (scene.environment)
+  glowTex: null,    // sprite de halo (fichier ou fallback DataTexture)
+  skyTex: null      // dégradé du ciel nocturne (fallback sans HDRI)
+};
+
+/* ---------- chargeurs tolérants (résolvent null au lieu de rejeter) ---------- */
+const texLoader = new THREE.TextureLoader();
+function loadTexture(url, srgb) {
+  return new Promise(res => {
+    texLoader.load(url, t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 4;
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      res(t);
+    }, undefined, () => res(null));
+  });
+}
+async function loadTextureAnyExt(base, srgb) {
+  return (await loadTexture(base + '.jpg', srgb)) || (await loadTexture(base + '.png', srgb));
+}
+/* Vérifie qu'un fichier binaire existe vraiment : les serveurs SPA (dont le
+   serveur de dev Vite) renvoient index.html (200, text/html) pour les chemins
+   inconnus, ce qui ferait planter les parseurs .glb / .hdr. */
+async function binaryExists(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return false;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    return !ct.includes('text/html');
+  } catch (e) { return false; }
+}
+async function loadModel(url) {
+  if (!(await binaryExists(url))) return null;
+  return new Promise(res => {
+    new GLTFLoader().load(url, gltf => res(gltf.scene || null), undefined, () => res(null));
+  });
+}
+async function loadHDR(url) {
+  if (!(await binaryExists(url))) return null;
+  return new Promise(res => {
+    new RGBELoader().load(url, t => {
+      t.mapping = THREE.EquirectangularReflectionMapping;
+      res(t);
+    }, undefined, () => res(null));
+  });
+}
+
+/* ---------- fallbacks générés en mémoire (DataTexture, pas de canvas 2D) ---------- */
+function makeGlowTexture() {
+  // Équivalent du dégradé radial blanc -> transparent d'origine
+  const s = 64, data = new Uint8Array(s * s * 4);
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const dx = (x + 0.5) / s - 0.5, dy = (y + 0.5) / s - 0.5;
+    const d = Math.min(1, Math.hypot(dx, dy) * 2);
+    let a;
+    if (d <= 0.25) a = 1 - 2 * d;          // 1 -> 0.5 sur [0, 0.25]
+    else a = 0.5 * (1 - (d - 0.25) / 0.75); // 0.5 -> 0 sur [0.25, 1]
+    const i = (y * s + x) * 4;
+    data[i] = data[i + 1] = data[i + 2] = 255;
+    data[i + 3] = Math.round(Math.max(0, a) * 255);
+  }
+  const t = new THREE.DataTexture(data, s, s);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+function makeSkyTexture() {
+  // Dégradé vertical du ciel nocturne d'origine (#070a1a → #111a3e → #16204a → #070a18)
+  const stops = [
+    [0.0, 0x070a1a],
+    [0.42, 0x111a3e],
+    [0.58, 0x16204a],
+    [1.0, 0x070a18]
+  ];
+  const H = 256, data = new Uint8Array(H * 4);
+  const cA = new THREE.Color(), cB = new THREE.Color();
+  for (let j = 0; j < H; j++) {
+    const v = j / (H - 1);      // v=0 bas, v=1 haut (DataTexture: flipY=false)
+    const tPos = 1 - v;         // position dans le dégradé "haut vers bas" d'origine
+    let k = 0;
+    while (k < stops.length - 2 && tPos > stops[k + 1][0]) k++;
+    const [p0, h0] = stops[k], [p1, h1] = stops[k + 1];
+    const f = Math.min(1, Math.max(0, (tPos - p0) / Math.max(1e-6, p1 - p0)));
+    cA.setHex(h0); cB.setHex(h1); cA.lerp(cB, f);
+    const i = j * 4;
+    data[i] = Math.round(cA.r * 255);
+    data[i + 1] = Math.round(cA.g * 255);
+    data[i + 2] = Math.round(cA.b * 255);
+    data[i + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, 1, H);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+
+/* ---------- chargement global (attendu par l'écran de chargement) ---------- */
+async function loadFamily(fam) {
+  const base = '/assets/textures/' + fam;
+  const [map, normalMap, roughnessMap, metalnessMap] = await Promise.all([
+    loadTextureAnyExt(base + '_color', true),
+    loadTextureAnyExt(base + '_normal', false),
+    loadTextureAnyExt(base + '_roughness', false),
+    loadTextureAnyExt(base + '_metalness', false)
+  ]);
+  assets.textures[fam] = { map, normalMap, roughnessMap, metalnessMap };
+  if (!map) console.info('[AssetManager] Pas de texture PBR « ' + fam + ' » — couleur unie de repli utilisée.');
+}
+export async function loadAssets(onStatus) {
+  const status = t => { if (onStatus) onStatus(t); };
+  status('Tissage des matériaux…');
+  await Promise.all(TEXTURE_FAMILIES.map(loadFamily));
+
+  status('Invocation des silhouettes…');
+  await Promise.all(MODEL_NAMES.map(async name => {
+    const m = await loadModel('/assets/models/' + name + '.glb');
+    if (m) {
+      m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      assets.models[name] = m;
+    }
+  }));
+
+  status('Lecture du ciel…');
+  assets.envTexture = await loadHDR(HDRI_URL);
+  if (!assets.envTexture)
+    console.warn('[AssetManager] Aucun HDRI trouvé (' + HDRI_URL + ') — éclairage ambiant/directionnel de base conservé.');
+
+  assets.glowTex = (await loadTexture('/assets/textures/glow.png', true)) || makeGlowTexture();
+  assets.skyTex = makeSkyTexture();
+  assets.ready = true;
+  status('L\'Aube s\'éveille…');
+}
+
+/* Applique l'HDRI en environnement + fond de scène. Renvoie true si un HDRI
+   a bien été chargé (sinon la scène garde son ciel/éclairage de repli). */
+export function applyEnvironment(renderer, scene) {
+  if (!assets.envTexture) return false;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  assets.envMap = pmrem.fromEquirectangular(assets.envTexture).texture;
+  pmrem.dispose();
+  scene.environment = assets.envMap;
+  scene.background = assets.envTexture;
+  return true;
+}
+
+/* ---------- matériaux (remplace matFor / MATDEF / matCache d'origine) ---------- */
+export function matFor(kind, ru, rv) {
+  ru = Math.max(1, Math.min(14, Math.round(ru)));
+  rv = Math.max(1, Math.min(14, Math.round(rv)));
+  const key = kind + '_' + ru + '_' + rv;
+  if (matCache[key]) return matCache[key];
+  const def = MATDEF[kind];
+  const fam = def.tex ? assets.textures[def.tex] : null;
+  const params = {
+    color: def.color || 0xffffff,
+    roughness: def.rough !== undefined ? def.rough : 0.95,
+    metalness: def.metal || 0
+  };
+  if (fam && fam.map) {
+    // Textures PBR fournies : on les clone pour appliquer la répétition UV.
+    const cloneMap = t => {
+      if (!t) return null;
+      const c = t.clone();
+      c.needsUpdate = true;
+      c.repeat.set(ru, rv);
+      return c;
+    };
+    params.map = cloneMap(fam.map);
+    if (fam.normalMap) params.normalMap = cloneMap(fam.normalMap);
+    if (fam.roughnessMap) params.roughnessMap = cloneMap(fam.roughnessMap);
+    if (fam.metalnessMap) params.metalnessMap = cloneMap(fam.metalnessMap);
+  } else if (def.tex) {
+    // Repli : couleur unie = teinte du matériau × couleur moyenne de
+    // l'ancienne texture procédurale (rendu équivalent, sans motif).
+    const c = new THREE.Color(def.color || 0xffffff)
+      .multiply(new THREE.Color(FAMILY_FALLBACK[def.tex] || 0x808080));
+    params.color = c.getHex();
+  }
+  const m = new THREE.MeshStandardMaterial(params);
+  if (def.emissive) m.emissive = new THREE.Color(def.emissive);
+  matCache[key] = m;
+  return m;
+}
+
+/* ---------- sprite de halo lumineux (ex-fonction glow, ex-TEX.glow) ---------- */
+export function glow(color, scale, opacity) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: assets.glowTex, color, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+    opacity: opacity !== undefined ? opacity : 0.7
+  }));
+  sp.scale.set(scale, scale, 1);
+  return sp;
+}
+
+/* ---------- modèles glb (clone prêt à poser, ou null si absent) ---------- */
+export function modelClone(name) {
+  const m = assets.models[name];
+  return m ? m.clone(true) : null;
+}

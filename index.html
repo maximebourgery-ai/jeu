@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Les Tours d'Ombreciel — v6</title>
+</head>
+<body>
+<div id="hud">
+  <div id="bars">
+    <div class="bar"><div class="fill" id="hpfill"></div><span class="barnum" id="hpnum"></span></div>
+    <div class="bar"><div class="fill" id="mpfill"></div><span class="barnum" id="mpnum"></span></div>
+    <div class="bar xpbar"><div class="fill" id="xpfill"></div><span class="barnum" id="xpnum"></span></div>
+    <div id="lvltxt"></div>
+  </div>
+  <div id="objective"></div>
+  <div id="crystals">✦ 0 / 3</div>
+  <div id="bars2">
+    <div class="lbl">JOUEUR 2</div>
+    <div class="bar"><div class="fill" id="hp2fill"></div><span class="barnum" id="hp2num"></span></div>
+    <div class="bar"><div class="fill" id="mp2fill"></div><span class="barnum" id="mp2num"></span></div>
+    <div id="p2power"></div>
+  </div>
+  <div id="powers"></div>
+  <div id="prompt"></div>
+  <div id="msg"></div>
+  <div id="hint"><b>ZQSD</b> marcher · <b>souris</b> caméra · <b>clic</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint<br/><b>E</b> agir · <b>1-6</b> sorts · <b>Tab</b> sac · <b>H</b> potion · <b>O</b> orbe · <b>C</b> transcender · <b>K</b> pouvoirs · <b>V</b> vue · <b>Échap</b> pause</div>
+  <div id="cross"></div>
+  <div id="cross2"></div>
+</div>
+<div id="ebars"></div>
+<div id="splitline"></div>
+<div id="touch" class="hidden">
+  <div id="lookzone"></div>
+  <div id="joy"><div id="joyknob"></div></div>
+  <button class="tbtn" id="t-attack">✦</button>
+  <button class="tbtn" id="t-jump">▲</button>
+  <button class="tbtn" id="t-act">E</button>
+  <button class="tbtn" id="t-spell">⟳</button>
+  <button class="tbtn" id="t-craft">⚒</button>
+  <button class="tbtn" id="t-tree">✥</button>
+  <button class="tbtn" id="t-pause">II</button>
+  <div id="craftpanel" class="hidden">
+    <button id="cr-h">☘ Potion (H) — 2 herbes → +30 PV</button>
+    <button id="cr-o">● Orbe (O) — 3 essences → 1 orbe</button>
+    <button id="cr-c">◉ Transcender (C) — orbes</button>
+  </div>
+</div>
+<div id="vignette"></div>
+<div id="inv" class="hidden"><h3>INVENTAIRE</h3><ul id="invlist"></ul></div>
+<div id="tree" class="hidden"></div>
+<div id="dialog" class="hidden">
+  <div id="dlg-name">LUMEN</div>
+  <div id="dlg-text"></div>
+  <div id="dlg-hint">E ou clic pour continuer…</div>
+</div>
+
+<div id="title" class="overlay">
+  <div class="glyph">✦</div>
+  <h1>LES TOURS D'OMBRECIEL</h1>
+  <p class="sub">Un château éteint. Trois Larmes d'Aube dispersées. Une seule flamme : la vôtre.</p>
+  <div id="classes">
+    <div class="classbtn sel" data-path="mage"><span class="ci">✦</span><span class="cn">MAGE</span><div class="cdsc">Trait astral à distance. Équilibré, fidèle à l'ordre des porteurs de flamme.</div></div>
+    <div class="classbtn" data-path="warrior"><span class="ci">⚔</span><span class="cn">GUERRIER</span><div class="cdsc">Frappe lourde au corps à corps, +40 PV max. Lent mais dévastateur.</div></div>
+    <div class="classbtn" data-path="assassin"><span class="ci">🗡</span><span class="cn">ASSASSIN</span><div class="cdsc">Dagues astrales rapides, déplacement +12 %, Pas du vent quasi instantané.</div></div>
+  </div>
+  <div id="modes">
+    <button class="modebtn sel" data-mode="solo">1 JOUEUR</button>
+    <button class="modebtn" data-mode="coop">2 JOUEURS · écran scindé</button>
+  </div>
+  <div id="p2row" class="hidden">
+    <span>Voie du Joueur 2 (manette) :</span>
+    <button class="p2btn sel" data-p2path="mage">✦ Mage</button>
+    <button class="p2btn" data-p2path="warrior">⚔ Guerrier</button>
+    <button class="p2btn" data-p2path="assassin">🗡 Assassin</button>
+  </div>
+  <button id="btn-start">Commencer l'aventure</button>
+  <button id="btn-continue" class="hidden">Continuer la partie sauvegardée</button>
+  <div class="controls">
+    <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic gauche</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
+    <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion (2 herbes) · <b>O</b> forger un orbe (3 ombres) · <b>C</b> transcender (orbes) · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
+    🎮 Manette Xbox/PS reconnue automatiquement · 📱 Manette smartphone via le menu pause
+  </div>
+</div>
+
+<div id="story" class="overlay hidden">
+  <div class="pageno" id="story-page">I / III</div>
+  <p class="sub" id="story-text"></p>
+  <button id="btn-next">Continuer</button>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <h2>PAUSE</h2>
+  <button id="btn-resume">Reprendre</button>
+  <button id="btn-save">💾 Sauvegarder la partie</button>
+  <button id="btn-manette">📱 Manette smartphone</button>
+  <div class="controls">
+    <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
+    <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion · <b>O</b> orbe · <b>C</b> transcender · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
+    <b>Coop :</b> J1 = clavier/souris · J2 = manette (stick G. bouger, stick D. caméra, A saut, X attaque, B agir, LB/RB sorts)
+  </div>
+</div>
+
+<div id="qrpanel" class="hidden">
+  <h3>MANETTE SMARTPHONE</h3>
+  <div id="qrcode"></div>
+  <div id="qrstatus">—</div>
+  <div id="qrlink"></div>
+  <button id="btn-qrretry" class="hidden">Réessayer</button>
+  <button id="btn-qrclose">Fermer</button>
+</div>
+
+<div id="win" class="overlay hidden">
+  <h1>L'AUBE RENAÎT</h1>
+  <p class="sub">Les trois Larmes réunies s'élèvent au-dessus des tours. La lumière déferle sur Ombreciel,
+  les sentinelles se dissolvent dans le matin, et quelque part près de la fontaine, une petite lueur bleue
+  vous murmure : « Merci, porteur de flamme. »<br/><br/>
+  Au fond de la salle du trône, la pierre a tremblé... un passage scellé s'est ouvert vers des terres que
+  nul porteur de flamme n'a foulées depuis la Nuit sans lune.</p>
+  <button id="btn-explore">Poursuivre l'aventure — Terres Perdues</button>
+  <button id="btn-again">Recommencer depuis le début</button>
+</div>
+
+<div id="loading" class="overlay">
+  <div class="glyph">✦</div>
+  <h2>LES TOURS D'OMBRECIEL</h2>
+  <p class="sub" id="loading-status">Éveil des Larmes d'Aube…</p>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

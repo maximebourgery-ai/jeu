@@ -1,0 +1,155 @@
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#05060d;font-family:Georgia,'Times New Roman',serif;color:#e8e0cc;user-select:none}
+canvas{display:block}
+.hidden{display:none!important}
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+#bars{position:absolute;top:18px;left:18px;width:270px}
+.bar{position:relative;height:15px;border:1px solid rgba(232,224,204,.5);border-radius:8px;margin-bottom:7px;background:rgba(0,0,0,.55);overflow:hidden}
+.bar .fill{height:100%;border-radius:7px;transition:width .18s ease-out}
+.barnum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Verdana,sans-serif;font-size:10px;letter-spacing:1px;color:#f4ecd6;text-shadow:0 1px 2px #000;pointer-events:none}
+#hpfill{background:linear-gradient(90deg,#7a1420,#d13438);width:100%}
+#mpfill{background:linear-gradient(90deg,#1d3f8f,#4fa8e8);width:100%}
+#objective{position:absolute;top:70px;left:18px;max-width:360px;font-size:15px;color:#ffe6a8;text-shadow:0 1px 5px #000;background:rgba(6,8,18,.55);border-left:3px solid #ffd97a;padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.45}
+#crystals{position:absolute;top:16px;right:22px;font-size:23px;color:#ffd97a;text-shadow:0 0 14px rgba(255,200,80,.85);letter-spacing:2px}
+#powers{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+.pw{width:56px;height:56px;border:1px solid rgba(232,224,204,.35);border-radius:10px;background:rgba(8,10,20,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;position:relative;opacity:.22;color:#cfe6ff}
+.pw.owned{opacity:1}
+.pw.sel{border-color:#ffd97a;box-shadow:0 0 16px rgba(255,215,120,.55)}
+.pw small{font-size:9px;font-family:Verdana,sans-serif;opacity:.65;margin-top:1px}
+.pw .lock{display:block;font-size:16px;opacity:.55}
+.pw .ico{display:none}
+.pw.owned .lock{display:none}
+.pw.owned .ico{display:block}
+.pw .cd{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.62);border-radius:0 0 10px 10px;height:0}
+.pw .nm{position:absolute;top:-18px;font-size:10px;font-family:Verdana,sans-serif;color:#c8d2ee;white-space:nowrap;opacity:0}
+.pw.sel .nm{opacity:.9}
+#msg{position:absolute;bottom:118px;width:100%;text-align:center;font-size:19px;color:#f4ecd6;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .4s;padding:0 60px}
+#prompt{position:absolute;top:60%;width:100%;text-align:center;font-size:16px;color:#ffd97a;text-shadow:0 1px 6px #000}
+#hint{position:absolute;bottom:14px;right:16px;font-size:11px;font-family:Verdana,sans-serif;color:#5f6b8c;text-align:right;line-height:1.7}
+#cross{position:absolute;top:50%;left:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:0 0 6px rgba(0,0,0,.9)}
+#vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 52%,rgba(130,0,12,.9) 100%);opacity:0;z-index:6}
+/* ---------- Dialogue ---------- */
+#dialog{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);width:min(720px,90vw);background:rgba(7,9,20,.94);border:1px solid rgba(150,180,255,.4);border-radius:12px;padding:18px 24px 14px;z-index:8;box-shadow:0 0 40px rgba(80,130,255,.15)}
+#dlg-name{color:#8fc8ff;font-size:15px;letter-spacing:3px;margin-bottom:8px;text-shadow:0 0 10px rgba(110,170,255,.7)}
+#dlg-text{font-size:18px;line-height:1.6;color:#e8e4d4;min-height:56px}
+#dlg-hint{margin-top:10px;font-size:11px;font-family:Verdana,sans-serif;color:#6a769a;text-align:right}
+/* ---------- Inventaire ---------- */
+#inv{position:fixed;top:70px;right:22px;width:290px;background:rgba(8,10,22,.93);border:1px solid rgba(232,224,204,.35);border-radius:10px;padding:16px 18px;z-index:7}
+#inv h3{color:#ffd97a;font-weight:normal;letter-spacing:2px;margin-bottom:10px;font-size:17px}
+#inv ul{list-style:none;font-size:14px;line-height:1.8;color:#d8d2bd}
+#inv li::before{content:"✧ ";color:#8fb8e8}
+/* ---------- Écrans ---------- */
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;padding:24px}
+.overlay h1{font-size:50px;letter-spacing:8px;color:#ffd97a;text-shadow:0 0 34px rgba(255,190,60,.45);font-weight:normal;margin-bottom:14px}
+.overlay h2{font-size:34px;letter-spacing:5px;color:#ffd97a;font-weight:normal;margin-bottom:16px}
+.overlay .sub{font-size:18px;color:#b8c4e0;font-style:italic;margin-bottom:32px;max-width:640px;line-height:1.7}
+.overlay button{pointer-events:auto;font-family:inherit;font-size:19px;letter-spacing:2px;color:#0c0e1a;background:linear-gradient(180deg,#ffd97a,#d9a83c);border:none;border-radius:8px;padding:13px 42px;cursor:pointer;box-shadow:0 0 24px rgba(255,200,80,.35)}
+.overlay button:hover{filter:brightness(1.12)}
+.overlay .controls{margin-top:30px;font-size:13px;font-family:Verdana,sans-serif;color:#8892b0;max-width:660px;line-height:2}
+.overlay .controls b{color:#cfd8f2}
+#title .glyph{font-size:44px;color:#8fb8e8;text-shadow:0 0 26px rgba(120,180,255,.8);margin-bottom:10px}
+#story .sub{font-size:21px;color:#cdd6ee;font-style:normal;max-width:700px;line-height:1.85;min-height:150px;display:flex;align-items:center}
+#story .pageno{color:#5f6b8c;font-family:Verdana,sans-serif;font-size:12px;margin-bottom:18px;letter-spacing:3px}
+/* ---------- Écran de chargement ---------- */
+#loading{z-index:30}
+#loading .glyph{font-size:44px;color:#8fb8e8;text-shadow:0 0 26px rgba(120,180,255,.8);margin-bottom:10px}
+#loading .sub{animation:loadpulse 1.6s ease-in-out infinite}
+@keyframes loadpulse{0%,100%{opacity:.45}50%{opacity:1}}
+/* ---------- Voies (classes) ---------- */
+#classes{display:flex;gap:14px;margin:22px 0 4px;flex-wrap:wrap;justify-content:center}
+.classbtn{width:190px;background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:12px;padding:14px 12px;cursor:pointer;color:#e8e0cc;font-family:Georgia,serif;transition:all .18s}
+.classbtn:hover{filter:brightness(1.15)}
+.classbtn.sel{border-color:#ffd97a;box-shadow:0 0 18px rgba(255,215,120,.45)}
+.classbtn .ci{font-size:30px;display:block;margin-bottom:6px}
+.classbtn .cn{font-size:17px;letter-spacing:2px;color:#ffd97a}
+.classbtn .cdsc{font-size:11px;font-family:Verdana,sans-serif;color:#94a0c4;line-height:1.55;margin-top:6px}
+/* ---------- Manette smartphone (QR) ---------- */
+#qrpanel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(7,9,20,.97);border:1px solid rgba(150,180,255,.45);border-radius:14px;padding:22px 28px;z-index:20;text-align:center;box-shadow:0 0 60px rgba(80,130,255,.2)}
+#qrpanel h3{color:#8fc8ff;letter-spacing:2px;font-weight:normal;margin-bottom:12px}
+#qrcode{background:#fff;padding:10px;border-radius:8px;display:inline-block;min-width:180px;min-height:180px}
+#qrstatus{margin-top:12px;font-size:13px;font-family:Verdana,sans-serif;color:#ffd97a}
+#qrlink{margin-top:8px;font-size:10px;font-family:Verdana,sans-serif;color:#5f6b8c;word-break:break-all;max-width:280px}
+#qrpanel button{margin-top:14px;background:#1a2142;color:#cfd8f2;border:1px solid rgba(150,180,255,.35);border-radius:8px;padding:8px 22px;font-family:Georgia,serif;font-size:14px;cursor:pointer}
+/* ---------- Mode manette (smartphone) ---------- */
+#ctrl{position:fixed;inset:0;display:flex;background:#000;touch-action:none}
+#ctrl button{flex:1;border:none;color:#fff;font-size:2em;font-weight:bold;font-family:Verdana,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+#c-jump{background:#333}
+#c-attack{background:#8a0a14}
+#c-status{position:fixed;top:10px;left:0;right:0;text-align:center;color:#ffd97a;font-size:13px;font-family:Verdana,sans-serif;pointer-events:none;text-shadow:0 1px 3px #000}
+/* ---------- Coop écran scindé ---------- */
+#modes{display:flex;gap:12px;margin:6px 0 4px}
+.modebtn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:10px;padding:10px 20px;color:#cfd8f2;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:1px}
+.modebtn.sel{border-color:#ffd97a;box-shadow:0 0 14px rgba(255,215,120,.4);color:#ffd97a}
+#p2row{margin:8px 0 2px;font-size:13px;font-family:Verdana,sans-serif;color:#94a0c4;display:flex;gap:10px;align-items:center}
+.p2btn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:8px;padding:6px 14px;color:#cfd8f2;font-family:Georgia,serif;font-size:13px;cursor:pointer}
+.p2btn.sel{border-color:#ff9a6a;box-shadow:0 0 12px rgba(255,150,100,.4);color:#ffb68a}
+#bars2{position:absolute;top:18px;right:22px;width:220px;display:none}
+#bars2 .lbl{font-size:11px;font-family:Verdana,sans-serif;color:#ffb68a;letter-spacing:2px;margin-bottom:4px;text-align:right}
+#hp2fill{background:linear-gradient(90deg,#7a1420,#d13438);width:100%}
+#mp2fill{background:linear-gradient(90deg,#1d3f8f,#4fa8e8);width:100%}
+#p2power{font-size:11px;font-family:Verdana,sans-serif;color:#c8d2ee;text-align:right;margin-top:2px}
+#splitline{position:fixed;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:rgba(232,224,204,.35);z-index:4;display:none}
+#cross2{position:absolute;top:50%;left:75%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:0 0 6px rgba(0,0,0,.9);display:none}
+/* ---------- Contrôles tactiles (mobile) ---------- */
+#touch{position:fixed;inset:0;z-index:6;pointer-events:none}
+#lookzone{position:absolute;top:0;right:0;width:55%;height:100%;pointer-events:auto;touch-action:none}
+#joy{position:absolute;left:26px;bottom:30px;width:128px;height:128px;border-radius:50%;
+  background:rgba(20,26,52,.35);border:2px solid rgba(150,180,255,.35);pointer-events:auto;touch-action:none}
+#joyknob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px;border-radius:50%;
+  background:rgba(140,170,255,.45);border:2px solid rgba(200,220,255,.6);box-shadow:0 0 14px rgba(100,150,255,.4)}
+.tbtn{position:absolute;border-radius:50%;border:2px solid rgba(150,180,255,.4);background:rgba(15,19,40,.55);
+  color:#e8e0cc;font-family:Georgia,serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
+  display:flex;align-items:center;justify-content:center;text-shadow:0 0 8px rgba(120,180,255,.7)}
+.tbtn:active{background:rgba(70,90,160,.6)}
+#t-attack{right:26px;bottom:36px;width:86px;height:86px;font-size:34px;border-color:rgba(255,170,110,.55)}
+#t-jump{right:128px;bottom:110px;width:66px;height:66px;font-size:26px}
+#t-act{right:34px;bottom:140px;width:56px;height:56px;font-size:22px}
+#t-spell{right:150px;bottom:34px;width:56px;height:56px;font-size:22px}
+#t-craft{left:26px;top:52%;width:48px;height:48px;font-size:20px}
+#t-pause{right:14px;top:14px;width:44px;height:44px;font-size:18px}
+#craftpanel{position:absolute;left:84px;top:46%;background:rgba(7,9,20,.92);border:1px solid rgba(150,180,255,.4);
+  border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+#craftpanel button{background:#1a2142;color:#e8e0cc;border:1px solid rgba(150,180,255,.35);border-radius:8px;
+  padding:9px 14px;font-family:Verdana,sans-serif;font-size:12px;text-align:left}
+/* ---------- XP & Arbre des pouvoirs ---------- */
+.bar.xpbar{height:9px}
+.xpbar .barnum{font-size:8px;letter-spacing:0}
+#xpfill{background:linear-gradient(90deg,#7a5a14,#ffd97a);width:0%}
+#lvltxt{font-size:12px;font-family:Verdana,sans-serif;color:#cfd8f2;letter-spacing:1px;text-shadow:0 1px 3px #000;margin-top:2px}
+#lvltxt b{color:#ffd97a}
+#tree{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:86vh;overflow-y:auto;background:rgba(8,10,22,.96);border:1px solid rgba(255,215,120,.4);border-radius:12px;padding:18px 22px;z-index:9;box-shadow:0 0 50px rgba(255,200,80,.15)}
+#tree h3{color:#ffd97a;font-weight:normal;letter-spacing:2px;font-size:18px;margin-bottom:6px}
+#treepts{font-size:12px;font-family:Verdana,sans-serif;color:#94a0c4;margin-bottom:14px}
+#treepts b{color:#ffd97a}
+.tbranch{margin-bottom:14px}
+.tbranch .bt{color:#8fc8ff;font-size:14px;letter-spacing:2px;margin-bottom:6px}
+.tnodes{display:flex;gap:10px;flex-wrap:wrap}
+.tnode{width:216px;background:rgba(12,16,34,.85);border:1px solid rgba(150,180,255,.25);border-radius:10px;padding:10px;cursor:pointer;transition:all .15s}
+.tnode.owned{border-color:#3ade8c;box-shadow:0 0 12px rgba(60,220,140,.25);cursor:default}
+.tnode.locked{opacity:.42;cursor:default}
+.tnode.buyable:hover{border-color:#ffd97a;box-shadow:0 0 14px rgba(255,215,120,.4)}
+.tnode .tn{font-size:14px;color:#e8e0cc;letter-spacing:1px}
+.tnode.owned .tn{color:#9fffc8}
+.tnode .td{font-size:11px;font-family:Verdana,sans-serif;color:#94a0c4;line-height:1.5;margin-top:4px}
+.tnode .tr{font-size:10px;font-family:Verdana,sans-serif;color:#6a769a;margin-top:5px}
+#treeclose{background:#1a2142;color:#cfd8f2;border:1px solid rgba(150,180,255,.35);border-radius:8px;padding:8px 22px;font-family:Georgia,serif;font-size:14px;cursor:pointer;margin-top:4px}
+#t-tree{left:26px;top:38%;width:48px;height:48px;font-size:20px}
+/* ---------- Barres de vie des ennemis ---------- */
+#ebars{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+.ebar{position:absolute;width:56px;height:8px;margin-left:-28px;background:rgba(0,0,0,.6);
+  border:1px solid rgba(255,255,255,.28);border-radius:4px;overflow:hidden}
+.ebar .ef{height:100%;background:linear-gradient(90deg,#d13438,#ff8a5a);width:100%;transition:width .12s}
+.ebar .en{position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:9px;
+  font-family:Verdana,sans-serif;color:#ffd6c0;text-shadow:0 1px 3px #000;white-space:nowrap;letter-spacing:.5px}
+@media (max-width:900px){
+  .tnode{width:100%}
+  #hint{display:none}
+  #powers .pw{width:44px;height:44px}
+  #objective{font-size:12px;max-width:52vw}
+  #crystals{font-size:16px}
+  h1{font-size:34px}
+  .overlay .controls{font-size:10px;line-height:1.6}
+  .classbtn{width:140px;padding:10px 8px}
+  .classbtn .cdsc{font-size:10px}
+}
