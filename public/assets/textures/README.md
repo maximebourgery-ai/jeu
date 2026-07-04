@@ -33,6 +33,10 @@ Jeux fournis (source [Poly Haven](https://polyhaven.com), CC0, 2k) :
 - `slab_*`  — chipped_concrete (dalles ébréchées)
 - `iron_*`  — box_profile_metal_sheet (tôle nervurée, avec `iron_metalness`)
 - `roof_*`  — clay_roof_tiles_02 (tuiles de terre cuite)
+- `wood_*`  — plancher en planches **généré procéduralement** (stand-in :
+  le `.blend` de plank_flooring_04 ne contenait pas les images — re-téléverser
+  le zip Poly Haven complet pour le remplacer, en renommant les maps
+  `wood_color.jpg` / `wood_normal.png` / `wood_roughness.jpg`)
 
 Les maps `_normal` sont converties d'EXR en PNG 1k et les `_roughness` /
 `_metalness` en JPG pour limiter le poids au chargement.

@@ -31,11 +31,18 @@ const MODEL_NAMES = [
   'enemy_sentinel', 'enemy_wraith', 'enemy_brute', 'enemy_caster',
   'tree', 'torch'
 ];
-/* Personnage humanoïde partagé (textures intégrées) : sert de base à
-   toutes les créatures d'ombre — décliné par rôle via characterClone().
-   Fourni en .glb (converti du FBX Mixamo d'origine) ; un .fbx (≥ 7.0)
+/* Personnages humanoïdes (textures intégrées) : chargés dans un registre.
+   · Les créatures d'ombre (méchants) utilisent VILLAIN_CHARACTER.
+   · Le joueur peut incarner n'importe lequel via le sélecteur du menu
+     titre (characterClone(role='hero', charId)).
+   Fournis en .glb (convertis des FBX Mixamo d'origine) ; un .fbx (≥ 7.0)
    déposé au même nom est accepté en secours. */
-const CHARACTER_URLS = ['/assets/models/character_2.glb', '/assets/models/character_2.fbx'];
+const CHARACTER_DEFS = [
+  { id: 'character_2', name: 'Warrok' },      // colosse monstrueux
+  { id: 'character_3', name: 'Voltigeuse' },  // athlète aux couettes bleues
+  { id: 'character_8', name: 'Rôdeur' }       // silhouette furtive sombre
+];
+const VILLAIN_CHARACTER = 'character_2';
 /* HDRI : environment.hdr (RGBELoader) essayé d'abord, puis environment.exr
    (EXRLoader). Aucun des deux : fallback gracieux (ciel dégradé d'origine). */
 const HDRI_URLS = ['/assets/hdri/environment.hdr', '/assets/hdri/environment.exr'];
@@ -83,7 +90,7 @@ export const assets = {
   ready: false,
   textures: {},   // famille -> {map, normalMap, roughnessMap, metalnessMap} (maps éventuellement nulles)
   models: {},     // nom -> THREE.Group (scène du glb/fbx), ou absent
-  character: null, // { scene, clips, height, minY, cx, cz } — personnage FBX partagé
+  characters: {}, // id -> { scene, clips, height, minY, cx, cz, name } — personnages jouables/ennemis
   envTexture: null, // texture équirectangulaire HDR brute (background)
   envMap: null,     // radiance PMREM (scene.environment)
   glowTex: null,    // sprite de halo (fichier ou fallback DataTexture)
@@ -260,11 +267,11 @@ export async function loadAssets(onStatus) {
         assets.models[name] = m;
       }
     }),
-    (async () => {
-      let r = null;
-      for (const url of CHARACTER_URLS) { r = await loadRigged(url); if (r) break; }
+    ...CHARACTER_DEFS.map(async def => {
+      const base = '/assets/models/' + def.id;
+      const r = (await loadRigged(base + '.glb')) || (await loadRigged(base + '.fbx'));
       if (!r) {
-        console.info('[AssetManager] Pas de personnage (' + CHARACTER_URLS.join(' / ') + ') — silhouettes primitives conservées.');
+        console.info('[AssetManager] Personnage « ' + def.id + ' » absent.');
         return;
       }
       const c = r.scene;
@@ -274,11 +281,11 @@ export async function loadAssets(onStatus) {
       const box = new THREE.Box3().setFromObject(c);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      assets.character = {
-        scene: c, clips: r.animations,
+      assets.characters[def.id] = {
+        scene: c, clips: r.animations, name: def.name,
         height: size.y || 1, minY: box.min.y, cx: center.x, cz: center.z
       };
-    })()
+    })
   ]);
 
   status('Lecture du ciel…');
@@ -387,11 +394,49 @@ const CHARACTER_ROLES = {
   caster:   { tint: 0xa678d4, emissive: 0x2a0a42, glowInt: 0.8 },
   hero:     { tint: 0xffffff, emissive: 0x0a1226, glowInt: 0.3 }
 };
-export function characterClone(role, targetH) {
-  const src = assets.character;
+/* Liste des personnages effectivement chargés (pour le sélecteur du menu). */
+export function characterList() {
+  return CHARACTER_DEFS.filter(d => assets.characters[d.id])
+    .map(d => ({ id: d.id, name: d.name }));
+}
+/* Pose de repos : les personnages Mixamo « sans animation » sont figés en
+   T-pose (bras à l'horizontale). On oriente chaque bras vers le bas en
+   visant le vecteur épaule→coude, quelle que soit l'orientation locale des
+   os du rig (les axes varient d'un export à l'autre). */
+function relaxPose(root) {
+  const pairs = [];
+  root.traverse(o => {
+    if (!o.isBone || !/(Left|Right)Arm$/.test(o.name)) return;
+    const fore = o.children.find(c => c.isBone && /ForeArm$/.test(c.name));
+    if (fore) pairs.push([o, fore]);
+  });
+  root.updateWorldMatrix(true, true);
+  const q = new THREE.Quaternion(), qP = new THREE.Quaternion();
+  const bp = new THREE.Vector3(), cp = new THREE.Vector3();
+  for (const [bone, fore] of pairs) {
+    bone.getWorldPosition(bp); fore.getWorldPosition(cp);
+    const cur = cp.sub(bp);
+    if (cur.lengthSq() < 1e-8) continue;
+    cur.normalize();
+    if (cur.y < -0.55) continue; // bras déjà baissé : rig non T-pose, ne pas toucher
+    // vers le bas, légèrement écarté du corps, un rien vers l'avant
+    const target = new THREE.Vector3(Math.sign(cur.x || 1) * 0.33, -0.92, 0.1).normalize();
+    q.setFromUnitVectors(cur, target);
+    bone.parent.getWorldQuaternion(qP);
+    bone.quaternion.premultiply(qP.clone().invert().multiply(q).multiply(qP));
+    bone.updateWorldMatrix(false, true);
+  }
+}
+export function characterClone(role, targetH, charId) {
+  const src = assets.characters[charId || VILLAIN_CHARACTER];
   if (!src) return null;
   const cfg = CHARACTER_ROLES[role] || CHARACTER_ROLES.sentinel;
   const inner = skeletonClone(src.scene);
+  /* Les exports Mixamo « sans animation » embarquent parfois un clip d'une
+     seule frame (la T-pose, durée 0) : seul un clip d'une vraie durée compte
+     comme animation ; sinon on applique la pose de repos. */
+  const clips = src.clips.filter(c => c.duration > 0.25);
+  if (!clips.length) relaxPose(inner);
   const mats = [];
   inner.traverse(o => {
     if (!o.isMesh) return;
@@ -419,8 +464,8 @@ export function characterClone(role, targetH) {
   inner.position.set(-src.cx * k, -src.minY * k, -src.cz * k);
   const g = new THREE.Group();
   g.add(inner);
-  g.userData.charMats = mats;   // pour flash de coup / étourdissement
-  g.userData.charRoot = inner;  // racine animable (AnimationMixer)
-  g.userData.clips = src.clips; // clips FBX éventuels
+  g.userData.charMats = mats;  // pour flash de coup / étourdissement
+  g.userData.charRoot = inner; // racine animable (AnimationMixer)
+  g.userData.clips = clips;    // clips exploitables éventuels
   return g;
 }

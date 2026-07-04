@@ -4,7 +4,7 @@ import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut,
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
 import { slide, slideP, rayAABB, spawnBurst } from './World.js';
-import { matFor, glow, modelClone } from './AssetManager.js';
+import { matFor, glow, modelClone, characterClone } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
 import { damageEnemy } from './Enemies.js';
@@ -25,6 +25,32 @@ export function classTint(identity) {
 export function mkClassBody(pathId, identity) {
   const T = classTint(identity);
   const g = new THREE.Group();
+  /* Personnage choisi au menu titre (G.skin) : le héros incarne ce corps,
+     en rôle « gentil » (couleurs d'origine + douce lueur d'âme). Le J2
+     reçoit un voile pourpre léger pour rester identifiable en coop. */
+  if (G.skin && G.skin !== 'silhouette') {
+    const chr = characterClone('hero', 1.85, G.skin);
+    if (chr) {
+      if (identity === 'p2')
+        for (const m of chr.userData.charMats)
+          if (m.color) m.color.multiply(new THREE.Color(0xdfb8e8));
+      g.add(chr);
+      /* Si le fichier embarque une animation Mixamo, on la joue en boucle
+         (sinon le personnage est déjà en pose de repos via characterClone). */
+      let mixer = null;
+      const clips = chr.userData.clips;
+      if (clips && clips.length) {
+        mixer = new THREE.AnimationMixer(chr.userData.charRoot);
+        mixer.clipAction(clips[0]).play();
+      }
+      const plight = new THREE.PointLight(T.glowLight, 0.55 * LIGHT_SCALE, 7, 2);
+      plight.position.y = 1.7;
+      g.add(plight);
+      const staffPart = new THREE.Object3D(), robePart = new THREE.Object3D();
+      g.add(staffPart, robePart);
+      return { g, parts: { staff: staffPart, robe: robePart }, mixer };
+    }
+  }
   /* Si un modèle player_<voie>.glb est fourni, il remplace la silhouette
      primitive ; les pièces animées (bâton/robe) deviennent des ancres vides
      pour que l'animation de marche reste sans effet de bord. */
@@ -156,11 +182,12 @@ export function buildPlayer() {
   player.pos = new THREE.Vector3(0, 0.2, 60);
   player.vel = new THREE.Vector3();
   player.dashDir = new THREE.Vector3();
-  const { g, parts } = mkClassBody(G.path, 'p1');
+  const { g, parts, mixer } = mkClassBody(G.path, 'p1');
   g.position.copy(player.pos);
   S.scene.add(g);
   player.mesh = g;
   player.parts = parts;
+  player.mixer = mixer || null;
   S.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.35, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.16,
       side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -172,10 +199,10 @@ export function refreshPlayerVisual() {
   if (!player.mesh) return;
   const hadWings = !!player.wings;
   S.scene.remove(player.mesh);
-  const { g, parts } = mkClassBody(G.path, 'p1');
+  const { g, parts, mixer } = mkClassBody(G.path, 'p1');
   g.position.copy(player.pos);
   S.scene.add(g);
-  player.mesh = g; player.parts = parts; player.wings = null;
+  player.mesh = g; player.parts = parts; player.mixer = mixer || null; player.wings = null;
   if (hadWings) player.wings = mkWings(g);
 }
 /* Ailes d'Ombreciel : deux voiles translucides fixés au dos */
@@ -199,11 +226,12 @@ export function buildPlayer2() {
   p2.pos = new THREE.Vector3(2, 0.2, 61);
   p2.vel = new THREE.Vector3();
   p2.dashDir = new THREE.Vector3();
-  const { g, parts } = mkClassBody(p2.path, 'p2');
+  const { g, parts, mixer } = mkClassBody(p2.path, 'p2');
   g.position.copy(p2.pos);
   S.scene.add(g);
   p2.mesh = g;
   p2.parts = parts;
+  p2.mixer = mixer || null;
   p2.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.35, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.16,
       side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -268,6 +296,7 @@ export function updateP2(dt) {
     p.wings[0].rotation.y = 0.6 * flap;
     p.wings[1].rotation.y = -0.6 * flap;
   }
+  if (p.mixer) p.mixer.update(dt);
   p2.mana = Math.min(p2.maxMana, p2.mana + 6 * dt);
   for (const k in p2.cd) p2.cd[k] = Math.max(0, p2.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;
@@ -362,6 +391,7 @@ export function updatePlayer(dt) {
     const ty = Math.atan2(vx, vz);
     p.mesh.rotation.y = lerpAngle(p.mesh.rotation.y, ty, 12 * dt);
   }
+  if (p.mixer) p.mixer.update(dt);
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
   for (const k in G.cd) G.cd[k] = Math.max(0, G.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;

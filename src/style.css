@@ -81,6 +81,9 @@ canvas{display:block}
 #modes{display:flex;gap:12px;margin:6px 0 4px}
 .modebtn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:10px;padding:10px 20px;color:#cfd8f2;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:1px}
 .modebtn.sel{border-color:#ffd97a;box-shadow:0 0 14px rgba(255,215,120,.4);color:#ffd97a}
+#skinrow{margin:10px 0 2px;font-size:13px;font-family:Verdana,sans-serif;color:#94a0c4;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+.skinbtn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:8px;padding:6px 14px;color:#cfd8f2;font-family:Georgia,serif;font-size:13px;cursor:pointer}
+.skinbtn.sel{border-color:#ffd97a;box-shadow:0 0 10px rgba(255,215,120,.4);color:#ffd97a}
 #p2row{margin:8px 0 2px;font-size:13px;font-family:Verdana,sans-serif;color:#94a0c4;display:flex;gap:10px;align-items:center}
 .p2btn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:8px;padding:6px 14px;color:#cfd8f2;font-family:Georgia,serif;font-size:13px;cursor:pointer}
 .p2btn.sel{border-color:#ff9a6a;box-shadow:0 0 12px rgba(255,150,100,.4);color:#ffb68a}

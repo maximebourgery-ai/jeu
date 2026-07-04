@@ -21,13 +21,26 @@ Convention : le modèle doit être centré sur l'origine, posé sur y=0,
 et occuper environ 1,7 unité de haut pour les personnages (1 unité = 1 mètre).
 Les effets magiques (halos, yeux lumineux, lumières) sont ajoutés par le code.
 
-## Personnage partagé — `character_2.fbx`
+## Personnages — `character_*.glb`
 
-Fichier fourni : un humanoïde Mixamo (« Warrok W Kurniawan », créature
-monstrueuse, textures intégrées). Il sert de corps à **tous les méchants**
-qui n'ont pas de modèle `enemy_<type>` dédié : `characterClone(role)` dans
-`AssetManager.js` le normalise (hauteur, pieds au sol — peu importe l'échelle
-du FBX) puis le décline par rôle :
+Humanoïdes Mixamo (textures intégrées, converties en WebP 1k) déclinés par
+rôle via `characterClone(role, hauteur, id)` dans `AssetManager.js`
+(normalisation : hauteur en mètres, pieds au sol, centrage — peu importe
+l'échelle du fichier ; pose de repos automatique si le fichier est en T-pose ;
+un vrai clip d'animation embarqué est joué en boucle) :
+
+| Fichier | Nom en jeu | Origine |
+|---------|-----------|---------|
+| `character_2.glb` | Warrok     | « Warrok W Kurniawan » (créature monstrueuse) |
+| `character_3.glb` | Voltigeuse | « Ch03 » (athlète aux couettes bleues) |
+| `character_8.glb` | Rôdeur     | « Ch45 » (silhouette furtive sombre) |
+
+· **Gentils** : le sélecteur « Personnage » du menu titre permet d'incarner
+  n'importe lequel (rôle `hero` : couleurs d'origine + douce lueur d'âme ;
+  le J2 reçoit un voile pourpre en coop). La « Silhouette de la voie »
+  d'origine (Mage/Guerrier/Assassin/Paladin) reste le choix par défaut.
+· **Méchants** : les créatures d'ombre utilisent `character_2` avec une
+  teinte/lueur maléfique par archétype :
 
 | Rôle (méchant) | Adaptation |
 |----------------|------------|
@@ -36,7 +49,6 @@ du FBX) puis le décline par rôle :
 | `brute` (Colosse)     | gabarit ×1,75, teinte braise rougeoyante |
 | `caster` (Tisseur)    | teinte pourpre magique saturée |
 
-Un rôle `hero` (gentils : couleurs d'origine, douce lueur d'âme) est aussi
-défini si le modèle doit servir un allié. Les héros jouables gardent leurs
-silhouettes de classe (Mage/Guerrier/Assassin/Paladin) — remplaçables en
-déposant `player_<voie>.glb` ou `.fbx`.
+Pour ajouter un personnage jouable : déposer `character_<n>.glb` (ou `.fbx`
+≥ 7.0) et l'inscrire dans `CHARACTER_DEFS` (AssetManager.js). Les modèles
+`player_<voie>.glb/.fbx` restent prioritaires sur la silhouette d'une voie.

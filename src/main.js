@@ -7,10 +7,10 @@
 import './style.css';
 import { G, S, CTRL_ID, IS_TOUCH, PATHS, STORY, keys, player, p2, tut, pickups, enemies, applyPath } from './state.js';
 import { A } from './Audio.js';
-import { loadAssets } from './AssetManager.js';
+import { loadAssets, characterList } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
 import { initScene, setCamAspects, buildWorld, buildHerbs, updateDoors, updatePickups, updateParticles } from './World.js';
-import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer } from './Player.js';
+import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
 import { castPower, updateProjectiles, updateTK, checkPlate } from './Powers.js';
 import { updateBuffs } from './SkillTree.js';
@@ -90,6 +90,27 @@ function startPlaySetup() {
 }
 
 /* ---------------- DÉMARRAGE (menus & boutons) ---------------- */
+/* Sélecteur de personnage : un bouton par modèle 3D détecté dans
+   /assets/models (character_*.glb/.fbx), en plus de la silhouette de voie.
+   Le choix s'applique aux deux porteurs de flamme (J2 : voile pourpre). */
+function buildSkinRow() {
+  const row = $('skinrow');
+  for (const c of characterList()) {
+    const b = document.createElement('button');
+    b.className = 'skinbtn';
+    b.dataset.skin = c.id;
+    b.textContent = '🛡 ' + c.name;
+    row.appendChild(b);
+  }
+  row.querySelectorAll('.skinbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      row.querySelectorAll('.skinbtn').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      G.skin = btn.dataset.skin;
+      refreshPlayerVisual();
+    });
+  });
+}
 function wireMenus() {
   document.querySelectorAll('.modebtn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -187,6 +208,7 @@ async function initGame() {
   if (hasSave()) $('btn-continue').classList.remove('hidden');
   initControls();
   setupTouch();
+  buildSkinRow();
   wireMenus();
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
