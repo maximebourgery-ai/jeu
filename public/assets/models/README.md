@@ -17,6 +17,21 @@ tree.glb               arbres des jardins
 torch.glb              support de torche (la flamme/halo/lumière restent procéduraux)
 ```
 
+## Décor fourni (normalisé : pieds à y=0, centré, dimensions en mètres)
+
+| Fichier | Contenu | Usage en jeu |
+|---------|---------|--------------|
+| `tree.glb`       | arbre mort tortueux (scan, 18k tris) | arbres des jardins et de la friche (`tree()`) |
+| `maple_tree.glb` | érable feuillu (~4,6 m) | mêlé aux arbres 1 fois sur 3 (`tree()`) |
+| `trees_1.glb`    | grand arbre mort aux racines massives (~10,5 m) | « bosquets » en lisière des Terres Perdues |
+| `mosque.glb`     | bâtisse à dômes (scan, simplifié 500k→152k tris) | « Sanctuaire de l'Arbre », repère des Confins d'Ombre (collision pleine + interaction) |
+
+Optimisations appliquées : simplification meshoptimizer, textures ≤ 1k WebP,
+matériaux unlit convertis en lit (pour réagir aux torches et à la nuit),
+spec/gloss converti en metal/rough (three r182 ne lit plus cette extension).
+NB : `tree_1.glb` (téléversé) était un doublon exact de `tree.glb`
+(même géométrie, texture moins fine) — non retenu.
+
 Convention : le modèle doit être centré sur l'origine, posé sur y=0,
 et occuper environ 1,7 unité de haut pour les personnages (1 unité = 1 mètre).
 Les effets magiques (halos, yeux lumineux, lumières) sont ajoutés par le code.

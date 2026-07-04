@@ -234,10 +234,16 @@ export function torch(x, y, z, color, intensity, dist) {
 }
 export function tree(x, z, s) {
   s = s || 1;
-  const glb = modelClone('tree');
+  /* Variété : alterne déterministiquement (selon la position) entre les
+     modèles d'arbres disponibles — chêne (tree) et érable (maple_tree). */
+  const maple = Math.abs(Math.round(x * 13 + z * 7)) % 3 === 0;
+  const glb = maple
+    ? (modelClone('maple_tree') || modelClone('tree'))
+    : (modelClone('tree') || modelClone('maple_tree'));
   if (glb) {
     glb.position.set(x, 0, z);
     glb.scale.setScalar(s);
+    glb.rotation.y = (x * 7 + z * 3) % 6; // orientation variée mais stable
     S.scene.add(glb);
     // collision identique à l'original (tronc), le visuel primitif est masqué
     const trunk = mkCyl(0.2 * s, 0.3 * s, 1.6 * s, x, 0, z, 'trunk', true, 7);
@@ -766,6 +772,34 @@ export function buildOpenWorld() {
   torch(-14, 2.2, -40, 0x9a6cff, 1.1, 17);
   torch(14, 2.2, -52, 0x66c8ff, 1.1, 17);
   torch(-20, 2.2, -68, 0xff6a3a, 1.1, 17);
+
+  /* ----- Espaces générés avec les modèles de décor fournis ----- */
+  // Friche boisée : arbres isolés (chêne/érable) entre les ruines
+  [[-14, -28], [22, -31], [-32, -42], [28, -62], [-24, -80], [12, -73], [38, -55], [-40, -60]]
+    .forEach(([tx, tz], i) => tree(tx, tz, 1 + (i % 3) * 0.25));
+  // Bosquets denses (trees_1) en lisière des Terres Perdues
+  [[-48, -34, 0.6], [46, -46, 2.4], [-42, -84, 4.4]].forEach(([bx, bz, rot]) => {
+    const grove = modelClone('trees_1');
+    if (grove) {
+      grove.position.set(bx, 0, bz);
+      grove.rotation.y = rot;
+      S.scene.add(grove);
+    }
+  });
+  // Le Sanctuaire de l'Arbre : bâtisse oubliée des Confins d'Ombre
+  const sanctuary = modelClone('mosque');
+  if (sanctuary) {
+    sanctuary.position.set(32, 0, -84);
+    sanctuary.rotation.y = Math.PI * 0.5; // façade tournée vers l'ouest (arrivée du joueur)
+    S.scene.add(sanctuary);
+    addCol(sanctuary); // emprise solide : repère à contourner, non pénétrable
+    torch(24, 1.2, -80, 0xffc86a, 1.2, 16);
+    torch(24, 1.2, -88, 0xffc86a, 1.2, 16);
+    addPickup('heart', 23, 0, -84);
+    addInter(24, 0, -84, 3.2, 'Se recueillir au Sanctuaire de l\'Arbre', () => {
+      showMsg('« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son sanctuaire tient encore debout — la Nuit n\'ose pas y entrer. »', 5);
+    });
+  }
   // Ressources de soutien pour l'exploration prolongée
   addPickup('mana', -9, 0, -33); addPickup('heart', 10, 0, -36);
   addPickup('mana', -24, 0, -56); addPickup('heart', 22, 0, -58);
