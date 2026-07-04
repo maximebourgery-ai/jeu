@@ -29,7 +29,10 @@ const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron', 'ro
 const MODEL_NAMES = [
   'player_mage', 'player_warrior', 'player_assassin', 'player_paladin',
   'enemy_sentinel', 'enemy_wraith', 'enemy_brute', 'enemy_caster',
-  'tree', 'torch'
+  'tree', 'torch',
+  /* décor : arbres variés, bosquet, sanctuaire (normalisés : pieds à y=0,
+     centrés, dimensions en mètres — voir public/assets/models/README.md) */
+  'maple_tree', 'trees_1', 'mosque'
 ];
 /* Personnages humanoïdes (textures intégrées) : chargés dans un registre.
    · Les créatures d'ombre (méchants) utilisent VILLAIN_CHARACTER.

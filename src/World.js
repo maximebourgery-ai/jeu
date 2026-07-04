@@ -235,10 +235,16 @@ export function torch(x, y, z, color, intensity, dist) {
 }
 export function tree(x, z, s) {
   s = s || 1;
-  const glb = modelClone('tree');
+  /* Variété : alterne déterministiquement (selon la position) entre les
+     modèles d'arbres disponibles — chêne (tree) et érable (maple_tree). */
+  const maple = Math.abs(Math.round(x * 13 + z * 7)) % 3 === 0;
+  const glb = maple
+    ? (modelClone('maple_tree') || modelClone('tree'))
+    : (modelClone('tree') || modelClone('maple_tree'));
   if (glb) {
     glb.position.set(x, 0, z);
     glb.scale.setScalar(s);
+    glb.rotation.y = (x * 7 + z * 3) % 6; // orientation variée mais stable
     S.scene.add(glb);
     // collision identique à l'original (tronc), le visuel primitif est masqué
     const trunk = mkCyl(0.2 * s, 0.3 * s, 1.6 * s, x, 0, z, 'trunk', true, 7);
@@ -1109,6 +1115,55 @@ export function buildOpenWorld() {
       showMsg('Des ronces embrasées barrent la forêt. Elles ne craignent ni lame ni sort... sauf, peut-être, le givre.', 3.5);
     }
   });
+
+  /* ----- LES CONFINS D'OMBRE (friches optionnelles des Terres Perdues) -----
+     Deux champs en friche flanquent la salle du trône (x -62..-18 et
+     x 17.5..60, z -28..0) : on n'y accède qu'en longeant la lisière de la
+     forêt (bande z -46..-48) puis en contournant les murs des ruines.
+     Décor généré avec les modèles fournis (maple_tree / trees_1 / mosque). */
+  // Friche boisée : arbres isolés (chêne/érable) entre les ruines et les champs
+  [[-26, -31], [-38, -34], [22, -30], [38, -36], [-22, -41], [40, -31],
+   [-34, -22], [-48, -20], [-28, -8], [-52, -4], [30, -12], [46, -6], [52, -20], [38, -24]]
+    .forEach(([tx, tz], i) => tree(tx, tz, 1 + (i % 3) * 0.25));
+  // Bosquets denses (trees_1) en lisière des Confins
+  [[-56, -14, 0.6], [52, -12, 2.4], [52, -40, 4.4]].forEach(([bx, bz, rot]) => {
+    const grove = modelClone('trees_1');
+    if (grove) {
+      grove.position.set(bx, 0, bz);
+      grove.rotation.y = rot;
+      S.scene.add(grove);
+    }
+  });
+  // torche-repère à l'angle des ruines : signale l'entrée des Confins d'ouest
+  torch(-46, 0, -46.5, 0x9a6cff, 1.1, 17);
+  // Le Sanctuaire de l'Arbre : bâtisse oubliée du champ d'ouest
+  const sanctuary = modelClone('mosque');
+  if (sanctuary) {
+    sanctuary.position.set(-40, 0, -14);
+    // façade tournée vers le sud (le joueur arrive en longeant la forêt)
+    S.scene.add(sanctuary);
+    addCol(sanctuary); // emprise solide : repère à contourner, non pénétrable
+    torch(-44, 0, -22, 0xffc86a, 1.2, 16);
+    torch(-36, 0, -22, 0xffc86a, 1.2, 16);
+    addPickup('heart', -40, 0, -23.5);
+    addInter(-40, 0, -22, 3.2, 'Se recueillir au Sanctuaire de l\'Arbre', () => {
+      showMsg('« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son sanctuaire tient encore debout — la Nuit n\'ose pas y entrer. »', 5);
+    });
+  }
+  // Flèche des Confins — repère visuel du champ d'est
+  const spireMat = new THREE.MeshStandardMaterial({ color: 0x241a3a, roughness: 0.7, emissive: 0x140a24 });
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(2.2, 16, 8), spireMat);
+  spire.position.set(48, 8, -14); spire.castShadow = true; S.scene.add(spire); addCol(spire);
+  const spireGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xb08cff }));
+  spireGem.position.set(48, 16.4, -14); spireGem.add(glow(0xb08cff, 3, 0.6));
+  S.scene.add(spireGem); spinners.push(spireGem);
+  addInter(48, 0, -10.5, 3.5, 'Lire les runes de la flèche', () => {
+    showMsg('« Ici finit la carte des anciens. Ce qui suit n\'appartient qu\'à ceux qui osent. »', 4.5);
+  });
+  // Ressources de soutien pour l'exploration des Confins
+  addPickup('mana', 48, 0, -18);
+  addPickup('mana', -52, 0, -44);
+  addPickup('heart', 52, 0, -44);
 
   /* Arbre-sanctuaire flétri (cellule r4c3) : la Bénédiction rouvre la voie */
   const groveDoor = mkDoor(6, 6, 2, -39, 0, -75, 'hedge');

@@ -247,6 +247,15 @@ indice donné par Lumen si on retourne le voir.
   déplaçait souvent. »*
 - **Fond du Gouffre** : Fragment de vitalité + 2 essences d'ombre (gardés par un Colosse).
 - **Fragments de vitalité** : +25 PV max chacun (aussi dans l'Ossuaire et la forêt).
+- **Les Confins d'Ombre** (friches optionnelles) : deux champs en friche flanquent la
+  salle du trône, accessibles uniquement en longeant la lisière de la Forêt de Nuit
+  (bande étroite au sud des ruines) puis en contournant les murs des Terres Perdues.
+  Une torche violette à l'angle des ruines signale l'entrée d'ouest.
+  - **Champ d'ouest — le Sanctuaire de l'Arbre** : bâtisse à dômes oubliée (+ un cœur).
+    *« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son
+    sanctuaire tient encore debout — la Nuit n'ose pas y entrer. »*
+  - **Champ d'est — la Flèche des Confins** : aiguille de pierre runique (+ mana).
+    *« Ici finit la carte des anciens. Ce qui suit n'appartient qu'à ceux qui osent. »*
 
 ---
 
@@ -327,6 +336,11 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
   au Pas du vent font 11,5 m.
 - **Mort** : retour au dernier bivouac — *« Les ombres vous ont submergé... Vous rouvrez
   les yeux près du dernier feu de bivouac. »*
+- **Décor 3D** : vraies textures Poly Haven (plancher `plank_flooring_04`, briques
+  `slumped_mortar_brick`) ; arbres variés — chêne mort (scan) et érable feuillu alternés
+  déterministiquement selon la position, orientation stable — ; bosquets denses
+  (`trees_1`) en lisière des Confins ; Sanctuaire de l'Arbre (bâtisse à dômes, collision
+  pleine) et Flèche des Confins comme repères des friches optionnelles.
 
 ---
 
