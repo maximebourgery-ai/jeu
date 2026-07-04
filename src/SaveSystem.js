@@ -28,6 +28,7 @@ export function saveGame(silent) {
       /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
          raccourcis, Aura) et la matrice des Bivouacs découverts */
       tower: G.tower, camps: G.camps,
+      hour: G.hour, // horloge d'Ombreciel (cycle jour/nuit)
       xp: G.xp, level: G.level, sp: G.sp, nodes: G.nodes, maxMana: G.maxMana,
       questI: S.questI, tut: Object.assign({}, tut),
       px: inTw ? TER.x : player.pos.x, py: inTw ? TER.y : player.pos.y, pz: inTw ? TER.z : player.pos.z,
@@ -67,6 +68,7 @@ export function loadGame() {
     G.tower.aura = !!s.tower.aura;
   }
   G.camps = s.camps || {};
+  G.hour = (typeof s.hour === 'number') ? s.hour : 9; // anciennes sauvegardes : reprise au matin
   G.xp = s.xp || 0; G.level = s.level || 1; G.sp = s.sp || 0;
   G.nodes = s.nodes || {};
   refreshPlayerVisual();

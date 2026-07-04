@@ -9,7 +9,8 @@ import { G, S, CTRL_ID, IS_TOUCH, PATHS, STORY, keys, player, p2, tut, pickups, 
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, setCamAspects, buildWorld, buildHerbs, updateDoors, updatePickups, updateParticles } from './World.js';
+import { initScene, setCamAspects, buildWorld, buildHerbs, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
+import { updateDayNight } from './DayNight.js';
 import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
 import { castPower, updateProjectiles, updateTK, checkPlate, updateAimAssist } from './Powers.js';
@@ -31,6 +32,7 @@ function loop() {
   if (S.tmAttackHeld && G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) castPower();
   if (G.started && !G.paused && !G.over && !G.dialog) {
     G.time += dt;
+    updateDayNight(dt); // horloge d'Ombreciel : ciel, lumières, force des ombres
     updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs
     updatePlayer(dt);
     if (S.COOP && p2.mesh) updateP2(dt);
@@ -87,6 +89,7 @@ function startPlaySetup() {
     $('cross2').style.display = 'block';
     $('cross').style.left = '25%';
     $('crystals').style.top = '118px';
+    $('clock').style.top = '154px'; // sous les barres du J2 en coop
     if (G.hasWings) addWingsToPlayer();
     setCamAspects();
   }
@@ -187,8 +190,13 @@ async function initGame() {
   buildWorld();
   buildHerbs();
   buildTowerGate(); // portail de l'Ascension, sur la terrasse de la Tour du Levant
+  /* Bivouac de la fontaine : le sanctuaire de départ, à l'abri des ombres,
+     pour souffler, forger et dépenser ses points. Ajouté EN DERNIER pour ne
+     pas décaler les index d'interactions des sauvegardes existantes. */
+  bivouac(-3.5, 0, 57, 'la fontaine des Jardins', 'fontaine');
   S.BASE_PICKUPS = pickups.length;   // référence stable pour la sauvegarde
   S.STATIC_ENEMIES = enemies.length; // les renforts dynamiques ne sont pas sauvegardés
+  updateDayNight(0); // pose l'éclairage/ciel du matin avant la première frame
   buildPlayer();
   buildPowersUI();
   applyQuest();

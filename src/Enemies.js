@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, zoneSeen } from './state.js';
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
-import { spawnBurst, addPickup, pointSolid, openDoor } from './World.js';
+import { spawnBurst, addPickup, pointSolid, openDoor, safeZoneAt } from './World.js';
 import { glow } from './AssetManager.js';
 import { gainXP, hasN } from './SkillTree.js';
 import { hurt, hurtP2 } from './Player.js';
@@ -68,7 +68,8 @@ export function mkEnemy(x, z, floorY, wps, opt) {
      montent un peu moins vite qu'avant (0,22/niv au lieu de 0,25) pour
      que la fin de partie reste dure sans one-shots injustes. */
   const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.22 * (lvl - 1);
-  const hp0 = opt.hp || Math.round(T.hp * mul);
+  /* opt.hpMul : les renforts invoqués la nuit sont plus coriaces (directeur) */
+  const hp0 = opt.hp || Math.round(T.hp * mul * (opt.hpMul || 1));
   const en = {
     g, cloakMat, charMats, mixer, floorY, wps, wi: 0, state: 'patrol',
     hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul),
@@ -123,9 +124,13 @@ export function updateEnemies(dt) {
     const distP = Math.hypot(dx, dz);
     const sameLevel = Math.abs(tp.y - e.floorY) < 3.5;
     let tx = null, tz = null, sp = e.speed;
+    /* Sanctuaire : la cible est près d'un feu de bivouac → les ombres
+       renoncent et refluent (jamais les Maîtres d'Étage, qui ont leur FSM). */
+    const tSafe = !e.fsm && safeZoneAt(tp);
+    if (tSafe && e.state === 'chase') e.state = 'return';
 
     if (e.state === 'patrol') {
-      if (distP < 9 && sameLevel) {
+      if (distP < 9 && sameLevel && !tSafe) {
         e.state = 'chase';
         if (!e.alerted) { e.alerted = true; A.alert(); }
       }
@@ -133,7 +138,8 @@ export function updateEnemies(dt) {
       if (Math.hypot(w[0] - e.g.position.x, w[1] - e.g.position.z) < 0.6) e.wi = (e.wi + 1) % e.wps.length;
       else { tx = w[0]; tz = w[1]; }
     } else if (e.state === 'chase') {
-      sp = e.chaseSpeed;
+      // la nuit, les ombres pressent le pas (+18 % au plus noir de la nuit)
+      sp = e.chaseSpeed * (1 + 0.18 * S.nightK);
       if (e.ranged && !e.fsm && distP < 15 && sameLevel) {
         e.shot -= dt;
         if (e.shot <= 0.35 && !e.windup) {
@@ -149,17 +155,19 @@ export function updateEnemies(dt) {
            que pendant les « active frames » de leur attaque, voir Tower.js) */
         e.atk = 1.3;
         const shielded = tgt2 ? p2.shieldT > 0 : G.shieldT > 0;
+        // la nuit, les coups des ombres pèsent jusqu'à ×1,8 (S.nightMul)
+        const dmgN = Math.round(e.dmg * S.nightMul);
         if (shielded) {
           A.impact();
           spawnBurst(tp.x, tp.y + 1.1, tp.z, 0x66c8ff, 7);
-        } else if (tgt2) hurtP2(e.dmg, e.g.position);
-        else hurt(e.dmg, e.g.position);
+        } else if (tgt2) hurtP2(dmgN, e.g.position);
+        else hurt(dmgN, e.g.position);
       }
     } else {
       const rd = Math.hypot(e.spawn.x - e.g.position.x, e.spawn.z - e.g.position.z);
       if (rd < 0.8) { e.state = 'patrol'; e.alerted = false; e.hp = Math.min(e.maxHp, e.hp + 12); }
       else { tx = e.spawn.x; tz = e.spawn.z; }
-      if (distP < 6 && sameLevel) e.state = 'chase';
+      if (distP < 6 && sameLevel && !tSafe) e.state = 'chase';
     }
     if (tx !== null) {
       const mdx = tx - e.g.position.x, mdz = tz - e.g.position.z;
@@ -176,7 +184,9 @@ export function updateEnemies(dt) {
       e.g.rotation.y = Math.atan2(mdx, mdz);
     }
     e.g.position.y = e.floorY + 0.95 + Math.sin(G.time * 3 + e.spawn.x) * 0.12;
-    e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : 0x0d0820);
+    // la nuit, les ombres luisent d'une braise sanguine : le danger se voit
+    const baseEm = S.nightK > 0.5 ? 0x2a0a18 : 0x0d0820;
+    e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : baseEm);
     setCharEmissive(e, e.hitT > 0 ? 0x992233 : null);
   }
 }
@@ -205,7 +215,8 @@ export function killEnemy(e) {
   addPickup('mana', e.g.position.x, e.floorY, e.g.position.z);
   addPickup('shadow', e.g.position.x + 0.7, e.floorY, e.g.position.z + 0.4);
   S.scene.remove(e.g);
-  gainXP(e.xp || 12);
+  // la nuit paie mieux : +50 % d'expérience au plus noir (risque → récompense)
+  gainXP(Math.round((e.xp || 12) * (1 + 0.5 * S.nightK)));
   if (e.onKilled) e.onKilled(e); // Maîtres d'Étage : clef, portail, raccourci
   if (hasN('a_dance')) {
     G.cd.dash = Math.max(0, G.cd.dash - 0.8);
@@ -232,7 +243,8 @@ export function fireHostile(e, tp) {
     new THREE.MeshStandardMaterial({ color: 0x3a0a1a, emissive: 0xff2a4a, emissiveIntensity: 1.4, roughness: 0.4 }));
   core.add(glow(0xff2a4a, 2.4, 0.85));
   core.position.copy(start); S.scene.add(core);
-  projectiles.push({ mesh: core, vel: dir.multiplyScalar(13 + e.lvl * 1.3), life: 2.6, dmg: e.dmg, hostile: true, spin: 6 + Math.random() * 4 });
+  projectiles.push({ mesh: core, vel: dir.multiplyScalar(13 + e.lvl * 1.3), life: 2.6,
+    dmg: Math.round(e.dmg * S.nightMul), hostile: true, spin: 6 + Math.random() * 4 });
 }
 /* ---- Chaîne d'éclairs (Mage) ---- */
 export function chainLightning(from, dmg, n, stun) {
@@ -294,8 +306,9 @@ export function updateDirector(dt) {
   S.dirT -= dt;
   if (S.dirT > 0) return;
   /* Rythme des renforts calé sur les 18 quêtes de la refonte : très calme
-     au début (20 s+ vers la quête du levier), soutenu en fin de partie (9 s). */
-  S.dirT = Math.max(9, 26 - S.questI);
+     au début (20 s+ vers la quête du levier), soutenu en fin de partie (9 s).
+     La nuit, le flot s'accélère (jusqu'à -40 % d'intervalle). */
+  S.dirT = Math.max(9, 26 - S.questI) * (1 - 0.4 * S.nightK);
   /* Purge des renforts morts (tableau `enemies` sinon jamais réduit : une
      longue partie accumulerait des centaines d'entrées mortes, ralentissant
      peu à peu chaque boucle qui parcourt `enemies`). On ne touche jamais aux
@@ -309,6 +322,7 @@ export function updateDirector(dt) {
     }
   }
   if (!z || S.questI < 6) return; // aucun renfort avant l'ouverture de la bibliothèque
+  if (safeZoneAt(player.pos)) return; // jamais d'invocation quand le joueur est au sanctuaire d'un feu
   let alive = 0; for (const e of enemies) if (!e.dead) alive++;
   if (alive >= 26) return;
   const cap = z.cap + Math.floor(S.questI / 5);
@@ -321,7 +335,9 @@ export function updateDirector(dt) {
     const type = z.types[Math.floor(Math.random() * z.types.length)];
     /* +1 niveau de renforts seulement après le passage scellé (fin de partie) */
     const lvl = z.lvl + (S.questI >= 14 ? 1 : 0);
-    const e = mkEnemy(x, zz, z.y, [[x, zz], [x + 3, zz], [x, zz + 3]], { type: type, lvl: lvl, dyn: true });
+    /* renforts nocturnes : +40 % de PV au plus noir de la nuit */
+    const e = mkEnemy(x, zz, z.y, [[x, zz], [x + 3, zz], [x, zz + 3]],
+      { type: type, lvl: lvl, dyn: true, hpMul: 1 + 0.4 * S.nightK });
     e.state = 'chase'; e.alerted = true;
     spawnBurst(x, z.y + 1, zz, 0x6a4a9e, 14);
     A.alert();

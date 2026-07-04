@@ -50,8 +50,12 @@ export function initScene() {
   S.composer.addPass(S.bloomPass);
   S.composer.addPass(new OutputPass());
 
-  S.scene.add(new THREE.HemisphereLight(0x2a3c68, 0x0a0b14, 0.85));
-  S.scene.add(new THREE.AmbientLight(0x181c30, 0.8));
+  /* Lumières pilotées par le cycle jour/nuit (DayNight.js) : on garde les
+     références pour fondre couleurs et intensités entre jour et nuit. */
+  S.hemi = new THREE.HemisphereLight(0x2a3c68, 0x0a0b14, 0.85);
+  S.scene.add(S.hemi);
+  S.amb = new THREE.AmbientLight(0x181c30, 0.8);
+  S.scene.add(S.amb);
   S.dirLight = new THREE.DirectionalLight(0x9fb4f0, 0.85);
   S.dirLight.position.set(70, 110, -50);
   S.dirLight.castShadow = true;
@@ -71,13 +75,25 @@ export function initScene() {
   const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 16, 12),
     new THREE.MeshBasicMaterial({ map: assets.skyTex, side: THREE.BackSide, fog: false }));
   S.scene.add(sky);
-  // lune + halo
-  const moon = new THREE.Mesh(new THREE.SphereGeometry(8, 16, 16),
+  /* Ciel de JOUR : sphère jumelle légèrement plus petite dont l'opacité est
+     fondue par le cycle (0 = nuit noire, 1 = plein jour). */
+  S.skyDay = new THREE.Mesh(new THREE.SphereGeometry(396, 16, 12),
+    new THREE.MeshBasicMaterial({ map: assets.skyDayTex, side: THREE.BackSide, fog: false,
+      transparent: true, opacity: 0, depthWrite: false }));
+  S.scene.add(S.skyDay);
+  // lune + halo (cachée en plein jour)
+  S.moon = new THREE.Mesh(new THREE.SphereGeometry(8, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0xe8f0ff, fog: false }));
-  moon.position.set(120, 140, -180);
-  moon.add(glow(0xbdd0ff, 70, 0.55));
-  S.scene.add(moon);
-  // étoiles
+  S.moon.position.set(120, 140, -180);
+  S.moon.add(glow(0xbdd0ff, 70, 0.55));
+  S.scene.add(S.moon);
+  // soleil : parcourt la voûte de l'est à l'ouest au fil de l'horloge du monde
+  S.sun = new THREE.Mesh(new THREE.SphereGeometry(11, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xfff2c8, fog: false, transparent: true, opacity: 0 }));
+  S.sun.add(glow(0xffdf9a, 95, 0.55));
+  S.sun.position.set(-240, 60, -140);
+  S.scene.add(S.sun);
+  // étoiles (fondues à l'aube, ravivées au crépuscule)
   const starGeo = new THREE.BufferGeometry();
   const sp = new Float32Array(1500);
   for (let i = 0; i < 500; i++) {
@@ -87,8 +103,10 @@ export function initScene() {
     sp[i * 3 + 2] = Math.sin(th) * Math.sin(ph) * 360;
   }
   starGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
-  S.scene.add(new THREE.Points(starGeo,
-    new THREE.PointsMaterial({ color: 0xbcd0ff, size: 1.3, sizeAttenuation: false, fog: false })));
+  S.stars = new THREE.Points(starGeo,
+    new THREE.PointsMaterial({ color: 0xbcd0ff, size: 1.3, sizeAttenuation: false, fog: false,
+      transparent: true, opacity: 0.9 }));
+  S.scene.add(S.stars);
 
   // balise d'objectif
   S.beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 44, 10, 1, true),
@@ -458,6 +476,20 @@ function asciiWalls(rows, ox, oz, cell, h, y, kind) {
   }
 }
 
+/* ---- Sanctuaires : la lumière des bivouacs repousse les ombres ----
+   Dans un rayon de 9 m autour de chaque feu, aucun monstre n'entre ni
+   n'attaque (elles fuient), le porteur de flamme se régénère lentement et
+   le directeur de renforts n'y invoque jamais rien : un vrai havre pour
+   souffler, forger ses potions et dépenser ses points de pouvoir. */
+export const SAFE_R = 9;
+export function safeZoneAt(pos) {
+  if (!pos) return null;
+  for (const c of CAMPS) {
+    if (Math.abs(pos.y - c.y) < 3.2 && Math.hypot(pos.x - c.x, pos.z - c.z) < (c.safeR || SAFE_R)) return c;
+  }
+  return null;
+}
+
 /* Feu de bivouac : point de contrôle réutilisable (sans PointLight pour
    ménager le budget lumières — le halo additif suffit à le signaler).
    Chaque feu s'inscrit dans la matrice des Bivouacs (CAMPS) : se reposer le
@@ -473,12 +505,20 @@ export function bivouac(x, y, z, label, id, travel) {
   halo.position.set(x, y + 0.65, z);
   S.scene.add(halo);
   flames.push({ flame, light: null, halo, base: 0, seed: Math.random() * 10 });
+  /* cercle du sanctuaire : la frontière que les ombres ne franchissent pas,
+     visible en permanence pour que le joueur SACHE où il est en sécurité */
+  const ring = new THREE.Mesh(new THREE.RingGeometry(SAFE_R - 0.35, SAFE_R, 44),
+    new THREE.MeshBasicMaterial({ color: 0xffc06a, transparent: true, opacity: 0.14,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(x, y + 0.07, z);
+  S.scene.add(ring);
   /* les feux instanciés (Tour) se réenregistrent à chaque build du palier :
      on réutilise leur fiche pour ne jamais dupliquer la matrice */
   const cid = id || ('camp' + CAMPS.length);
   let camp = CAMPS.find(c => c.id === cid);
   if (!camp) {
-    camp = { id: cid, label: label || 'bivouac', x: x + 1, y: y + 0.2, z, travel: travel !== false };
+    camp = { id: cid, label: label || 'bivouac', x: x + 1, y: y + 0.2, z, travel: travel !== false, safeR: SAFE_R };
     CAMPS.push(camp);
   }
   addInter(x, y, z, 2.6, 'Se reposer au bivouac', () => {

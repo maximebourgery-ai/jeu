@@ -36,7 +36,11 @@ export const G = {
     aura: false
   },
   camps: {},        // bivouacs découverts (matrice de voyage rapide)
-  travelOpen: false // matrice des Bivouacs à l'écran
+  travelOpen: false, // matrice des Bivouacs à l'écran
+  /* v7.3 — Horloge d'Ombreciel : heure du monde (0-24, sauvegardée). La
+     partie commence à 9 h du matin : les premières quêtes se vivent de
+     jour. Une journée complète dure 16 minutes réelles (voir DayNight.js). */
+  hour: 9
 };
 
 /* ---- Les Voies : chaque classe redéfinit l'attaque principale (modulaire) ---- */
@@ -269,6 +273,12 @@ export const S = {
      cible au moment d'un coup (faceT). La visée n'est jamais figée : le
      joueur peut toujours corriger au doigt, l'assist ne fait qu'aimanter. */
   aimTarget: null, aimManual: null, aimManualT: 0, gpActiveT: 0, faceT: 0,
+  /* Cycle jour/nuit : nightK = noirceur (0 = plein jour, 1 = nuit noire) et
+     nightMul = multiplicateur de dégâts des ombres (jusqu'à ×1,8 la nuit).
+     Calculés chaque frame par DayNight.js, lus par Enemies.js. */
+  nightK: 0, nightMul: 1,
+  // références d'éclairage/ciel pilotées par le cycle (créées dans World.initScene)
+  hemi: null, amb: null, sun: null, moon: null, stars: null, skyDay: null,
   // progression / narration
   questI: -1, storyIdx: 0, dlg: null, // dlg = {pages:[],i:0,after:fn}
   // coop

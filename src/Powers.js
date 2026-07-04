@@ -74,49 +74,37 @@ export function updateAimAssist(dt) {
   S.aimTarget = best;
 }
 
-/* Point visé par le réticule central (ce que la caméra "voit" vraiment), max 60m.
+/* Distance touchée par un rayon (murs + ennemis), max 60 m — cœur partagé
+   des deux réticules (J1 / J2 en coop), autrefois dupliqué ligne à ligne. */
+function rayHitDist(o, dir) {
+  let best = 60;
+  for (let i = 0; i < colliders.length; i++) {
+    const c = colliders[i];
+    if (!c.on) continue;
+    const t = rayAABB(o, dir, c.min, c.max);
+    if (t !== null && t < best) best = t;
+  }
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.g.position.x - o.x, dy = e.g.position.y - o.y, dz = e.g.position.z - o.z;
+    const t = dx * dir.x + dy * dir.y + dz * dir.z;
+    if (t < 0 || t > best) continue;
+    const px = o.x + dir.x * t, py = o.y + dir.y * t, pz = o.z + dir.z * t;
+    if (Math.hypot(px - e.g.position.x, py - e.g.position.y, pz - e.g.position.z) < 0.9 * e.s + 0.4) best = t;
+  }
+  return best;
+}
+/* Point visé par le réticule central (ce que la caméra "voit" vraiment).
    Avec l'assist (tactile/manette), c'est le torse de la cible aimantée. */
 export function aimPoint() {
   const t = assistTarget();
   if (t) return new THREE.Vector3(t.g.position.x, t.g.position.y + 0.55 * t.s, t.g.position.z);
-  const dir = camDirVec();
-  const o = S.camera.position;
-  let best = 60;
-  for (let i = 0; i < colliders.length; i++) {
-    const c = colliders[i];
-    if (!c.on) continue;
-    const t = rayAABB(o, dir, c.min, c.max);
-    if (t !== null && t < best) best = t;
-  }
-  for (const e of enemies) {
-    if (e.dead) continue;
-    const dx = e.g.position.x - o.x, dy = e.g.position.y - o.y, dz = e.g.position.z - o.z;
-    const t = dx * dir.x + dy * dir.y + dz * dir.z;
-    if (t < 0 || t > best) continue;
-    const px = o.x + dir.x * t, py = o.y + dir.y * t, pz = o.z + dir.z * t;
-    if (Math.hypot(px - e.g.position.x, py - e.g.position.y, pz - e.g.position.z) < 0.9 * e.s + 0.4) best = t;
-  }
-  return o.clone().addScaledVector(dir, best);
+  const dir = camDirVec(), o = S.camera.position;
+  return o.clone().addScaledVector(dir, rayHitDist(o, dir));
 }
 export function aimPoint2() {
-  const dir = camDirVec2();
-  const o = S.cam2.position;
-  let best = 60;
-  for (let i = 0; i < colliders.length; i++) {
-    const c = colliders[i];
-    if (!c.on) continue;
-    const t = rayAABB(o, dir, c.min, c.max);
-    if (t !== null && t < best) best = t;
-  }
-  for (const e of enemies) {
-    if (e.dead) continue;
-    const dx = e.g.position.x - o.x, dy = e.g.position.y - o.y, dz = e.g.position.z - o.z;
-    const t = dx * dir.x + dy * dir.y + dz * dir.z;
-    if (t < 0 || t > best) continue;
-    const px = o.x + dir.x * t, py = o.y + dir.y * t, pz = o.z + dir.z * t;
-    if (Math.hypot(px - e.g.position.x, py - e.g.position.y, pz - e.g.position.z) < 0.9 * e.s + 0.4) best = t;
-  }
-  return o.clone().addScaledVector(dir, best);
+  const dir = camDirVec2(), o = S.cam2.position;
+  return o.clone().addScaledVector(dir, rayHitDist(o, dir));
 }
 
 export function castPower() {
@@ -185,29 +173,26 @@ export function castPowerP2() {
   if (pw.id === 'dash') doDashP2();
   else if (pw.id === 'shield') { p2.shieldT = 4; A.shield(); }
   else if (pw.id === 'frost') frostNova(p2);
-  else if (pw.id === 'heal') {
-    A.pickup();
-    p2.hp = Math.min(p2.maxHp, p2.hp + 40);
-    spawnBurst(p2.pos.x, p2.pos.y + 1.2, p2.pos.z, 0x9fffb0, 16);
-    // Même déclencheur que healSelf() (J1) : la Racine Vengeresse (Tour,
-    // étage 9) doit rester vulnérable à la Bénédiction, quel que soit le
-    // porteur de flamme qui la lance.
-    if (S.onHeal) S.onHeal();
-  }
+  else if (pw.id === 'heal') healSelf(p2); // code unifié J1/J2 (Racine Vengeresse comprise)
 }
-export function doDashP2() {
+/* Élan du Pas du vent : direction du déplacement en cours, sinon droit
+   devant — cœur partagé J1/J2 (autrefois dupliqué). */
+function applyDash(pl, yaw, mx, mz) {
   A.dash();
-  const f = { x: -Math.sin(p2.yaw), z: -Math.cos(p2.yaw) };
-  const r = { x: Math.cos(p2.yaw), z: -Math.sin(p2.yaw) };
-  let dx = f.x * p2.input.mz + r.x * p2.input.mx, dz = f.z * p2.input.mz + r.z * p2.input.mx;
+  const f = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+  const r = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+  let dx = f.x * mz + r.x * mx, dz = f.z * mz + r.z * mx;
   const l = Math.hypot(dx, dz);
   if (l < 0.01) { dx = f.x; dz = f.z; }
   else { dx /= l; dz /= l; }
-  p2.dashDir.set(dx, 0, dz);
-  p2.dashT = 0.16;
-  p2.invuln = Math.max(p2.invuln, 0.3);
-  p2.vel.y = Math.max(p2.vel.y, 0.5);
-  spawnBurst(p2.pos.x, p2.pos.y + 0.8, p2.pos.z, 0x9fe8ff, 8);
+  pl.dashDir.set(dx, 0, dz);
+  pl.dashT = 0.16;
+  pl.invuln = Math.max(pl.invuln, 0.3);
+  pl.vel.y = Math.max(pl.vel.y, 0.5);
+  spawnBurst(pl.pos.x, pl.pos.y + 0.8, pl.pos.z, 0x9fe8ff, 8);
+}
+export function doDashP2() {
+  applyDash(p2, p2.yaw, p2.input.mx, p2.input.mz);
 }
 /* ---- Jauge de rage du Guerrier (J1 et J2 en coop) ----
    Se remplit en infligeant des coups de mêlée (+12 par frappe au but,
@@ -450,9 +435,6 @@ export function updateProjectiles(dt) {
   }
 }
 export function doDash() {
-  A.dash();
-  const f = { x: -Math.sin(S.yaw), z: -Math.cos(S.yaw) };
-  const r = { x: Math.cos(S.yaw), z: -Math.sin(S.yaw) };
   let mx = 0, mz = 0;
   if (keys['KeyW']) mz += 1;
   if (keys['KeyS']) mz -= 1;
@@ -461,15 +443,7 @@ export function doDash() {
   // joystick tactile et stick manette : le Pas du vent suit la direction
   // du déplacement en cours (sinon il file toujours droit devant)
   mx += gpMove.x + tmMove.x; mz += gpMove.z + tmMove.z;
-  let dx = f.x * mz + r.x * mx, dz = f.z * mz + r.z * mx;
-  const l = Math.hypot(dx, dz);
-  if (l < 0.01) { dx = f.x; dz = f.z; }
-  else { dx /= l; dz /= l; }
-  player.dashDir.set(dx, 0, dz);
-  player.dashT = 0.16;
-  player.invuln = Math.max(player.invuln, 0.3);
-  player.vel.y = Math.max(player.vel.y, 0.5);
-  spawnBurst(player.pos.x, player.pos.y + 0.8, player.pos.z, 0x9fe8ff, 8);
+  applyDash(player, S.yaw, mx, mz);
 }
 /* --- télékinésie --- */
 export function tkToggle() {

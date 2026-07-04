@@ -49,7 +49,7 @@ const MATDEF = {
 
 const matCache = {};
 
-export const assets = { glowTex: null, skyTex: null };
+export const assets = { glowTex: null, skyTex: null, skyDayTex: null };
 
 /* ---------- fallbacks générés en mémoire (DataTexture, pas de fichier) ---------- */
 function makeGlowTexture() {
@@ -70,13 +70,11 @@ function makeGlowTexture() {
   t.needsUpdate = true;
   return t;
 }
-function makeSkyTexture() {
-  const stops = [
-    [0.0, 0x070a1a],
-    [0.42, 0x111a3e],
-    [0.58, 0x16204a],
-    [1.0, 0x070a18]
-  ];
+/* Dégradé de ciel vertical généré en mémoire. `stops` = [position, couleur]
+   du pôle bas (0) au pôle haut (1), l'horizon étant vers 0,5. Le même
+   générateur produit le ciel de nuit et celui de jour (le cycle jour/nuit
+   fond l'un dans l'autre, voir DayNight.js). */
+function makeSkyTexture(stops) {
   const H = 256, data = new Uint8Array(H * 4);
   const cA = new THREE.Color(), cB = new THREE.Color();
   for (let j = 0; j < H; j++) {
@@ -104,7 +102,13 @@ function makeSkyTexture() {
 export async function loadAssets(onStatus) {
   if (onStatus) onStatus('Éveil des Larmes d\'Aube…');
   assets.glowTex = makeGlowTexture();
-  assets.skyTex = makeSkyTexture();
+  // ciel de nuit (violet profond) et ciel de jour (bleu pâle doré à l'horizon)
+  assets.skyTex = makeSkyTexture([
+    [0.0, 0x070a1a], [0.42, 0x111a3e], [0.58, 0x16204a], [1.0, 0x070a18]
+  ]);
+  assets.skyDayTex = makeSkyTexture([
+    [0.0, 0x8fb0d8], [0.45, 0xffe0b0], [0.62, 0x86b0e8], [1.0, 0x4a7ac8]
+  ]);
 }
 
 /* ---------- matériaux (couleur plate par famille, mis en cache par kind) ---------- */

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE } from './state.js';
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
-import { slide, slideP, rayAABB, spawnBurst } from './World.js';
+import { slide, slideP, rayAABB, spawnBurst, safeZoneAt } from './World.js';
 import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
@@ -282,13 +282,10 @@ export function updateP2(dt) {
     const ty = Math.atan2(vx, vz);
     p.mesh.rotation.y = lerpAngle(p.mesh.rotation.y, ty, 12 * dt);
   }
-  if (p.wings) {
-    const flap = p.grounded ? 0.5 : 0.9 + Math.sin(G.time * 10) * 0.35;
-    p.wings[0].rotation.y = 0.6 * flap;
-    p.wings[1].rotation.y = -0.6 * flap;
-  }
+  flapWings(p);
   if (p.mixer) p.mixer.update(dt);
   p2.mana = Math.min(p2.maxMana, p2.mana + 6 * dt);
+  if (safeZoneAt(p.pos)) p2.hp = Math.min(p2.maxHp, p2.hp + 2.5 * dt);
   for (const k in p2.cd) p2.cd[k] = Math.max(0, p2.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;
   if (p.shieldT > 0) {
@@ -299,22 +296,31 @@ export function updateP2(dt) {
     p.shieldMesh.material.opacity = 0.1 + 0.08 * Math.sin(G.time * 6);
   } else p.shieldMesh.visible = false;
 }
-/* Caméra du Joueur 2 (troisième personne, occlusion identique au J1) */
-export function updateCamera2() {
-  if (!p2.pos) return;
-  const tx = p2.pos.x, ty = p2.pos.y + 1.6, tz = p2.pos.z;
-  const dir = camDirVec2();
-  let d = 5.4;
-  const back = { x: -dir.x, y: -dir.y, z: -dir.z };
-  const eye = { x: tx, y: ty, z: tz };
-  let closest = d;
+/* Distance caméra maximale avant le premier mur (partagée J1/J2 — code unifié) */
+function occludeDist(eye, back, want) {
+  let closest = want;
   for (let i = 0; i < colliders.length; i++) {
     const c = colliders[i];
     if (!c.on) continue;
     const t = rayAABB(eye, back, c.min, c.max);
     if (t !== null && t < closest) closest = t;
   }
-  d = Math.max(1.4, Math.min(d, closest - 0.35));
+  return Math.max(1.4, Math.min(want, closest - 0.35));
+}
+/* Battement d'ailes (partagé J1/J2 — code unifié) */
+function flapWings(pl) {
+  if (!pl.wings) return;
+  const flap = pl.grounded ? 0.5 : 0.9 + Math.sin(G.time * 10) * 0.35;
+  pl.wings[0].rotation.y = 0.6 * flap;
+  pl.wings[1].rotation.y = -0.6 * flap;
+}
+/* Caméra du Joueur 2 (troisième personne, occlusion identique au J1) */
+export function updateCamera2() {
+  if (!p2.pos) return;
+  const tx = p2.pos.x, ty = p2.pos.y + 1.6, tz = p2.pos.z;
+  const dir = camDirVec2();
+  const back = { x: -dir.x, y: -dir.y, z: -dir.z };
+  let d = occludeDist({ x: tx, y: ty, z: tz }, back, 5.4);
   // spring arm du J2 : même rétraction instantanée + retour lissé que le J1
   if (d < S.camD2) S.camD2 = d;
   else S.camD2 = S.camD2 + (d - S.camD2) * 0.1;
@@ -409,6 +415,8 @@ export function updatePlayer(dt) {
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
   // Aura du Premier Foyer (Observatoire de l'Aube) : le foyer répare la chair
   if (G.tower.aura) G.hp = Math.min(G.maxHp, G.hp + 1.2 * dt);
+  // Sanctuaire d'un feu de bivouac : la chaleur régénère lentement le porteur
+  if (safeZoneAt(p.pos)) G.hp = Math.min(G.maxHp, G.hp + 2.5 * dt);
   for (const k in G.cd) G.cd[k] = Math.max(0, G.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;
   if (G.shieldT > 0) {
@@ -467,11 +475,7 @@ export function updateCamera() {
   if (!player.pos) return;
   const tx = player.pos.x, ty = player.pos.y + 1.6, tz = player.pos.z;
   const dir = camDirVec();
-  if (player.wings) {
-    const flap = player.grounded ? 0.5 : 0.9 + Math.sin(G.time * 10) * 0.35;
-    player.wings[0].rotation.y = 0.6 * flap;
-    player.wings[1].rotation.y = -0.6 * flap;
-  }
+  flapWings(player);
   if (G.firstPerson) {
     player.mesh.visible = false;
     S.camera.position.set(tx, player.pos.y + 1.55, tz);
@@ -486,18 +490,11 @@ export function updateCamera() {
     if (S.pitch < -0.95) S.pitch += Math.min(0.05, -0.95 - S.pitch);
     if (S.pitch > 0.55) S.pitch -= Math.min(0.05, S.pitch - 0.55);
   }
-  let d = 5.4 + S.camKick * 4; // léger recul de la caméra au lancement d'un sort
   // Spring arm : si un mur/pilier coupe le bras désiré, rétractation instantanée
+  // (léger recul de la caméra au lancement d'un sort via camKick)
   const back = { x: -dir.x, y: -dir.y, z: -dir.z };
   const eye = { x: tx, y: ty, z: tz };
-  let closest = d;
-  for (let i = 0; i < colliders.length; i++) {
-    const c = colliders[i];
-    if (!c.on) continue;
-    const t = rayAABB(eye, back, c.min, c.max);
-    if (t !== null && t < closest) closest = t;
-  }
-  d = Math.max(1.4, Math.min(d, closest - 0.35));
+  let d = occludeDist(eye, back, 5.4 + S.camKick * 4);
   /* damping : rétraction immédiate, mais retour lissé (anti mal de mer) */
   if (d < S.camD) S.camD = d;
   else S.camD = S.camD + (d - S.camD) * 0.1;
@@ -565,10 +562,14 @@ export function hurtP2(d, src) {
     showMsg('Le second porteur de flamme a été submergé... Il se relève au dernier bivouac.', 4);
   }
 }
-export function healSelf() {
+/* Bénédiction, pour l'un ou l'autre porteur de flamme (code unifié J1/J2) */
+export function healSelf(pl) {
+  pl = pl || player;
   A.pickup();
-  G.hp = Math.min(G.maxHp, G.hp + 40);
-  spawnBurst(player.pos.x, player.pos.y + 1.2, player.pos.z, 0x9fffb0, 16);
-  // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction
+  if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + 40);
+  else G.hp = Math.min(G.maxHp, G.hp + 40);
+  spawnBurst(pl.pos.x, pl.pos.y + 1.2, pl.pos.z, 0x9fffb0, 16);
+  // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction,
+  // quel que soit le porteur de flamme qui la lance
   if (S.onHeal) S.onHeal();
 }

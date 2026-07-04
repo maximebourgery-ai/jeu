@@ -12,6 +12,11 @@ canvas{display:block}
 #mpfill{background:linear-gradient(90deg,#1d3f8f,#4fa8e8);width:100%}
 #objective{position:absolute;top:70px;left:18px;max-width:360px;font-size:15px;color:#ffe6a8;text-shadow:0 1px 5px #000;background:rgba(6,8,18,.55);border-left:3px solid #ffd97a;padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.45}
 #crystals{position:absolute;top:16px;right:22px;font-size:23px;color:#ffd97a;text-shadow:0 0 14px rgba(255,200,80,.85);letter-spacing:2px}
+/* ---------- Horloge d'Ombreciel (cycle jour/nuit) ---------- */
+#clock{position:absolute;top:52px;right:22px;font-size:16px;letter-spacing:2px;color:#ffe6a8;
+  text-shadow:0 0 10px rgba(255,210,120,.7);font-family:Georgia,serif;
+  background:rgba(6,8,18,.5);border-radius:8px;padding:3px 10px;transition:color .8s,text-shadow .8s}
+#clock.night{color:#9fb4f0;text-shadow:0 0 10px rgba(130,160,255,.75)}
 #powers{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
 .pw{width:56px;height:56px;border:1px solid rgba(232,224,204,.35);border-radius:10px;background:rgba(8,10,20,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;position:relative;opacity:.22;color:#cfe6ff}
 .pw.owned{opacity:1}

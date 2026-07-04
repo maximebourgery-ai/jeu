@@ -433,6 +433,35 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
   sort et au verrouillage d'une cible, zones adaptées aux encoches
   (`env(safe-area-inset-*)`).
 
+### 11 ter. L'Horloge d'Ombreciel — cycle jour/nuit & sanctuaires (v7.3)
+
+- **Horloge du monde** (`DayNight.js`) : `G.hour` (0-24, **sauvegardée**) avance en
+  continu — une journée complète dure **16 minutes réelles** (1 h du monde = 40 s).
+  La partie **commence à 9 h du matin** : les premières quêtes se vivent de jour.
+  Aube 6 h → 8 h, crépuscule 20 h → 22 h (fondus doux). Affichée au HUD (`#clock`,
+  ☀ doré le jour / ☾ bleuté la nuit), bascule annoncée à l'écran.
+- **On VOIT le cycle** : ciel de jour (bleu, horizon doré) fondu sur le ciel de nuit
+  étoilé, **soleil qui parcourt la voûte** d'est en ouest (la lumière directionnelle
+  le suit), lune et étoiles ravivées la nuit, brouillard, lumières hémisphérique/
+  ambiante et exposition interpolés en continu.
+- **La nuit est dangereuse** (via `S.nightK` / `S.nightMul`) : dégâts des ombres
+  jusqu'à **×1,8**, vitesse de chasse +18 %, renforts du directeur plus fréquents
+  (-40 % d'intervalle) et plus coriaces (+40 % PV), lueur de braise sanguine sur les
+  ombres — mais leur chute rapporte **+50 % d'expérience** (risque → récompense).
+- **Sanctuaires des bivouacs** : dans un rayon de **9 m** autour de chaque feu
+  (cercle doré visible au sol), les ombres **refusent d'entrer et refluent**, le
+  directeur n'invoque jamais rien, et le porteur de flamme se **régénère** (+2,5
+  PV/s) — le havre idéal pour forger ses potions, dépenser ses points de pouvoir et
+  laisser passer la nuit. Nouveau **bivouac de la fontaine** dans les Jardins : la
+  zone de départ est un sanctuaire. Les Maîtres d'Étage (FSM) ignorent les
+  sanctuaires.
+- **Unification du code** (dette des sessions parallèles) : `rayHitDist` partagé
+  par les deux réticules, `applyDash` J1/J2, `healSelf(pl)` J1/J2, `occludeDist` et
+  `flapWings` partagés par les deux caméras. La branche `game-review-deploy`
+  (fusion alternative avec textures lourdes, sans la Tour) est **obsolète** : tout
+  ce qu'elle contenait d'utile est déjà dans cette lignée, le reste a été supplanté
+  par le rendu 100 % procédural.
+
 ---
 
 ## 10. Résumé du fil rouge en une ligne par étape
