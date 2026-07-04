@@ -5,7 +5,7 @@
    mode dual jeu / manette smartphone (?controller=ID).
    ================================================================ */
 import './style.css';
-import { G, S, CTRL_ID, IS_TOUCH, PATHS, STORY, keys, player, p2, tut, pickups, enemies, applyPath } from './state.js';
+import { G, S, CTRL_ID, IS_TOUCH, PATHS, STORY, keys, player, p2, tut, pickups, enemies, applyPath, loadSettings } from './state.js';
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
@@ -17,7 +17,7 @@ import { castPower, updateProjectiles, updateTK, checkPlate, updateAimAssist } f
 import { updateFx } from './Animations.js';
 import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
-import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad } from './Controls.js';
+import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad, initSettingsUI } from './Controls.js';
 import { openManettePanel, retryManette, startControllerMode } from './Network.js';
 import { saveGame, hasSave, loadGame } from './SaveSystem.js';
 import { buildTowerGate, updateTower } from './Tower.js';
@@ -183,6 +183,7 @@ function wireMenus() {
 
 /* ---------------- INIT ---------------- */
 async function initGame() {
+  loadSettings(); // réglages du joueur (sensibilités, luminosité) — localStorage
   const status = $('loading-status');
   await loadAssets(t => { if (status) status.textContent = t; });
   applyPath('mage');
@@ -204,6 +205,7 @@ async function initGame() {
   initControls();
   setupTouch();
   wireMenus();
+  initSettingsUI();
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
   if (import.meta.env.DEV) {

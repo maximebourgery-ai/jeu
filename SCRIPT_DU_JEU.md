@@ -461,6 +461,17 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
   (fusion alternative avec textures lourdes, sans la Tour) est **obsolète** : tout
   ce qu'elle contenait d'utile est déjà dans cette lignée, le reste a été supplanté
   par le rendu 100 % procédural.
+- **Fusion de la session « visibility-aiming »** : menu **⚙ Réglages** (pause) —
+  sensibilité souris/tactile, sensibilité manette, zone morte du stick, inversion
+  d'axe Y, luminosité nocturne — persistés en `localStorage`
+  (`ombreciel_settings_v1`). Visée manette : **zone morte rééchelonnée** (fini le
+  saut au seuil) et **courbe de réponse** façon FPS moderne (précision fine, même
+  vitesse max). Lumière personnelle du joueur agrandie (les 4 voies). Sa nuit
+  éclaircie devient la **palette nocturne de base** du cycle jour/nuit, et son
+  curseur « luminosité nocturne » module cette palette (le plein jour n'en a pas
+  besoin). Ses boutons de sorts tactiles (colonne fixe sans état) ont été
+  **supplantés** par la barre de sorts de la refonte mobile (recharge visible,
+  grisage mana, apparition à l'apprentissage).
 
 ---
 

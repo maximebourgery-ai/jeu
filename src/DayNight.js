@@ -13,7 +13,7 @@
    · L'horloge du HUD (#clock) affiche l'heure et l'astre du moment.
    ================================================================ */
 import * as THREE from 'three';
-import { G, S } from './state.js';
+import { G, S, settings } from './state.js';
 import { $, showMsg } from './UI.js';
 
 const HOURS_PER_SEC = 24 / (16 * 60); // journée complète en 16 minutes réelles
@@ -26,13 +26,16 @@ export function dayFactor(h) {
   return 0;
 }
 
-/* Palettes jour / nuit (la nuit = l'ambiance d'origine du jeu) */
+/* Palettes jour / nuit. La nuit reprend les valeurs éclaircies de la session
+   « visibility-aiming » : l'ambiance reste nocturne mais le décor proche se
+   lit toujours — et le curseur « Luminosité nocturne » des Réglages module
+   encore ces valeurs (voir settings.brightness ci-dessous). */
 const NIGHT = {
-  fog: new THREE.Color(0x0b1024), fogD: 0.0135,
-  hemiSky: new THREE.Color(0x2a3c68), hemiGnd: new THREE.Color(0x0a0b14), hemiI: 0.85,
-  amb: new THREE.Color(0x181c30), ambI: 0.8,
-  dir: new THREE.Color(0x9fb4f0), dirI: 0.85,
-  expo: 1.05
+  fog: new THREE.Color(0x141b34), fogD: 0.0082,
+  hemiSky: new THREE.Color(0x3a5088), hemiGnd: new THREE.Color(0x141a2c), hemiI: 1.3,
+  amb: new THREE.Color(0x232b4a), ambI: 1.15,
+  dir: new THREE.Color(0x9fb4f0), dirI: 1.0,
+  expo: 1.25
 };
 const DAY = {
   fog: new THREE.Color(0x93a8cf), fogD: 0.0085,
@@ -54,24 +57,32 @@ export function updateDayNight(dt) {
   S.nightMul = 1 + 0.8 * S.nightK;
 
   /* ---- Visuel ---- */
+  /* « Luminosité nocturne » des Réglages : remonte lumières, exposition et
+     portée du brouillard ensemble côté NUIT (un vrai gain de visibilité,
+     pas un simple filtre) — le plein jour n'en a pas besoin. */
+  const b = settings.brightness || 1;
+  const nHemiI = NIGHT.hemiI * b, nAmbI = NIGHT.ambI * b;
+  const nDirI = NIGHT.dirI * (0.8 + 0.2 * b);
+  const nExpo = NIGHT.expo * (0.75 + 0.25 * b);
+  const nFogD = NIGHT.fogD / b;
   if (S.scene && S.scene.fog) {
     S.scene.fog.color.copy(lerpC(NIGHT.fog, DAY.fog, f));
-    S.scene.fog.density = NIGHT.fogD + (DAY.fogD - NIGHT.fogD) * f;
+    S.scene.fog.density = nFogD + (DAY.fogD - nFogD) * f;
   }
   if (S.hemi) {
     S.hemi.color.copy(lerpC(NIGHT.hemiSky, DAY.hemiSky, f));
     S.hemi.groundColor.copy(lerpC(NIGHT.hemiGnd, DAY.hemiGnd, f));
-    S.hemi.intensity = NIGHT.hemiI + (DAY.hemiI - NIGHT.hemiI) * f;
+    S.hemi.intensity = nHemiI + (DAY.hemiI - nHemiI) * f;
   }
   if (S.amb) {
     S.amb.color.copy(lerpC(NIGHT.amb, DAY.amb, f));
-    S.amb.intensity = NIGHT.ambI + (DAY.ambI - NIGHT.ambI) * f;
+    S.amb.intensity = nAmbI + (DAY.ambI - nAmbI) * f;
   }
   if (S.dirLight) {
     S.dirLight.color.copy(lerpC(NIGHT.dir, DAY.dir, f));
-    S.dirLight.intensity = NIGHT.dirI + (DAY.dirI - NIGHT.dirI) * f;
+    S.dirLight.intensity = nDirI + (DAY.dirI - nDirI) * f;
   }
-  if (S.renderer) S.renderer.toneMappingExposure = NIGHT.expo + (DAY.expo - NIGHT.expo) * f;
+  if (S.renderer) S.renderer.toneMappingExposure = nExpo + (DAY.expo - nExpo) * f;
   if (S.skyDay) S.skyDay.material.opacity = f;
   if (S.stars) S.stars.material.opacity = 0.9 * (1 - f);
   if (S.moon) S.moon.visible = f < 0.85;

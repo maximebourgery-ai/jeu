@@ -246,6 +246,28 @@ export const STEP_HEIGHT = 0.62; // hauteur de rebord franchissable automatiquem
    changé de place — les sauvegardes v6 seraient incohérentes, on repart). */
 export const SAVE_KEY = 'ombreciel_save_v7';
 
+/* ---- Réglages joueur (visée, luminosité) — persistés indépendamment de la
+   sauvegarde de partie, façon menu Options d'un FPS (sensibilité, zone
+   morte, inversion d'axe, luminosité nocturne). Repris de la session
+   parallèle « visibility-aiming » et branchés sur le cycle jour/nuit. ---- */
+export const SETTINGS_KEY = 'ombreciel_settings_v1';
+export const settings = {
+  mouseSens: 1,      // souris + glisser tactile
+  padSens: 1,        // manette Xbox/PS + manette smartphone
+  invertY: false,
+  deadzone: 0.2,     // zone morte des sticks analogiques
+  brightness: 1      // luminosité NOCTURNE (le jour n'en a pas besoin)
+};
+export function loadSettings() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    if (raw) Object.assign(settings, raw);
+  } catch (e) { /* réglages par défaut si stockage indisponible/corrompu */ }
+}
+export function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+}
+
 /* Depuis three r155, l'éclairage "physiquement correct" est le seul mode :
    les intensités des PointLight/SpotLight doivent être multipliées par π
    pour retrouver le rendu de l'ancien mode legacy (three r128 d'origine). */

@@ -67,7 +67,7 @@ export function mkClassBody(pathId, identity) {
       new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
     guard.position.set(0, -0.73, 0); guard.rotation.z = -0.22;
     arm.add(sword, guard);
-    const plight = new THREE.PointLight(T.glowLight, 0.4 * LIGHT_SCALE, 6, 2); plight.position.y = 1.6;
+    const plight = new THREE.PointLight(T.glowLight, 0.6 * LIGHT_SCALE, 7.5, 2); plight.position.y = 1.6;
     g.add(torso, pl, pr, belt, head, helm, crest, arm, plight);
     staffPart = arm; robePart = torso;
   } else if (pathId === 'assassin') {
@@ -98,7 +98,7 @@ export function mkClassBody(pathId, identity) {
     const eyeMat = new THREE.MeshBasicMaterial({ color: T.glow });
     const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), eyeMat); e1.position.set(-0.08, 1.34, 0.19);
     const e2 = e1.clone(); e2.position.x = 0.08;
-    const plight = new THREE.PointLight(T.glow, 0.35 * LIGHT_SCALE, 5, 2); plight.position.y = 1.48;
+    const plight = new THREE.PointLight(T.glow, 0.55 * LIGHT_SCALE, 6.5, 2); plight.position.y = 1.48;
     g.add(cloak, sash, head, hood, armL, armR, e1, e2, plight);
     staffPart = armR; robePart = cloak; armLPart = armL;
   } else if (pathId === 'paladin') {
@@ -135,7 +135,7 @@ export function mkClassBody(pathId, identity) {
     const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.18), armorMat);
     hammerHead.position.set(0, 0.46, 0); hammerHead.castShadow = true;
     arm.add(haft, hammerHead);
-    const plight = new THREE.PointLight(0xffd97a, 0.45 * LIGHT_SCALE, 6, 2); plight.position.y = 1.7;
+    const plight = new THREE.PointLight(0xffd97a, 0.65 * LIGHT_SCALE, 7.5, 2); plight.position.y = 1.7;
     g.add(torso, tabard, belt, head, helm, haloRing, shield, boss, arm, plight);
     staffPart = arm; robePart = torso;
   } else {
@@ -161,7 +161,7 @@ export function mkClassBody(pathId, identity) {
     tip.position.set(0, 0.6, 0);
     tip.add(glow(T.glow, 1.3, 0.6));
     arm.add(staff, tip);
-    const plight = new THREE.PointLight(T.glowLight, 0.55 * LIGHT_SCALE, 7, 2); plight.position.y = 1.7;
+    const plight = new THREE.PointLight(T.glowLight, 0.75 * LIGHT_SCALE, 8.5, 2); plight.position.y = 1.7;
     g.add(robe, belt, head, hat, brim, arm, plight);
     staffPart = arm; robePart = robe; tipPart = tip;
   }
