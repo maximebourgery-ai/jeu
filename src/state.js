@@ -18,7 +18,7 @@ export const G = {
   cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0 },
   crystals: 0, goldKey: false,
   items: ['Bâton de noviciat'],
-  path: 'mage', skin: 'silhouette', herbs: 0, shadows: 0, orbes: 0, hasWings: false,
+  path: 'mage', herbs: 0, shadows: 0, orbes: 0, hasWings: false,
   xp: 0, level: 1, sp: 0, nodes: {}, treeOpen: false, openWorld: false,
   furyT: 0, hasteT: 0, comboN: 0, comboT: 0,
   rage: 0, maxRage: 100, // jauge de rage du Guerrier (voir Powers.js / UI.js)

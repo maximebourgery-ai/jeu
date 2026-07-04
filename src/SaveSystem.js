@@ -19,7 +19,7 @@ export function saveGame(silent) {
        le joueur repart du portail, ses clefs/raccourcis (G.tower) en poche. */
     const inTw = S.inTower;
     const TER = { x: 58, y: 23.2, z: 46.8 };
-    const s = { v: 6, path: G.path, skin: G.skin, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
+    const s = { v: 6, path: G.path, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
       powers: G.powers, sel: G.sel,
       crystals: G.crystals, goldKey: G.goldKey, items: G.items,
       herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
@@ -53,8 +53,6 @@ export function loadGame() {
   if (!s) return false;
   applyPath(s.path || 'mage');
   document.querySelectorAll('.classbtn').forEach(b => b.classList.toggle('sel', b.dataset.path === (s.path || 'mage')));
-  G.skin = s.skin || 'silhouette';
-  document.querySelectorAll('.skinbtn').forEach(b => b.classList.toggle('sel', b.dataset.skin === G.skin));
   G.hp = s.hp; G.maxHp = s.maxHp; G.mana = s.mana;
   Object.assign(G.powers, s.powers || {}); G.sel = s.sel || 'bolt';
   G.crystals = s.crystals || 0; G.goldKey = !!s.goldKey;

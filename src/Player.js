@@ -4,7 +4,7 @@ import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut,
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
 import { slide, slideP, rayAABB, spawnBurst } from './World.js';
-import { matFor, glow, modelClone, characterClone } from './AssetManager.js';
+import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
 import { damageEnemy } from './Enemies.js';
@@ -31,44 +31,6 @@ export function mkClassBody(pathId, identity) {
     h.position.y = 1.1;
     g.add(h);
   }
-  /* Personnage choisi au menu titre (G.skin) : le héros incarne ce corps,
-     en rôle « gentil » (couleurs d'origine + douce lueur d'âme). Le J2
-     reçoit un voile pourpre léger pour rester identifiable en coop. */
-  if (G.skin && G.skin !== 'silhouette') {
-    const chr = characterClone('hero', 1.85, G.skin);
-    if (chr) {
-      if (identity === 'p2')
-        for (const m of chr.userData.charMats)
-          if (m.color) m.color.multiply(new THREE.Color(0xdfb8e8));
-      g.add(chr);
-      /* Si le fichier embarque une animation Mixamo, on la joue en boucle
-         (sinon le personnage est déjà en pose de repos via characterClone). */
-      let mixer = null;
-      const clips = chr.userData.clips;
-      if (clips && clips.length) {
-        mixer = new THREE.AnimationMixer(chr.userData.charRoot);
-        mixer.clipAction(clips[0]).play();
-      }
-      const plight = new THREE.PointLight(T.glowLight, 0.55 * LIGHT_SCALE, 7, 2);
-      plight.position.y = 1.7;
-      g.add(plight);
-      const staffPart = new THREE.Object3D(), robePart = new THREE.Object3D();
-      g.add(staffPart, robePart);
-      return { g, parts: { staff: staffPart, robe: robePart }, mixer };
-    }
-  }
-  /* Si un modèle player_<voie>.glb est fourni, il remplace la silhouette
-     primitive ; les pièces animées (bâton/robe) deviennent des ancres vides
-     pour que l'animation de marche reste sans effet de bord. */
-  const glb = modelClone('player_' + pathId);
-  if (glb) {
-    g.add(glb);
-    const plight = new THREE.PointLight(T.glowLight, 0.55 * LIGHT_SCALE, 7, 2); plight.position.y = 1.7;
-    g.add(plight);
-    const staffPart = new THREE.Object3D(), robePart = new THREE.Object3D();
-    g.add(staffPart, robePart);
-    return { g, parts: { staff: staffPart, robe: robePart } };
-  }
   let staffPart, robePart;
   if (pathId === 'warrior') {
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.82, 0.36),
@@ -92,6 +54,9 @@ export function mkClassBody(pathId, identity) {
     const sword = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.3, 0.035),
       new THREE.MeshStandardMaterial({ color: 0xc7ccd6, roughness: 0.2, metalness: 0.85 }));
     sword.position.set(0.46, 0.9, 0.14); sword.rotation.z = -0.22; sword.castShadow = true;
+    // lame qui luit doucement de la teinte d'identité : signature visuelle des coups
+    const swordGlow = glow(T.glowLight, 0.7, 0.5); swordGlow.position.y = 0.62;
+    sword.add(swordGlow);
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.055, 0.055),
       new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
     guard.position.set(0.46, 0.29, 0.14); guard.rotation.z = -0.22;
@@ -116,6 +81,9 @@ export function mkClassBody(pathId, identity) {
     dagL.position.set(-0.34, 0.76, 0.12); dagL.rotation.z = 0.32;
     const dagR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 0.02), dagMat.clone());
     dagR.position.set(0.34, 0.76, 0.12); dagR.rotation.z = -0.32;
+    // pointes vénéneuses : petite lueur au bout de chaque lame
+    const dagGlowL = glow(T.glow, 0.4, 0.55); dagGlowL.position.y = 0.24; dagL.add(dagGlowL);
+    const dagGlowR = glow(T.glow, 0.4, 0.55); dagGlowR.position.y = 0.24; dagR.add(dagGlowR);
     const eyeMat = new THREE.MeshBasicMaterial({ color: T.glow });
     const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), eyeMat); e1.position.set(-0.08, 1.34, 0.19);
     const e2 = e1.clone(); e2.position.x = 0.08;

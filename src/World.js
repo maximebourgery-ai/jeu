@@ -9,10 +9,10 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   G, S, IS_TOUCH, POWERS, QUESTS, HINTS, tut, STEP_HEIGHT, LIGHT_SCALE,
-  colliders, doors, pickups, inter, enemies, spinners, flames, parts,
+  colliders, doors, pickups, inter, spinners, flames, parts,
   tkCubes, pedestals, PLATES, CAMPS, player, p2
 } from './state.js';
-import { assets, matFor, glow, modelClone, applyEnvironment } from './AssetManager.js';
+import { assets, matFor, glow } from './AssetManager.js';
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, openTravel } from './UI.js';
 import { questReach, openDialog } from './Quests.js';
@@ -27,7 +27,7 @@ export function initScene() {
   S.camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
   S.cam2 = new THREE.PerspectiveCamera(70, (innerWidth / 2) / innerHeight, 0.1, 500);
   S.renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH });
-  S.renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.25 : 1.75));
+  S.renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.25 : 1.5));
   S.renderer.setSize(innerWidth, innerHeight);
   S.renderer.shadowMap.enabled = true;
   S.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -37,16 +37,14 @@ export function initScene() {
   document.body.insertBefore(S.renderer.domElement, document.body.firstChild);
   S.clock = new THREE.Clock();
 
-  /* Post-processing : bloom (UnrealBloomPass) pour les effets magiques.
-     Utilisé pour le rendu solo ; le mode coop écran scindé garde le rendu
-     scissor multi-caméra direct (voir loop() dans main.js). */
+  /* Post-processing : bloom (UnrealBloomPass), seul effet gardé au service du
+     gameplay — c'est lui qui rend les sorts/halos lumineux et « cool » à
+     l'écran. Utilisé pour le rendu solo ; le mode coop écran scindé garde le
+     rendu scissor multi-caméra direct (voir loop() dans main.js). Seuil élevé
+     (0.95) : seuls les matériaux magiques (MeshBasic + sprites additifs, qui
+     dépassent 1.0 en HDR) brillent — la pierre en couleur plate ne « bave » pas. */
   S.composer = new EffectComposer(S.renderer);
   S.renderPass = new RenderPass(S.scene, S.camera);
-  /* Réglage bloom pour surfaces PBR réelles (textures brick + HDRI, ACES) :
-     seuil relevé 0.85 → 0.95 et force 0.55 → 0.5 (rayon 0.4 → 0.35) pour que
-     la pierre bien exposée ne « brille » plus. Les éléments magiques (Larmes,
-     sorts, cristaux, halos) restent au-dessus du seuil : leurs matériaux
-     MeshBasic pleine intensité + sprites additifs dépassent 1.0 en HDR. */
   S.bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.35, 0.95);
   S.composer.addPass(S.renderPass);
   S.composer.addPass(S.bloomPass);
@@ -57,7 +55,7 @@ export function initScene() {
   S.dirLight = new THREE.DirectionalLight(0x9fb4f0, 0.85);
   S.dirLight.position.set(70, 110, -50);
   S.dirLight.castShadow = true;
-  S.dirLight.shadow.mapSize.set(2048, 2048);
+  S.dirLight.shadow.mapSize.set(1024, 1024); // priorité à la fluidité : le rendu simplifié n'a pas besoin d'ombres très fines
   S.dirLight.shadow.camera.near = 20;
   S.dirLight.shadow.camera.far = 320;
   S.dirLight.shadow.camera.left = -95;
@@ -69,14 +67,10 @@ export function initScene() {
   S.scene.add(tgt); S.dirLight.target = tgt;
   S.scene.add(S.dirLight);
 
-  /* Environnement HDRI (RGBELoader + PMREM) si un .hdr est présent ;
-     sinon, ciel nocturne d'origine (dégradé) + éclairage de base conservé. */
-  const hasEnv = applyEnvironment(S.renderer, S.scene);
-  if (!hasEnv) {
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 16, 12),
-      new THREE.MeshBasicMaterial({ map: assets.skyTex, side: THREE.BackSide, fog: false }));
-    S.scene.add(sky);
-  }
+  /* Ciel nocturne en dégradé généré en mémoire (aucun HDRI à charger). */
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 16, 12),
+    new THREE.MeshBasicMaterial({ map: assets.skyTex, side: THREE.BackSide, fog: false }));
+  S.scene.add(sky);
   // lune + halo
   const moon = new THREE.Mesh(new THREE.SphereGeometry(8, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0xe8f0ff, fog: false }));
@@ -219,10 +213,7 @@ export function updateDoors(dt) {
 /* ---------------- DÉCOR ---------------- */
 export function torch(x, y, z, color, intensity, dist) {
   const g = new THREE.Group();
-  /* Si un modèle torch.glb est fourni, il remplace le support en bois ;
-     la flamme, le halo et la lumière restent gérés par le code (flicker). */
-  const glb = modelClone('torch');
-  const stick = glb || new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.9, 6), matFor('woodF', 1, 1));
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.9, 6), matFor('woodF', 1, 1));
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.4, 6),
     new THREE.MeshBasicMaterial({ color: color || 0xffc06a }));
   flame.position.y = 0.62;
@@ -237,27 +228,17 @@ export function torch(x, y, z, color, intensity, dist) {
 }
 export function tree(x, z, s) {
   s = s || 1;
-  /* Variété : alterne déterministiquement (selon la position) entre les
-     modèles d'arbres disponibles — chêne (tree) et érable (maple_tree). */
+  /* Variété procédurale (déterministe selon la position, pas de hasard) :
+     l'érable a un feuillage plus large et plus bas que le chêne. */
   const maple = Math.abs(Math.round(x * 13 + z * 7)) % 3 === 0;
-  const glb = maple
-    ? (modelClone('maple_tree') || modelClone('tree'))
-    : (modelClone('tree') || modelClone('maple_tree'));
-  if (glb) {
-    glb.position.set(x, 0, z);
-    glb.scale.setScalar(s);
-    glb.rotation.y = (x * 7 + z * 3) % 6; // orientation variée mais stable
-    S.scene.add(glb);
-    // collision identique à l'original (tronc), le visuel primitif est masqué
-    const trunk = mkCyl(0.2 * s, 0.3 * s, 1.6 * s, x, 0, z, 'trunk', true, 7);
-    trunk.visible = false;
-    return;
-  }
+  const rot = (x * 7 + z * 3) % 6;
   mkCyl(0.2 * s, 0.3 * s, 1.6 * s, x, 0, z, 'trunk', true, 7);
-  const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.5 * s, 2.6 * s, 8), matFor('leaf', 1, 1));
-  c1.position.set(x, 2.5 * s, z); c1.castShadow = true; S.scene.add(c1);
-  const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.1 * s, 2.1 * s, 8), matFor('leaf', 1, 1));
-  c2.position.set(x, 3.6 * s, z); c2.castShadow = true; S.scene.add(c2);
+  const r1 = maple ? 1.75 : 1.5, h1 = maple ? 2.1 : 2.6, y1 = maple ? 2.1 : 2.5;
+  const r2 = maple ? 1.3 : 1.1, h2 = maple ? 1.7 : 2.1, y2 = maple ? 3.1 : 3.6;
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(r1 * s, h1 * s, 8), matFor('leaf', 1, 1));
+  c1.position.set(x, y1 * s, z); c1.rotation.y = rot; c1.castShadow = true; S.scene.add(c1);
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(r2 * s, h2 * s, 8), matFor('leaf', 1, 1));
+  c2.position.set(x, y2 * s, z); c2.rotation.y = rot; c2.castShadow = true; S.scene.add(c2);
 }
 export function pedestal(x, z, y, powerId, color, lore, questId) {
   mkBox(1.3, 1.1, 1.3, x, y, z, 'stoneR');
@@ -393,7 +374,7 @@ export function spawnBurst(x, y, z, color, n) {
   for (let i = 0; i < n; i++) {
     let p = parts.find(q => q.life <= 0);
     if (!p) {
-      if (parts.length > 90) break;
+      if (parts.length > 160) break; // rendu simplifié (sans textures) : marge de reste pour des effets plus généreux
       p = { mesh: new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.13),
         new THREE.MeshBasicMaterial({ color: 0xffffff })), vel: new THREE.Vector3(), life: 0 };
       S.scene.add(p.mesh); parts.push(p);
@@ -1133,36 +1114,39 @@ export function buildOpenWorld() {
      Deux champs en friche flanquent la salle du trône (x -62..-18 et
      x 17.5..60, z -28..0) : on n'y accède qu'en longeant la lisière de la
      forêt (bande z -46..-48) puis en contournant les murs des ruines.
-     Décor généré avec les modèles fournis (maple_tree / trees_1 / mosque). */
+     Décor entièrement procédural (arbres et sanctuaire faits main). */
   // Friche boisée : arbres isolés (chêne/érable) entre les ruines et les champs
   [[-26, -31], [-38, -34], [22, -30], [38, -36], [-22, -41], [40, -31],
    [-34, -22], [-48, -20], [-28, -8], [-52, -4], [30, -12], [46, -6], [52, -20], [38, -24]]
     .forEach(([tx, tz], i) => tree(tx, tz, 1 + (i % 3) * 0.25));
-  // Bosquets denses (trees_1) en lisière des Confins
-  [[-56, -14, 0.6], [52, -12, 2.4], [52, -40, 4.4]].forEach(([bx, bz, rot]) => {
-    const grove = modelClone('trees_1');
-    if (grove) {
-      grove.position.set(bx, 0, bz);
-      grove.rotation.y = rot;
-      S.scene.add(grove);
+  // Bosquets denses en lisière des Confins : petits amas d'arbres serrés
+  [[-56, -14], [52, -12], [52, -40]].forEach(([bx, bz], gi) => {
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + gi;
+      tree(bx + Math.cos(a) * 2.6, bz + Math.sin(a) * 2.6, 0.85 + (i % 2) * 0.2);
     }
   });
   // torche-repère à l'angle des ruines : signale l'entrée des Confins d'ouest
   torch(-46, 0, -46.5, 0x9a6cff, 1.1, 17);
-  // Le Sanctuaire de l'Arbre : bâtisse oubliée du champ d'ouest
-  const sanctuary = modelClone('mosque');
-  if (sanctuary) {
-    sanctuary.position.set(-40, 0, -14);
-    // façade tournée vers le sud (le joueur arrive en longeant la forêt)
-    S.scene.add(sanctuary);
-    addCol(sanctuary); // emprise solide : repère à contourner, non pénétrable
-    torch(-44, 0, -22, 0xffc86a, 1.2, 16);
-    torch(-36, 0, -22, 0xffc86a, 1.2, 16);
-    addPickup('heart', -40, 0, -23.5);
-    addInter(-40, 0, -22, 3.2, 'Se recueillir au Sanctuaire de l\'Arbre', () => {
-      showMsg('« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son sanctuaire tient encore debout — la Nuit n\'ose pas y entrer. »', 5);
-    });
+  // Le Sanctuaire de l'Arbre : shrine circulaire de pierre, bâti à la main
+  const sx = -40, sz = -14;
+  mkCyl(3.4, 3.6, 0.4, sx, 0, sz, 'stoneR', true, 12);
+  for (let k = 0; k < 6; k++) {
+    const a = k * Math.PI / 3;
+    mkBox(0.55, 3.2, 0.55, sx + Math.cos(a) * 2.9, 0.4, sz + Math.sin(a) * 2.9, 'stoneR');
   }
+  mkCyl(0.4, 0.55, 2.4, sx, 0.4, sz, 'trunk', false, 7);
+  const shrineCrown = new THREE.Mesh(new THREE.OctahedronGeometry(0.4),
+    new THREE.MeshBasicMaterial({ color: 0x7ade5a }));
+  shrineCrown.position.set(sx, 3.2, sz);
+  shrineCrown.add(glow(0x7ade5a, 2.2, 0.55));
+  S.scene.add(shrineCrown); spinners.push(shrineCrown);
+  torch(sx - 4, 0, sz - 8, 0xffc86a, 1.2, 16);
+  torch(sx + 4, 0, sz - 8, 0xffc86a, 1.2, 16);
+  addPickup('heart', sx, 0, sz - 9.5);
+  addInter(sx, 0, sz - 8, 3.2, 'Se recueillir au Sanctuaire de l\'Arbre', () => {
+    showMsg('« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son sanctuaire tient encore debout — la Nuit n\'ose pas y entrer. »', 5);
+  });
   // Flèche des Confins — repère visuel du champ d'est
   const spireMat = new THREE.MeshStandardMaterial({ color: 0x241a3a, roughness: 0.7, emissive: 0x140a24 });
   const spire = new THREE.Mesh(new THREE.ConeGeometry(2.2, 16, 8), spireMat);

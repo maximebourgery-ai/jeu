@@ -73,6 +73,18 @@ export function castPower() {
   else if (pw.id === 'frost') frostNova();
   else if (pw.id === 'heal') healSelf();
 }
+/* Lance un sort précis sans toucher à la sélection courante (manette Xbox/PS
+   avec un bouton dédié par sort, et bouton dédié de la manette smartphone) :
+   on arme temporairement le sort visé, on lance, puis on restaure l'arme
+   précédente — la sélection affichée en jeu (touches 1-6) n'est jamais
+   perturbée par ces raccourcis directs. */
+export function castSpecific(id, pl) {
+  if (pl === p2) {
+    const prev = p2.sel; p2.sel = id; castPowerP2(); p2.sel = prev;
+  } else {
+    const prev = G.sel; G.sel = id; castPower(); G.sel = prev;
+  }
+}
 export function frostNova(pl) {
   pl = pl || player;
   A.shield();
@@ -166,8 +178,8 @@ export function meleeStrike(P, pl, f) {
   pl = pl || player;
   f = f || camDirVec();
   A.impact();
-  if (pl === player) S.camKick = 0.16;
-  spawnBurst(pl.pos.x + f.x * 1.5, pl.pos.y + 1.1, pl.pos.z + f.z * 1.5, 0xffaa00, 12);
+  if (pl === player) S.camKick = 0.2;
+  spawnBurst(pl.pos.x + f.x * 1.5, pl.pos.y + 1.1, pl.pos.z + f.z * 1.5, 0xffaa00, 18);
   const rageReady = pl === player
     ? (G.path === 'warrior' && G.rage >= G.maxRage)
     : (p2.path === 'warrior' && p2.rage >= G.maxRage);
@@ -188,7 +200,7 @@ export function meleeStrike(P, pl, f) {
         damageEnemy(e, Math.round(dmg), { x: dx, z: dz }); touched++; dealt += dmg;
         if (P.holyburn && !e.dead) { e.dotT = 3; e.dotDps = 7; e.dotCol = 0xffd97a; } // Consécration
         if (P.exec && !e.dead && e.hp / e.maxHp < P.exec) {
-          spawnBurst(e.g.position.x, e.g.position.y + 0.5, e.g.position.z, 0xff3a3a, 16);
+          spawnBurst(e.g.position.x, e.g.position.y + 0.5, e.g.position.z, 0xff3a3a, 20);
           showMsg('EXÉCUTION !', 0.9);
           damageEnemy(e, e.hp + 1, { x: dx, z: dz });
         }
@@ -196,8 +208,8 @@ export function meleeStrike(P, pl, f) {
     }
   }
   if (finisher && touched) {
-    S.camKick = 0.3; A.impact();
-    spawnBurst(pl.pos.x + f.x * 1.8, pl.pos.y + 1.1, pl.pos.z + f.z * 1.8, 0xff5a2a, 26);
+    S.camKick = 0.36; A.impact();
+    spawnBurst(pl.pos.x + f.x * 1.8, pl.pos.y + 1.1, pl.pos.z + f.z * 1.8, 0xff5a2a, 32);
   }
   if (rageReady) rageBurst(P, pl);
   else if (touched) gainRage(12 + 3 * (touched - 1), pl);
@@ -245,7 +257,7 @@ export function fireBolt(P, pl, dirO, target) {
     }
     const m = new THREE.Mesh(new THREE.SphereGeometry(isAss ? 0.11 : 0.15, 8, 8),
       new THREE.MeshBasicMaterial({ color: col }));
-    m.add(glow(col, 1.6, 0.7));
+    m.add(glow(col, 2.1, 0.8));
     m.position.copy(start);
     S.scene.add(m);
     projectiles.push({ mesh: m, vel: dir.multiplyScalar(P.pSpeed || 26),
@@ -253,11 +265,11 @@ export function fireBolt(P, pl, dirO, target) {
       aoe: !!P.aoe, aoeR: P.aoeR || 3.4, burn: !!P.burn,
       pierce: !!P.pierce, hits: 0, chain: P.chain || 0, stun: P.stun || 0,
       sniper: !!P.sniper, fatal: !!P.fatal, poison: !!P.poison, backstab: !!P.backstab,
-      ox: start.x, oy: start.y, oz: start.z });
+      trailCol: col, ox: start.x, oy: start.y, oz: start.z });
   }
   // Éclair de lancement + recul caméra pour donner du poids au sort
-  spawnBurst(start.x, start.y, start.z, 0xbfeaff, 5);
-  if (pl === player) S.camKick = 0.09;
+  spawnBurst(start.x, start.y, start.z, 0xbfeaff, 10);
+  if (pl === player) S.camKick = 0.12;
 }
 export function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -267,6 +279,9 @@ export function updateProjectiles(dt) {
     if (pr.hostile) {
       pr.mesh.rotation.x += dt * (pr.spin || 6); pr.mesh.rotation.y += dt * (pr.spin || 6) * 0.7;
       if (Math.random() < 0.4) spawnBurst(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, 0xff3a5a, 1);
+    } else if (pr.trailCol && Math.random() < 0.55) {
+      // sillage lumineux : rend les traits/dagues astraux plus lisibles et plus « cool » en vol
+      spawnBurst(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, pr.trailCol, 1);
     }
     const pos = pr.mesh.position;
     let hit = pr.life <= 0;
@@ -308,13 +323,13 @@ export function updateProjectiles(dt) {
             const facing = Math.sin(ry) * tox / tl + Math.cos(ry) * toz / tl;
             if (facing < -0.5 && crit < 2.5) {
               crit = 2.5;
-              spawnBurst(pos.x, pos.y, pos.z, 0xd8ffe8, 16);
+              spawnBurst(pos.x, pos.y, pos.z, 0xd8ffe8, 20);
               showMsg('DANS LE DOS ×2,5 !', 0.9);
             }
           }
           if (crit > 1) dmg *= crit;
           if (crit >= 3) {
-            spawnBurst(pos.x, pos.y, pos.z, 0xff3a6a, 20);
+            spawnBurst(pos.x, pos.y, pos.z, 0xff3a6a, 26);
             showMsg('TIR FATAL ×3 !', 0.9);
           }
           damageEnemy(e, Math.round(dmg), pr.vel);
@@ -448,15 +463,7 @@ export function checkPlate() {
     }
   }
 }
-/* ---- Cycle des sorts (manette / tactile) ---- */
-export function cyclePowerP2(dir) {
-  const owned = POWERS.filter(p => G.powers[p.id] && p.id !== 'tk');
-  if (owned.length < 2) return;
-  let i = owned.findIndex(p => p.id === p2.sel);
-  i = (i + dir + owned.length) % owned.length;
-  p2.sel = owned[i].id;
-  showMsg('J2 : ' + owned[i].name + ' préparé.', 1);
-}
+/* ---- Cycle du sort (tactile) ---- */
 export function cyclePower(dir) {
   const owned = POWERS.filter(p => G.powers[p.id]);
   if (owned.length < 2) return;
