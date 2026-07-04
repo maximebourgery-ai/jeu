@@ -10,7 +10,7 @@ import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
 import { tryInteract, tryInteractP2 } from './World.js';
-import { castPower, castPowerP2, cyclePower, cyclePowerP2 } from './Powers.js';
+import { castPower, castPowerP2, cyclePower, castSpecific } from './Powers.js';
 
 /* ---------------- ENTRÉES (verrouillage souris + repli glisser) ---------------- */
 export function lockPointer() {
@@ -101,9 +101,15 @@ export function initControls() {
 
 /* ================================================================
    MANETTE (Gamepad API — Xbox / PlayStation)
-   Stick gauche : déplacement · Stick droit : caméra
-   A/Croix : saut · X/Carré ou RT : attaque · B/Rond : interagir
-   LB/RB : changer de sort · Stick G. enfoncé : sprint · Start : pause
+   Stick gauche : déplacement · Stick droit : caméra · Stick G. enfoncé : sprint
+   A/Croix : saut · B/Rond : interagir · Start : pause
+   Un bouton dédié par sort (plus besoin de cycler avant de lancer) :
+     X/Carré      : sort 1 — Trait astral (tenir pour l'attaque continue)
+     Y/Triangle   : sort 2 — Pas du vent
+     LB/L1        : sort 3 — Main céleste
+     RB/R1        : sort 4 — Égide
+     LT/L2        : sort 5 — Souffle glacé
+     RT/R2        : sort 6 — Bénédiction
    ================================================================ */
 export function updateGamepad(dt) {
   if (S.gpDisabled) return;
@@ -141,11 +147,14 @@ export function updateGamepad(dt) {
         p2.pitch = Math.max(-1.22, Math.min(0.85, p2.pitch));
         p2.input.sprint = b(10);
         p2.input.jumpHeld = b(0);
-        if (b(0) && !S.gpPrev[0]) p2.jumpQ = 0.14;              // A : saut J2
-        if ((b(2) || b(7)) && !G.inv) castPowerP2();            // X ou RT : attaque J2
-        if (b(1) && !S.gpPrev[1]) tryInteractP2();              // B : interagir J2
-        if (b(4) && !S.gpPrev[4]) cyclePowerP2(-1);             // LB : sort précédent J2
-        if (b(5) && !S.gpPrev[5]) cyclePowerP2(1);              // RB : sort suivant J2
+        if (b(0) && !S.gpPrev[0]) p2.jumpQ = 0.14;                       // A : saut J2
+        if (b(2) && !G.inv) castPowerP2();                               // X : sort 1 (attaque) J2
+        if (b(1) && !S.gpPrev[1]) tryInteractP2();                       // B : interagir J2
+        if (b(3) && !S.gpPrev[3] && !G.inv) castSpecific('dash', p2);    // Y : sort 2 J2
+        if (b(4) && !S.gpPrev[4] && !G.inv) castSpecific('tk', p2);      // LB : sort 3 J2
+        if (b(5) && !S.gpPrev[5] && !G.inv) castSpecific('shield', p2);  // RB : sort 4 J2
+        if (b(6) && !S.gpPrev[6] && !G.inv) castSpecific('frost', p2);   // LT : sort 5 J2
+        if (b(7) && !S.gpPrev[7] && !G.inv) castSpecific('heal', p2);    // RT : sort 6 J2
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
@@ -157,15 +166,18 @@ export function updateGamepad(dt) {
         if (Math.abs(dz(gp.axes[2] || 0)) + Math.abs(dz(gp.axes[3] || 0)) > 0.1) tut.looked += 0.04;
         S.gpSprint = b(10); // stick gauche enfoncé
         S.gpJumpHeld = b(0);
-        if (b(0) && !S.gpPrev[0]) S.jumpQueued = 0.14;          // A / Croix : saut
-        if ((b(2) || b(7)) && !G.inv) castPower();              // X / Carré ou RT : attaque (limitée par cooldown)
-        if (b(1) && !S.gpPrev[1]) tryInteract();                // B / Rond : interagir
-        if (b(4) && !S.gpPrev[4]) cyclePower(-1);               // LB : sort précédent
-        if (b(5) && !S.gpPrev[5]) cyclePower(1);                // RB : sort suivant
+        if (b(0) && !S.gpPrev[0]) S.jumpQueued = 0.14;                  // A / Croix : saut
+        if (b(2) && !G.inv) castPower();                                // X / Carré : sort 1 (attaque, tenir pour enchaîner)
+        if (b(1) && !S.gpPrev[1]) tryInteract();                        // B / Rond : interagir
+        if (b(3) && !S.gpPrev[3] && !G.inv) castSpecific('dash');       // Y / Triangle : sort 2
+        if (b(4) && !S.gpPrev[4] && !G.inv) castSpecific('tk');         // LB / L1 : sort 3
+        if (b(5) && !S.gpPrev[5] && !G.inv) castSpecific('shield');     // RB / R1 : sort 4
+        if (b(6) && !S.gpPrev[6] && !G.inv) castSpecific('frost');      // LT / L2 : sort 5
+        if (b(7) && !S.gpPrev[7] && !G.inv) castSpecific('heal');       // RT / R2 : sort 6
       }
     }
   }
-  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 4: b(4), 5: b(5), 9: b(9) };
+  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9) };
 }
 
 /* ================================================================

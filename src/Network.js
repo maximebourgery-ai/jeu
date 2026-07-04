@@ -14,7 +14,7 @@ import { G, S, CTRL_ID, tmMove } from './state.js';
 import { $, showMsg } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { tryInteract } from './World.js';
-import { castPower, cyclePower } from './Powers.js';
+import { cyclePower, castSpecific } from './Powers.js';
 import { toggleTree } from './SkillTree.js';
 
 /* Serveurs STUN + TURN publics (Open Relay Project) : le TURN est ce qui
@@ -81,7 +81,7 @@ export function openManettePanel() {
       else if (d.t === 'atkup') S.tmAttackHeld = false;
       else if (d.t === 'interact' && !G.paused) tryInteract();
       else if (d.t === 'spell' && !G.paused) cyclePower(1);
-      else if (d.t === 'dash' && !G.paused && !G.treeOpen) { const prev = G.sel; G.sel = 'dash'; castPower(); G.sel = prev; }
+      else if (d.t === 'dash' && !G.paused && !G.treeOpen) castSpecific('dash');
       else if (d.t === 'tree') toggleTree();
       else if (d.t === 'pause' && !G.over && !G.dialog) {
         G.paused = !G.paused; $('pause').classList.toggle('hidden', !G.paused);
