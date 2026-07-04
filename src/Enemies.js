@@ -310,6 +310,18 @@ export function updateDirector(dt) {
   /* Rythme des renforts calé sur les 18 quêtes de la refonte : très calme
      au début (20 s+ vers la quête du levier), soutenu en fin de partie (9 s). */
   S.dirT = Math.max(9, 26 - S.questI);
+  /* Purge des renforts morts (tableau `enemies` sinon jamais réduit : une
+     longue partie accumulerait des centaines d'entrées mortes, ralentissant
+     peu à peu chaque boucle qui parcourt `enemies`). On ne touche jamais aux
+     ombres « statiques » du monde (index < S.STATIC_ENEMIES — la sauvegarde
+     en dépend) ni à rien pendant une instance de la Tour, dont le level
+     streaming (voir Tower.js) suppose que rien d'autre ne modifie ce
+     tableau entre beginBuild() et unloadPalier(). */
+  if (!S.inTower) {
+    for (let i = enemies.length - 1; i >= S.STATIC_ENEMIES; i--) {
+      if (enemies[i].dead) enemies.splice(i, 1);
+    }
+  }
   if (!z || S.questI < 6) return; // aucun renfort avant l'ouverture de la bibliothèque
   let alive = 0; for (const e of enemies) if (!e.dead) alive++;
   if (alive >= 26) return;

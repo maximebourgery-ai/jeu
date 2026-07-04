@@ -164,6 +164,7 @@ export const p2 = {
   cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0 },
   yaw: 0, pitch: -0.22, shieldT: 0, invuln: 0, dashT: 0, stepT: 0, walkT: 0,
   grounded: false, airJumped: false, jumpQ: 0,
+  rage: 0, // jauge de rage du Guerrier quand le J2 incarne cette voie (voir Powers.js)
   input: { mx: 0, mz: 0, sprint: false, jumpHeld: false },
   pos: null, vel: null, dashDir: null, mesh: null, parts: null, wings: null, shieldMesh: null, mixer: null
 };

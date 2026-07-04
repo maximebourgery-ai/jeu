@@ -375,10 +375,7 @@ export function nearInterP(pl) {
   return null;
 }
 export function nearInter() {
-  const a = nearInterP(player);
-  if (a) return a;
-  if (S.COOP && p2.pos) return nearInterP(p2);
-  return null;
+  return nearInterP(player);
 }
 export function tryInteractP2() {
   if (!G.started || G.paused || G.inv || G.over || G.dialog) return;

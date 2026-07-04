@@ -110,6 +110,10 @@ export function castPowerP2() {
     A.pickup();
     p2.hp = Math.min(p2.maxHp, p2.hp + 40);
     spawnBurst(p2.pos.x, p2.pos.y + 1.2, p2.pos.z, 0x9fffb0, 16);
+    // Même déclencheur que healSelf() (J1) : la Racine Vengeresse (Tour,
+    // étage 9) doit rester vulnérable à la Bénédiction, quel que soit le
+    // porteur de flamme qui la lance.
+    if (S.onHeal) S.onHeal();
   }
 }
 export function doDashP2() {
@@ -126,19 +130,22 @@ export function doDashP2() {
   p2.vel.y = Math.max(p2.vel.y, 0.5);
   spawnBurst(p2.pos.x, p2.pos.y + 0.8, p2.pos.z, 0x9fe8ff, 8);
 }
-/* ---- Jauge de rage du Guerrier (J1) ----
+/* ---- Jauge de rage du Guerrier (J1 et J2 en coop) ----
    Se remplit en infligeant des coups de mêlée (+12 par frappe au but,
-   +3 par ennemi supplémentaire touché) et en subissant des dégâts
-   (+50 % des dégâts reçus, voir hurt() dans Player.js). À pleine jauge,
-   la PROCHAINE frappe de mêlée déclenche automatiquement une onde
+   +3 par ennemi supplémentaire touché) et, pour J1, en subissant des
+   dégâts (+50 % des dégâts reçus, voir hurt() dans Player.js). À pleine
+   jauge, la PROCHAINE frappe de mêlée déclenche automatiquement une onde
    dévastatrice à 360° (déclenchement naturel : aucun bouton en plus,
    compatible clavier/manette/tactile), puis la jauge se vide. */
-export function gainRage(n) {
-  if (G.path !== 'warrior') return;
-  G.rage = Math.min(G.maxRage, G.rage + n);
+export function gainRage(n, pl) {
+  pl = pl || player;
+  const path = pl === player ? G.path : p2.path;
+  if (path !== 'warrior') return;
+  if (pl === player) G.rage = Math.min(G.maxRage, G.rage + n);
+  else p2.rage = Math.min(G.maxRage, p2.rage + n);
 }
 export function rageBurst(P, pl) {
-  G.rage = 0;
+  if (pl === player) G.rage = 0; else p2.rage = 0;
   A.impact(); A.dash();
   S.camKick = 0.35;
   showMsg('FUREUR DÉCHAÎNÉE !', 1.2);
@@ -161,7 +168,9 @@ export function meleeStrike(P, pl, f) {
   A.impact();
   if (pl === player) S.camKick = 0.16;
   spawnBurst(pl.pos.x + f.x * 1.5, pl.pos.y + 1.1, pl.pos.z + f.z * 1.5, 0xffaa00, 12);
-  const rageReady = pl === player && G.path === 'warrior' && G.rage >= G.maxRage;
+  const rageReady = pl === player
+    ? (G.path === 'warrior' && G.rage >= G.maxRage)
+    : (p2.path === 'warrior' && p2.rage >= G.maxRage);
   const R = P.aoe ? P.range + 1.4 : P.range; // transcendance : arc élargi
   let dmg = P.dmg, finisher = false;
   if (P.combo && pl === player) {
@@ -191,9 +200,12 @@ export function meleeStrike(P, pl, f) {
     spawnBurst(pl.pos.x + f.x * 1.8, pl.pos.y + 1.1, pl.pos.z + f.z * 1.8, 0xff5a2a, 26);
   }
   if (rageReady) rageBurst(P, pl);
-  else if (touched && pl === player) gainRage(12 + 3 * (touched - 1));
+  else if (touched) gainRage(12 + 3 * (touched - 1), pl);
   if (touched && hasN('w_fury')) G.furyT = 2;
-  if (touched && P.lifesteal && pl === player) G.hp = Math.min(G.maxHp, G.hp + dealt * P.lifesteal);
+  if (touched && P.lifesteal) {
+    if (pl === player) G.hp = Math.min(G.maxHp, G.hp + dealt * P.lifesteal);
+    else p2.hp = Math.min(p2.maxHp, p2.hp + dealt * P.lifesteal);
+  }
   if (P.shock) {
     spawnBurst(pl.pos.x, pl.pos.y + 0.3, pl.pos.z, 0xd9a83c, 22);
     for (const e of enemies) {

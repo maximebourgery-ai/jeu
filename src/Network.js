@@ -40,6 +40,7 @@ export function openManettePanel() {
     return;
   }
   $('qrstatus').textContent = 'Initialisation...';
+  clearTimeout(S.hostConnTimer); // évite qu'un délai d'attente d'un pair précédent n'écrase ce nouveau statut
   S.hostPeer = new Peer(undefined, { config: ICE_CONFIG });
   S.hostPeer.on('open', id => {
     const url = location.origin + location.pathname + '?controller=' + id;
@@ -153,7 +154,6 @@ export function startControllerMode() {
         tries = 0;
         setStatus('✓ Connecté — bon jeu !');
         if (navigator.vibrate) navigator.vibrate(20);
-        wireControls(msg => { try { conn.send(msg); } catch (e) {} });
       });
       conn.on('close', () => {
         setStatus('Déconnecté. Nouvelle tentative...');
@@ -181,7 +181,13 @@ export function startControllerMode() {
   }
   connect();
   /* Joystick, glisser-caméra et boutons : mêmes gestes que les contrôles
-     tactiles du jeu, envoyés en JSON au PC. */
+     tactiles du jeu, envoyés en JSON au PC. Câblé UNE SEULE FOIS (le DOM
+     ne change pas d'une reconnexion à l'autre) : `send` regarde toujours
+     la connexion `conn` courante, jamais une connexion PeerJS périmée —
+     sinon chaque reconnexion (Wi-Fi coupé, écran verrouillé...) empilerait
+     des écouteurs et un setInterval en double, dupliquant chaque coup/
+     interaction et faisant dériver le joystick. */
+  wireControls(msg => { if (conn) { try { conn.send(msg); } catch (e) {} } });
   function wireControls(send) {
     const joy = document.getElementById('njoy'), knob = document.getElementById('njoyknob');
     let joyId = null, lastMx = 0, lastMz = 0;
