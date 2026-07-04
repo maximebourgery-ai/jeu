@@ -10,7 +10,7 @@
    ================================================================ */
 import Peer from 'peerjs';
 import QRCode from 'qrcode';
-import { G, S, CTRL_ID, tmMove } from './state.js';
+import { G, S, CTRL_ID, tmMove, settings } from './state.js';
 import { $, showMsg } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { tryInteract } from './World.js';
@@ -72,7 +72,9 @@ export function openManettePanel() {
       if (G.dialog) { if (d.t === 'atkdown' || d.t === 'interact' || d.t === 'jumpdown') dlgNext(); return; }
       if (d.t === 'move') { tmMove.x = d.x || 0; tmMove.z = d.z || 0; }
       else if (d.t === 'look' && !G.paused && !G.treeOpen) {
-        S.yaw -= (d.dx || 0) * 0.0052; S.pitch -= (d.dy || 0) * 0.0052;
+        const s = 0.0052 * settings.padSens;
+        S.yaw -= (d.dx || 0) * s;
+        S.pitch -= (d.dy || 0) * s * (settings.invertY ? -1 : 1);
         S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
       }
       else if (d.t === 'jumpdown') { if (!G.paused) S.jumpQueued = 0.14; S.tmJumpHeld = true; }

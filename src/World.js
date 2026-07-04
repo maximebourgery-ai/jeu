@@ -8,7 +8,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
-  G, S, IS_TOUCH, POWERS, QUESTS, HINTS, tut, STEP_HEIGHT, LIGHT_SCALE,
+  G, S, IS_TOUCH, POWERS, QUESTS, HINTS, tut, STEP_HEIGHT, LIGHT_SCALE, settings,
   colliders, doors, pickups, inter, spinners, flames, parts,
   tkCubes, pedestals, PLATES, CAMPS, player, p2
 } from './state.js';
@@ -21,9 +21,16 @@ import { hurt } from './Player.js'; // rideau de flammes (import cyclique sûr :
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
 
 /* ---------------- SCÈNE ---------------- */
+/* Base d'éclairage nocturne (avant application de la luminosité réglable,
+   voir applyBrightness) : assez lumineuse pour rester jouable de nuit —
+   l'ambiance reste sombre mais le décor proche doit toujours se lire. */
+const NIGHT_FOG_COLOR = 0x141b34, NIGHT_FOG_DENSITY = 0.0082;
+const NIGHT_HEMI = 1.3, NIGHT_AMBIENT = 1.15, NIGHT_DIR = 1.0;
+const NIGHT_EXPOSURE = 1.25;
+
 export function initScene() {
   S.scene = new THREE.Scene();
-  S.scene.fog = new THREE.FogExp2(0x0b1024, 0.0135);
+  S.scene.fog = new THREE.FogExp2(NIGHT_FOG_COLOR, NIGHT_FOG_DENSITY);
   S.camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
   S.cam2 = new THREE.PerspectiveCamera(70, (innerWidth / 2) / innerHeight, 0.1, 500);
   S.renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH });
@@ -33,7 +40,7 @@ export function initScene() {
   S.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   S.renderer.outputColorSpace = THREE.SRGBColorSpace;
   S.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  S.renderer.toneMappingExposure = 1.05;
+  S.renderer.toneMappingExposure = NIGHT_EXPOSURE;
   document.body.insertBefore(S.renderer.domElement, document.body.firstChild);
   S.clock = new THREE.Clock();
 
@@ -50,9 +57,11 @@ export function initScene() {
   S.composer.addPass(S.bloomPass);
   S.composer.addPass(new OutputPass());
 
-  S.scene.add(new THREE.HemisphereLight(0x2a3c68, 0x0a0b14, 0.85));
-  S.scene.add(new THREE.AmbientLight(0x181c30, 0.8));
-  S.dirLight = new THREE.DirectionalLight(0x9fb4f0, 0.85);
+  S.hemiLight = new THREE.HemisphereLight(0x3a5088, 0x141a2c, NIGHT_HEMI);
+  S.scene.add(S.hemiLight);
+  S.ambLight = new THREE.AmbientLight(0x232b4a, NIGHT_AMBIENT);
+  S.scene.add(S.ambLight);
+  S.dirLight = new THREE.DirectionalLight(0x9fb4f0, NIGHT_DIR);
   S.dirLight.position.set(70, 110, -50);
   S.dirLight.castShadow = true;
   S.dirLight.shadow.mapSize.set(1024, 1024); // priorité à la fluidité : le rendu simplifié n'a pas besoin d'ombres très fines
@@ -102,6 +111,18 @@ export function initScene() {
     S.renderer.setSize(innerWidth, innerHeight);
     S.composer.setSize(innerWidth, innerHeight);
   });
+  applyBrightness();
+}
+/* Réglage « Luminosité nocturne » (menu Réglages) : remonte l'éclairage
+   ambiant, l'exposition et la portée du brouillard ensemble, pour que le
+   curseur se lise comme un vrai gain de visibilité et pas un simple filtre. */
+export function applyBrightness() {
+  const b = settings.brightness || 1;
+  if (S.hemiLight) S.hemiLight.intensity = NIGHT_HEMI * b;
+  if (S.ambLight) S.ambLight.intensity = NIGHT_AMBIENT * b;
+  if (S.dirLight) S.dirLight.intensity = NIGHT_DIR * (0.8 + 0.2 * b);
+  if (S.renderer) S.renderer.toneMappingExposure = NIGHT_EXPOSURE * (0.75 + 0.25 * b);
+  if (S.scene && S.scene.fog) S.scene.fog.density = NIGHT_FOG_DENSITY / b;
 }
 export function setCamAspects() {
   S.camera.aspect = (S.COOP ? innerWidth / 2 : innerWidth) / innerHeight;

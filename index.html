@@ -38,6 +38,12 @@
   <button class="tbtn" id="t-jump">▲</button>
   <button class="tbtn" id="t-act">E</button>
   <button class="tbtn" id="t-spell">⟳</button>
+  <!-- Un bouton par sort (2-6), comme sur manette Xbox/PS -->
+  <button class="tbtn tspell" id="t-s2">⟫</button>
+  <button class="tbtn tspell" id="t-s3">☄</button>
+  <button class="tbtn tspell" id="t-s4">◎</button>
+  <button class="tbtn tspell" id="t-s5">❄</button>
+  <button class="tbtn tspell" id="t-s6">✚</button>
   <button class="tbtn" id="t-craft">⚒</button>
   <button class="tbtn" id="t-tree">✥</button>
   <button class="tbtn" id="t-pause">II</button>
@@ -88,7 +94,8 @@
   <div class="controls">
     <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic gauche</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
     <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion (2 herbes) · <b>O</b> forger un orbe (3 ombres) · <b>C</b> transcender (orbes) · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
-    🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>un bouton par sort</b> (X/Y/LB/RB/LT/RT) · 📱 Manette smartphone via le menu pause
+    🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>un bouton par sort</b> (X/Y/LB/RB/LT/RT) · 📱 Manette smartphone via le menu pause<br/>
+    Sensibilité de visée, zone morte et luminosité nocturne réglables dans <b>⚙ Réglages</b> (menu pause)
   </div>
 </div>
 
@@ -101,6 +108,7 @@
 <div id="pause" class="overlay hidden">
   <h2>PAUSE</h2>
   <button id="btn-resume">Reprendre</button>
+  <button id="btn-settings">⚙ Réglages</button>
   <button id="btn-save">💾 Sauvegarder la partie</button>
   <button id="btn-manette">📱 Manette smartphone</button>
   <div class="controls">
@@ -108,6 +116,34 @@
     <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion · <b>O</b> orbe · <b>C</b> transcender · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
     <b>Coop :</b> J1 = clavier/souris · J2 = manette (stick G. bouger, stick D. caméra, A saut, B agir, X/Y/LB/RB/LT/RT = les 6 sorts)
   </div>
+</div>
+
+<div id="settings" class="overlay hidden">
+  <h2>RÉGLAGES</h2>
+  <div class="setrow">
+    <label for="set-mouse">Sensibilité souris / tactile</label>
+    <input type="range" id="set-mouse" min="0.3" max="2.5" step="0.05"/>
+    <span class="setval" id="set-mouse-val"></span>
+  </div>
+  <div class="setrow">
+    <label for="set-pad">Sensibilité manette</label>
+    <input type="range" id="set-pad" min="0.3" max="2.5" step="0.05"/>
+    <span class="setval" id="set-pad-val"></span>
+  </div>
+  <div class="setrow">
+    <label for="set-deadzone">Zone morte du stick</label>
+    <input type="range" id="set-deadzone" min="0.05" max="0.4" step="0.01"/>
+    <span class="setval" id="set-deadzone-val"></span>
+  </div>
+  <div class="setrow">
+    <label for="set-brightness">Luminosité nocturne</label>
+    <input type="range" id="set-brightness" min="0.6" max="1.8" step="0.05"/>
+    <span class="setval" id="set-brightness-val"></span>
+  </div>
+  <div class="setrow setcheck">
+    <label><input type="checkbox" id="set-invert"/> Inverser l'axe Y (caméra)</label>
+  </div>
+  <button id="btn-settings-close">Fermer</button>
 </div>
 
 <div id="qrpanel" class="hidden">

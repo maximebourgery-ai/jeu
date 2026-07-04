@@ -3,13 +3,13 @@
    + boutons), manette Xbox/PS (Gamepad API).
    La manette smartphone (PeerJS) est dans Network.js.
    ================================================================ */
-import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove } from './state.js';
+import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove, settings, saveSettings } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, refreshInv, closeTravel } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
-import { tryInteract, tryInteractP2 } from './World.js';
+import { tryInteract, tryInteractP2, applyBrightness } from './World.js';
 import { castPower, castPowerP2, cyclePower, castSpecific } from './Powers.js';
 
 /* ---------------- ENTRÉES (verrouillage souris + repli glisser) ---------------- */
@@ -60,8 +60,9 @@ export function initControls() {
   addEventListener('mousemove', e => {
     const locked = !!document.pointerLockElement;
     if (locked || (S.mDown && G.started && !G.paused)) {
-      S.yaw -= e.movementX * 0.0024;
-      S.pitch -= e.movementY * 0.0024;
+      const s = 0.0024 * settings.mouseSens;
+      S.yaw -= e.movementX * s;
+      S.pitch -= e.movementY * s * (settings.invertY ? -1 : 1);
       S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
       tut.looked += Math.abs(e.movementX) * 0.0024 + Math.abs(e.movementY) * 0.0024;
       if (!locked) S.dragDist += Math.abs(e.movementX) + Math.abs(e.movementY);
@@ -111,6 +112,20 @@ export function initControls() {
      LT/L2        : sort 5 — Souffle glacé
      RT/R2        : sort 6 — Bénédiction
    ================================================================ */
+/* Zone morte à rééchelonnage linéaire : au-delà du seuil, la valeur repart
+   de 0 (pas de saut brusque façon |v|>seuil, qui donne cette sensation de
+   viseur qui "accroche" dès qu'on touche le stick). */
+function deadzone(v, z) {
+  const av = Math.abs(v);
+  if (av <= z) return 0;
+  return Math.sign(v) * (av - z) / (1 - z);
+}
+/* Courbe de réponse de visée façon FPS moderne (Call of Duty & consorts) :
+   précise sur les petits mouvements de stick, qui accélère sur les grands —
+   la vitesse maximale de rotation ne change pas (courbe(1) = 1). */
+function aimCurve(v) {
+  return Math.sign(v) * Math.pow(Math.abs(v), 1.6);
+}
 export function updateGamepad(dt) {
   if (S.gpDisabled) return;
   let pads = [];
@@ -127,7 +142,7 @@ export function updateGamepad(dt) {
   gpMove.x = 0; gpMove.z = 0; S.gpSprint = false; S.gpJumpHeld = false;
   p2.input.mx = 0; p2.input.mz = 0; p2.input.sprint = false; p2.input.jumpHeld = false;
   if (!gp) return;
-  const dz = v => Math.abs(v) > 0.18 ? v : 0;
+  const dz = v => deadzone(v, settings.deadzone);
   const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
   // Pause (Start)
   if (b(9) && !S.gpPrev[9] && G.started && !G.over && !G.dialog) {
@@ -142,8 +157,8 @@ export function updateGamepad(dt) {
         /* --- La manette contrôle le JOUEUR 2 --- */
         p2.input.mx = dz(gp.axes[0]);
         p2.input.mz = -dz(gp.axes[1]);
-        p2.yaw -= dz(gp.axes[2] || 0) * 2.6 * dt;
-        p2.pitch -= dz(gp.axes[3] || 0) * 1.8 * dt;
+        p2.yaw -= aimCurve(dz(gp.axes[2] || 0)) * 2.6 * settings.padSens * dt;
+        p2.pitch -= aimCurve(dz(gp.axes[3] || 0)) * 1.8 * settings.padSens * dt * (settings.invertY ? -1 : 1);
         p2.pitch = Math.max(-1.22, Math.min(0.85, p2.pitch));
         p2.input.sprint = b(10);
         p2.input.jumpHeld = b(0);
@@ -159,8 +174,8 @@ export function updateGamepad(dt) {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
         gpMove.z = -dz(gp.axes[1]);
-        S.yaw -= dz(gp.axes[2] || 0) * 2.6 * dt;
-        S.pitch -= dz(gp.axes[3] || 0) * 1.8 * dt;
+        S.yaw -= aimCurve(dz(gp.axes[2] || 0)) * 2.6 * settings.padSens * dt;
+        S.pitch -= aimCurve(dz(gp.axes[3] || 0)) * 1.8 * settings.padSens * dt * (settings.invertY ? -1 : 1);
         S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
         if (Math.abs(gpMove.x) + Math.abs(gpMove.z) > 0.1) tut.moved += 0.08;
         if (Math.abs(dz(gp.axes[2] || 0)) + Math.abs(dz(gp.axes[3] || 0)) > 0.1) tut.looked += 0.04;
@@ -226,8 +241,9 @@ export function setupTouch() {
     const dx = e.clientX - lx, dy = e.clientY - ly;
     lx = e.clientX; ly = e.clientY;
     if (G.started && !G.paused && !G.dialog) {
-      S.yaw -= dx * 0.0052;
-      S.pitch -= dy * 0.0052;
+      const s = 0.0052 * settings.mouseSens;
+      S.yaw -= dx * s;
+      S.pitch -= dy * s * (settings.invertY ? -1 : 1);
       S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
       tut.looked += (Math.abs(dx) + Math.abs(dy)) * 0.0052;
     }
@@ -258,6 +274,13 @@ export function setupTouch() {
     tryInteract();
   });
   bind('t-spell', () => cyclePower(1));
+  /* Un bouton dédié par sort, comme sur manette (X/Y/LB/RB/LT/RT) : plus
+     besoin de cycler la sélection avant de lancer un sort 2-6. */
+  bind('t-s2', () => { if (!G.dialog && !G.paused) castSpecific('dash'); });
+  bind('t-s3', () => { if (!G.dialog && !G.paused) castSpecific('tk'); });
+  bind('t-s4', () => { if (!G.dialog && !G.paused) castSpecific('shield'); });
+  bind('t-s5', () => { if (!G.dialog && !G.paused) castSpecific('frost'); });
+  bind('t-s6', () => { if (!G.dialog && !G.paused) castSpecific('heal'); });
   bind('t-craft', () => $('craftpanel').classList.toggle('hidden'));
   bind('t-tree', () => toggleTree());
   bind('cr-h', () => craftAction('H'));
@@ -284,4 +307,39 @@ export function tryFullscreenMobile() {
       } catch (e) {}
     }).catch(() => {});
   } catch (e) { /* plein écran interdit dans cet environnement : on continue en fenêtré */ }
+}
+
+/* ================================================================
+   RÉGLAGES (menu pause) — sensibilité souris/tactile, sensibilité
+   manette, zone morte, inversion d'axe Y, luminosité nocturne.
+   Persistés en localStorage (voir state.js : settings/saveSettings).
+   ================================================================ */
+export function initSettingsUI() {
+  const bindSlider = (id, key, onChange) => {
+    const el = $(id), val = $(id + '-val');
+    const show = () => { if (val) val.textContent = Number(settings[key]).toFixed(2); };
+    el.value = settings[key];
+    show();
+    el.addEventListener('input', () => {
+      settings[key] = parseFloat(el.value);
+      show();
+      if (onChange) onChange();
+      saveSettings();
+    });
+  };
+  bindSlider('set-mouse', 'mouseSens');
+  bindSlider('set-pad', 'padSens');
+  bindSlider('set-deadzone', 'deadzone');
+  bindSlider('set-brightness', 'brightness', applyBrightness);
+  const inv = $('set-invert');
+  inv.checked = settings.invertY;
+  inv.addEventListener('change', () => { settings.invertY = inv.checked; saveSettings(); });
+  $('btn-settings').addEventListener('click', () => {
+    $('pause').classList.add('hidden');
+    $('settings').classList.remove('hidden');
+  });
+  $('btn-settings-close').addEventListener('click', () => {
+    $('settings').classList.add('hidden');
+    $('pause').classList.remove('hidden');
+  });
 }
