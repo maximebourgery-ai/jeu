@@ -1,11 +1,51 @@
 /* ---------------- UI / HUD ---------------- */
 import * as THREE from 'three';
-import { G, S, PATHS, POWERS, p2, enemies, flames, spinners } from './state.js';
+import { G, S, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners } from './state.js';
+import { A } from './Audio.js';
 import { xpNeed } from './SkillTree.js';
-import { nearInter } from './World.js';
+import { nearInter, spawnBurst } from './World.js';
+import { lockPointer } from './Controls.js'; // cycle sûr : appel différé
+import { leaveTower } from './Tower.js';     // cycle sûr : appel différé
 
 export const $ = id => document.getElementById(id);
 export function showMsg(t, dur) { $('msg').textContent = t; $('msg').style.opacity = 1; G.msgT = dur || 3; }
+
+/* ---------------- VOYAGE RAPIDE — MATRICE DES BIVOUACS ----------------
+   Ouverte au repos à un feu de bivouac. Fast-travel INTERDIT si le joueur
+   est en combat (isPlayerInCombat ⇔ S.combatT > 0, voir Enemies.js). */
+export function openTravel(fromCamp) {
+  const dests = CAMPS.filter(c => c.travel && G.camps[c.id] && (!fromCamp || c.id !== fromCamp.id));
+  if (!dests.length) return; // premier feu découvert : rien où voyager encore
+  if (S.combatT > 0) { showMsg('Les ombres vous traquent : impossible de voyager en plein combat.', 3); return; }
+  G.travelOpen = true;
+  const ul = $('travellist'); ul.innerHTML = '';
+  for (const c of dests) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.textContent = '🔥 ' + c.label;
+    b.addEventListener('click', () => travelTo(c));
+    li.appendChild(b); ul.appendChild(li);
+  }
+  $('travel').classList.remove('hidden');
+  if (document.exitPointerLock) document.exitPointerLock();
+}
+export function closeTravel() {
+  if (!G.travelOpen) return;
+  G.travelOpen = false;
+  $('travel').classList.add('hidden');
+  if (!G.paused && !G.over) lockPointer();
+}
+export function travelTo(c) {
+  if (S.combatT > 0) { showMsg('Les ombres vous traquent : impossible de voyager en plein combat.', 3); return; }
+  closeTravel();
+  if (S.inTower) leaveTower(true); // quitter l'instance de la Tour avant le saut
+  player.pos.set(c.x, c.y, c.z); player.vel.set(0, 0, 0);
+  if (S.COOP && p2.pos) { p2.pos.set(c.x + 1.5, c.y, c.z + 0.8); p2.vel.set(0, 0, 0); }
+  G.checkpoint = { x: c.x, y: c.y, z: c.z };
+  A.dash();
+  spawnBurst(c.x, c.y + 1, c.z, 0xffc06a, 20);
+  showMsg('Le feu appelle le feu... Vous rouvrez les yeux près du bivouac — ' + c.label + '.', 3.5);
+}
 
 export function buildPowersUI() {
   const c = $('powers'); c.innerHTML = '';
@@ -34,6 +74,10 @@ export function refreshInv() {
   rows.push('Essences d\'ombre : ' + G.shadows + '  (O : 3 essences = 1 orbe)');
   rows.push('Orbes d\'obscurité : ' + G.orbes + '  (C : transcender)');
   if (G.goldKey) rows.push('Clef d\'or de la salle du trône');
+  if (G.tower.keys.copper) rows.push('Clef de Cuivre — Ascension, Palier I');
+  if (G.tower.keys.sap) rows.push('Clef de Sève — Ascension, Palier II');
+  if (G.tower.keys.ether) rows.push('Clef d\'Éther — Ascension, Palier III');
+  if (G.tower.aura) rows.push('Aura du Premier Foyer (+15 % dégâts, régénération)');
   POWERS.forEach(p => { if (G.powers[p.id]) rows.push('Sort — ' + p.name); });
   G.items.forEach(i => rows.push(i));
   rows.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });

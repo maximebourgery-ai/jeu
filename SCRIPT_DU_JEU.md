@@ -1,8 +1,10 @@
-# OMBRECIEL — Script complet du jeu (v7)
+# OMBRECIEL — Script complet du jeu (v7.1)
 
 > Document de relecture : histoire, personnages, progression, énigmes, textes en jeu,
 > zones, ennemis, pouvoirs et systèmes annexes. Tout est tiré du code actuel
-> (`src/state.js`, `src/World.js`, `src/Quests.js`, `src/Crafting.js`, `index.html`).
+> (`src/state.js`, `src/World.js`, `src/Tower.js`, `src/Quests.js`, `src/Crafting.js`, `index.html`).
+> La v7.1 intègre le Game Design Document « Narratif & Technique » : l'Ascension de la
+> Tour du Levant (15 étages) et les spécifications techniques (§ 11).
 
 ---
 
@@ -145,6 +147,29 @@ contourné (murs ≥ 4,8 m, salles intérieures plafonnées, brèches de 11,5 m)
     **arbre-sanctuaire flétri** : la **Bénédiction** le ranime et la haie s'écarte.
 18. **tears** — Atteignez la **Clairière du Cœur** (niveau 10) et arrachez la
     **TROISIÈME LARME** à ses gardiens → **victoire** (écran « L'Aube renaît »).
+
+---
+
+## 4 bis. L'épreuve ultime — l'Ascension de la Tour du Levant (15 étages)
+
+Accessible depuis la **terrasse de la Tour du Levant** (portail doré) une fois les
+**six arts anciens** maîtrisés. Quinze étages thématiques répartis en **4 paliers
+instanciés**, séparés par d'immenses **portails runiques** ; un vestibule-sas
+distribue les paliers et leurs **raccourcis** (débloqués en battant chaque Maître).
+
+| Palier | Étages | Thème | Zone notable | Boss (Maître d'Étage) | Récompense |
+|---|---|---|---|---|---|
+| I — Les Archives Vertigineuses | 1-4 | savoir oublié, encre et magie | rayonnages-labyrinthe, parchemins en lévitation | **L'Archiviste Corrompu** — Tisseur géant : tempêtes de parchemins (bordées radiales) + Traqueurs d'encre invoqués | **Clef de Cuivre** |
+| II — La Serre des Ombres | 5-9 | nature corrompue, verticalité, lierre et poison | **la Salle de l'Alchimiste** (hub d'artisanat secondaire : potion / orbe / transcendance + bivouac) | **La Racine Vengeresse** — abomination liée à un arbre-sanctuaire corrompu ; sa sève absorbe les coups, seule la **Bénédiction** (touche 6) prononcée tout près la rend vulnérable ; racines-harpons télégraphiées | **Clef de Sève** |
+| III — Le Donjon de Fer | 10-14 | pièges mortels, lave froide, armures vides | **la Fosse Mécanique** — labyrinthe de rideaux de flammes permanents : l'**Égide** ou rien | **Le Chevalier de l'Éclipse** — armure lourde ; FSM stricte IDLE / CHASE / ATTACK_AOE / STUNNED ; étourdi uniquement par l'impact d'un **bloc runique porté par la Main céleste** ; altère l'arène (colonnes de feu par cycles) | **Clef d'Éther** |
+| IV — Le Sommet | 15 | calme, astres et révélations | **l'Observatoire de l'Aube** (télescope, autel aux trois serrures) | — | **l'Aura du Premier Foyer** |
+
+**L'Observatoire de l'Aube** : insérer les 3 Clefs confère l'**Aura du Premier Foyer**
+(+15 % de dégâts toutes voies, régénération lente, halo doré). Lumen y révèle **le
+lourd secret du jeu** : les ombres ne sont pas des envahisseuses — ce sont les
+premiers porteurs de flamme, dévorés par la lumière trop pure des Larmes d'Aube,
+sacrifiés pour sauver le monde. *« Chaque ombre que tu affrontes fut une aube,
+avant toi. »*
 
 ---
 
@@ -341,6 +366,42 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
   déterministiquement selon la position, orientation stable — ; bosquets denses
   (`trees_1`) en lisière des Confins ; Sanctuaire de l'Arbre (bâtisse à dômes, collision
   pleine) et Flèche des Confins comme repères des friches optionnelles.
+
+---
+
+## 11. Spécifications techniques (v7.1)
+
+- **Level streaming de la Tour** : 4 paliers **instanciés** — un seul existe en mémoire
+  à la fois ; franchir un sas décharge l'étage précédent et charge le suivant sans
+  écran de chargement. Sas en « S » entre les paliers (aucune ligne de vue). Les
+  collections du monde (colliders, portes, objets, ennemis) retrouvent exactement leur
+  état d'avant l'instance : les index de sauvegarde restent stables.
+- **Flags stricts** : l'ouverture des portails dépend de `hasKilledBoss && hasFloorKey`
+  (jamais de trigger physique).
+- **Anti-glitch** : murs de progression ≥ 4,8 m, brèches au Pas du vent de 11,5 m,
+  colliders systématiques aux plafonds intérieurs (Tour comprise) ; **Kill Z-volume** :
+  toute chute dans le vide téléporte au dernier feu de bivouac (dans la Tour : à
+  l'entrée du palier courant) — jamais de crash ni de chute infinie.
+- **Caméra 3ᵉ personne** : *spring arm* dynamique (rétractation instantanée au contact
+  d'un mur, retour lissé anti-mal-de-mer) ; **dithering** — les murs occultant encore la
+  caméra passent à 20 % d'opacité (matériau cloné par mesh, jamais le matériau
+  partagé) ; **lock-on axe Z** — en combat rapproché, la verticalité extrême du regard
+  est bridée en douceur.
+- **Boss & IA** : FSM stricte du Chevalier de l'Éclipse (IDLE / CHASE / ATTACK_AOE /
+  STUNNED, transition STUNNED conditionnée à l'impact du « projectile Main céleste ») ;
+  **hitboxes asymétriques** — hurtbox sur les os exposés du dos (×1,6), armure de face
+  (×0,35), ×2 étourdi ; la hitbox de dégâts du boss n'existe que pendant les **active
+  frames** de son animation d'attaque.
+- **Sauvegarde (`ombreciel_save_v7`)** : enregistre l'avancée de la Tour (clefs de
+  palier, Maîtres vaincus, raccourcis, Aura) et les bivouacs découverts ; **auto-save
+  forcée** au ramassage de chaque clef ; une sauvegarde faite dans l'instance ramène
+  à la terrasse au chargement (l'instance n'existe plus, la progression si).
+- **Voyage rapide** : interface de **matrice des Bivouacs** au repos à un feu —
+  **interdit si le joueur est en combat** (une ombre en chasse à portée).
+- **Coop** : si le Joueur 2 chute, un **rubber-banding** le téléporte au bord du dernier
+  appui au sol du Joueur 1 (avec pénalité) ; **énigme à poids synchronisée** — Joueur 1
+  + Joueur 2 réunis sur la plaque gravée pèsent le poids d'un Colosse (alternative
+  coop au bloc runique).
 
 ---
 

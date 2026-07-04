@@ -103,8 +103,14 @@ function setCharEmissive(e, hex) {
     m.emissive.setHex(hex === null ? m.userData.baseEmissive : hex);
 }
 export function updateEnemies(dt) {
+  S.combatT = Math.max(0, S.combatT - dt);
   for (const e of enemies) {
     if (e.dead) continue;
+    /* isPlayerInCombat : une ombre en chasse à portée verrouille le voyage
+       rapide (matrice des Bivouacs) et le lock-on vertical de la caméra. */
+    if (e.state === 'chase' &&
+        Math.hypot(player.pos.x - e.g.position.x, player.pos.z - e.g.position.z) < 16 &&
+        Math.abs(player.pos.y - e.floorY) < 5) S.combatT = 0.8;
     e.atk -= dt; e.hitT -= dt;
     if (e.mixer && e.stunT <= 0) e.mixer.update(dt);
     if (e.dotT > 0) {
@@ -142,7 +148,7 @@ export function updateEnemies(dt) {
       else { tx = w[0]; tz = w[1]; }
     } else if (e.state === 'chase') {
       sp = e.chaseSpeed;
-      if (e.ranged && distP < 15 && sameLevel) {
+      if (e.ranged && !e.fsm && distP < 15 && sameLevel) {
         e.shot -= dt;
         if (e.shot <= 0.35 && !e.windup) {
           e.windup = true;
@@ -150,9 +156,11 @@ export function updateEnemies(dt) {
         }
         if (e.shot <= 0) { e.shot = 2.4; e.windup = false; fireHostile(e, tp); }
       }
-      if (distP > 16 || (!sameLevel && distP > 7)) e.state = 'return';
+      if (!e.fsm && (distP > 16 || (!sameLevel && distP > 7))) e.state = 'return';
       else if (distP > (e.ranged ? 7 : 1.7)) { tx = px; tz = pz; }
-      else if (e.atk <= 0) {
+      else if (e.atk <= 0 && !e.fsm) {
+        /* (les Maîtres d'Étage — e.fsm — n'infligent leurs dégâts de contact
+           que pendant les « active frames » de leur attaque, voir Tower.js) */
         e.atk = 1.3;
         const shielded = tgt2 ? p2.shieldT > 0 : G.shieldT > 0;
         if (shielded) {
@@ -188,6 +196,10 @@ export function updateEnemies(dt) {
 }
 export function damageEnemy(e, d, knock) {
   if (e.dead) return;
+  /* Hitboxes asymétriques des Maîtres d'Étage : le boss peut moduler les
+     dégâts selon son état (armure de face, os exposés dans le dos, fenêtre
+     de vulnérabilité...) — voir les contrôleurs FSM dans Tower.js. */
+  if (e.onDamaged) d = e.onDamaged(d, knock);
   e.hp -= d; e.hitT = 0.15;
   if (e.state !== 'chase') e.state = 'chase';
   A.impact();
@@ -208,6 +220,7 @@ export function killEnemy(e) {
   addPickup('shadow', e.g.position.x + 0.7, e.floorY, e.g.position.z + 0.4);
   S.scene.remove(e.g);
   gainXP(e.xp || 12);
+  if (e.onKilled) e.onKilled(e); // Maîtres d'Étage : clef, portail, raccourci
   if (hasN('a_dance')) {
     G.cd.dash = Math.max(0, G.cd.dash - 0.8);
     G.hasteT = 3;

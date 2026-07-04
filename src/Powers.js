@@ -55,7 +55,7 @@ export function aimPoint2() {
 }
 
 export function castPower() {
-  if (G.treeOpen) return;
+  if (G.treeOpen || G.travelOpen) return;
   const pw = POWERS.find(q => q.id === G.sel);
   if (!G.powers[pw.id] || G.cd[pw.id] > 0) return;
   if (pw.id === 'tk') { tkToggle(); G.cd.tk = pw.cool; return; }
@@ -419,6 +419,18 @@ export function checkPlate() {
         P.active = true;
         P.glow.material.color.setHex(0x4ae08a);
         showMsg(P.msg || 'La plaque s\'enfonce sous le bloc : une porte coulisse dans la pierre.', 4);
+        if (P.questId) questReach(P.questId);
+      }
+    }
+    /* Énigme à poids synchronisée (coop) : Joueur 1 + Joueur 2 réunis sur la
+       plaque pèsent le poids d'un Colosse — l'alternative au bloc runique. */
+    if (!P.active && S.COOP && p2.pos) {
+      const on = pl => Math.abs(pl.pos.x - P.x) < 1.3 && Math.abs(pl.pos.z - P.z) < 1.3 && Math.abs(pl.pos.y - P.y) < 1.4;
+      if (on(player) && on(p2)) {
+        openDoor(P.door);
+        P.active = true;
+        P.glow.material.color.setHex(0x4ae08a);
+        showMsg('Le poids des deux porteurs réunis vaut celui d\'un Colosse : la plaque s\'enfonce !', 4);
         if (P.questId) questReach(P.questId);
       }
     }

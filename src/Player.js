@@ -25,6 +25,12 @@ export function classTint(identity) {
 export function mkClassBody(pathId, identity) {
   const T = classTint(identity);
   const g = new THREE.Group();
+  // Aura du Premier Foyer : halo doré permanent des vainqueurs de l'Ascension
+  if (G.tower && G.tower.aura && identity !== 'p2') {
+    const h = glow(0xffd97a, 2.6, 0.35);
+    h.position.y = 1.1;
+    g.add(h);
+  }
   /* Personnage choisi au menu titre (G.skin) : le héros incarne ce corps,
      en rôle « gentil » (couleurs d'origine + douce lueur d'âme). Le J2
      reçoit un voile pourpre léger pour rester identifiable en coop. */
@@ -276,11 +282,14 @@ export function updateP2(dt) {
     if (p.stepT > 2.4) { p.stepT = 0; A.step(); }
     p.walkT += speed * dt;
   }
+  /* Rubber-banding coop : si le J2 chute dans le vide, il est ramené au
+     bord du dernier saut réussi par le J1 (dernier appui au sol), avec une
+     pénalité — la partie n'attend jamais un joueur au fond d'un gouffre. */
   if (p.pos.y < -40) {
-    p.pos.set(G.checkpoint.x + 1.5, G.checkpoint.y, G.checkpoint.z);
+    p.pos.set(S.lastSafe.x + 0.8, S.lastSafe.y + 0.1, S.lastSafe.z + 0.8);
     p.vel.set(0, 0, 0);
-    hurtP2(20, null);
-    showMsg('Le vide recrache le second porteur près du dernier bivouac...', 3);
+    hurtP2(15, null);
+    showMsg('Le lien des porteurs de flamme ramène le second au bord du dernier saut du premier...', 3);
   }
   p.mesh.position.copy(p.pos);
   const bob = (p.grounded && ml > 0.05) ? Math.abs(Math.sin(p.walkT * 1.6)) * 0.06 : 0;
@@ -324,6 +333,10 @@ export function updateCamera2() {
     if (t !== null && t < closest) closest = t;
   }
   d = Math.max(1.4, Math.min(d, closest - 0.35));
+  // spring arm du J2 : même rétraction instantanée + retour lissé que le J1
+  if (d < S.camD2) S.camD2 = d;
+  else S.camD2 = S.camD2 + (d - S.camD2) * 0.1;
+  d = S.camD2;
   S.cam2.position.set(tx - dir.x * d, ty - dir.y * d, tz - dir.z * d);
   if (S.cam2.position.y < p2.pos.y + 0.35) S.cam2.position.y = p2.pos.y + 0.35;
   S.cam2.lookAt(tx, ty, tz);
@@ -376,6 +389,11 @@ export function updatePlayer(dt) {
     if (p.stepT > 2.4) { p.stepT = 0; A.step(); }
     p.walkT += speed * dt;
   }
+  /* dernier appui au sol du J1 : point d'ancrage du rubber-banding coop */
+  if (p.grounded) { S.lastSafe.x = p.pos.x; S.lastSafe.y = p.pos.y; S.lastSafe.z = p.pos.z; }
+  /* Kill Z-volume : le vide téléporte le joueur fautif au dernier feu de
+     bivouac (jamais de chute infinie ni de crash). Dans la Tour, le point
+     de contrôle est l'entrée du palier courant. */
   if (p.pos.y < -40) {
     p.pos.set(G.checkpoint.x, G.checkpoint.y, G.checkpoint.z); p.vel.set(0, 0, 0);
     hurt(20, null);
@@ -393,6 +411,8 @@ export function updatePlayer(dt) {
   }
   if (p.mixer) p.mixer.update(dt);
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
+  // Aura du Premier Foyer (Observatoire de l'Aube) : le foyer répare la chair
+  if (G.tower.aura) G.hp = Math.min(G.maxHp, G.hp + 1.2 * dt);
   for (const k in G.cd) G.cd[k] = Math.max(0, G.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;
   if (G.shieldT > 0) {
@@ -404,7 +424,41 @@ export function updatePlayer(dt) {
   } else S.shieldMesh.visible = false;
 }
 
-/* ---------------- CAMÉRA ---------------- */
+/* ---------------- CAMÉRA ----------------
+   · Spring arm dynamique : rétractation INSTANTANÉE au contact d'un mur,
+     retour lissé (damping) pour éviter le mal de mer.
+   · Dithering : les murs qui occultent encore la caméra passent à 20 %
+     d'opacité (matériau cloné par mesh — jamais le matériau partagé).
+   · Lock-on axe Z : en combat rapproché, la verticalité extrême est
+     bridée pour ne pas perdre ses repères face aux Traqueurs bondissants. */
+const DITHER_OPACITY = 0.2;
+function setDither(mesh, on) {
+  if (!mesh) return;
+  if (on) {
+    if (!mesh.userData.baseMat) {
+      mesh.userData.baseMat = mesh.material;
+      const m = mesh.material.clone();
+      m.transparent = true; m.opacity = DITHER_OPACITY; m.depthWrite = false;
+      mesh.userData.ditherMat = m;
+    }
+    mesh.material = mesh.userData.ditherMat;
+  } else if (mesh.userData.baseMat) {
+    mesh.material = mesh.userData.baseMat;
+  }
+}
+/* Passe à 20 % les murs coupant le segment tête du joueur → caméra. */
+function ditherOccluders(eye, back, d) {
+  const now = new Set();
+  for (let i = 0; i < colliders.length; i++) {
+    const c = colliders[i];
+    if (!c.on || !c.mesh) continue;
+    const t = rayAABB(eye, back, c.min, c.max);
+    if (t !== null && t < d + 0.3) now.add(c.mesh);
+  }
+  for (const m of S.dithered) if (!now.has(m)) setDither(m, false);
+  for (const m of now) if (!S.dithered.has(m)) setDither(m, true);
+  S.dithered = now;
+}
 export function camDirVec() {
   const cp = Math.cos(S.pitch);
   return new THREE.Vector3(-Math.sin(S.yaw) * cp, Math.sin(S.pitch), -Math.cos(S.yaw) * cp);
@@ -430,8 +484,14 @@ export function updateCamera() {
     return;
   }
   player.mesh.visible = true;
+  /* Lock-on axe Z : en combat rapproché (S.combatT), la plage de tangage est
+     bridée en douceur — plus de plongées/contre-plongées désorientantes. */
+  if (S.combatT > 0) {
+    if (S.pitch < -0.95) S.pitch += Math.min(0.05, -0.95 - S.pitch);
+    if (S.pitch > 0.55) S.pitch -= Math.min(0.05, S.pitch - 0.55);
+  }
   let d = 5.4 + S.camKick * 4; // léger recul de la caméra au lancement d'un sort
-  // Auto-adaptation : si un mur/pilier se trouve entre le joueur et la caméra désirée, on rapproche la caméra
+  // Spring arm : si un mur/pilier coupe le bras désiré, rétractation instantanée
   const back = { x: -dir.x, y: -dir.y, z: -dir.z };
   const eye = { x: tx, y: ty, z: tz };
   let closest = d;
@@ -442,10 +502,16 @@ export function updateCamera() {
     if (t !== null && t < closest) closest = t;
   }
   d = Math.max(1.4, Math.min(d, closest - 0.35));
+  /* damping : rétraction immédiate, mais retour lissé (anti mal de mer) */
+  if (d < S.camD) S.camD = d;
+  else S.camD = S.camD + (d - S.camD) * 0.1;
+  d = S.camD;
   S.camera.position.set(tx - dir.x * d, ty - dir.y * d, tz - dir.z * d);
   if (S.camera.position.y < player.pos.y + 0.35) S.camera.position.y = player.pos.y + 0.35;
   S.camera.lookAt(tx, ty, tz);
   S.camKick = Math.max(0, S.camKick - 0.12);
+  // dithering : ce qui occulte ENCORE la caméra (marches, linteaux...) devient translucide
+  ditherOccluders(eye, back, d);
 }
 
 /* ---------------- DÉGÂTS ---------------- */
@@ -507,4 +573,6 @@ export function healSelf() {
   A.pickup();
   G.hp = Math.min(G.maxHp, G.hp + 40);
   spawnBurst(player.pos.x, player.pos.y + 1.2, player.pos.z, 0x9fffb0, 16);
+  // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction
+  if (S.onHeal) S.onHeal();
 }

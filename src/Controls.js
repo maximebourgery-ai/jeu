@@ -5,7 +5,7 @@
    ================================================================ */
 import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove } from './state.js';
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, refreshInv } from './UI.js';
+import { $, showMsg, refreshPowers, refreshInv, closeTravel } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
@@ -31,6 +31,7 @@ export function initControls() {
     if (!G.started || G.over) return;
     if (G.dialog) { if (e.code === 'KeyE' || e.code === 'Space') dlgNext(); return; }
     if (e.code === 'Escape' && !document.pointerLockElement) {
+      if (G.travelOpen) { closeTravel(); return; }
       if (G.treeOpen) { toggleTree(); return; }
       G.paused = !G.paused;
       $('pause').classList.toggle('hidden', !G.paused);
@@ -69,7 +70,7 @@ export function initControls() {
   addEventListener('mousedown', e => {
     if (!G.started || G.over) return;
     if (G.dialog) { dlgNext(); return; }
-    if (G.paused || G.treeOpen) return;
+    if (G.paused || G.treeOpen || G.travelOpen) return;
     if (IS_TOUCH) return; // sur mobile, l'attaque passe par le bouton tactile
     if (document.pointerLockElement) {
       if (e.button === 0 && !G.inv) castPower();
@@ -87,7 +88,7 @@ export function initControls() {
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.treeOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.treeOpen && !G.travelOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -95,6 +96,7 @@ export function initControls() {
   addEventListener('gamepadconnected', e => {
     showMsg('🎮 Manette détectée : ' + e.gamepad.id.slice(0, 40), 3);
   });
+  $('btn-travelclose').addEventListener('click', closeTravel);
 }
 
 /* ================================================================

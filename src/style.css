@@ -39,6 +39,16 @@ canvas{display:block}
 #inv h3{color:#ffd97a;font-weight:normal;letter-spacing:2px;margin-bottom:10px;font-size:17px}
 #inv ul{list-style:none;font-size:14px;line-height:1.8;color:#d8d2bd}
 #inv li::before{content:"✧ ";color:#8fb8e8}
+/* ---------- Voyage rapide : matrice des Bivouacs ---------- */
+#travel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(380px,86vw);background:rgba(8,10,22,.95);border:1px solid rgba(255,180,90,.45);border-radius:12px;padding:20px 22px;z-index:9;text-align:center}
+#travel h3{color:#ffd97a;font-weight:normal;letter-spacing:2px;margin-bottom:8px;font-size:17px}
+#travel .tvhint{font-size:12.5px;color:#8892b0;font-style:italic;margin-bottom:14px;line-height:1.6}
+#travel ul{list-style:none;margin-bottom:14px}
+#travel li{margin:7px 0}
+#travel li button{width:100%;font-family:inherit;font-size:15.5px;letter-spacing:1px;color:#ffe2b0;background:rgba(255,170,70,.12);border:1px solid rgba(255,180,90,.4);border-radius:8px;padding:10px 14px;cursor:pointer}
+#travel li button:hover{background:rgba(255,170,70,.28)}
+#btn-travelclose{font-family:inherit;font-size:13px;letter-spacing:1px;color:#8892b0;background:none;border:1px solid rgba(136,146,176,.4);border-radius:7px;padding:7px 16px;cursor:pointer}
+#btn-travelclose:hover{color:#cfd8f2}
 /* ---------- Écrans ---------- */
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;padding:24px}
 .overlay h1{font-size:50px;letter-spacing:8px;color:#ffd97a;text-shadow:0 0 34px rgba(255,190,60,.45);font-weight:normal;margin-bottom:14px}

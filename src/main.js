@@ -18,6 +18,7 @@ import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad } from './Controls.js';
 import { openManettePanel, retryManette, startControllerMode } from './Network.js';
 import { saveGame, hasSave, loadGame } from './SaveSystem.js';
+import { buildTowerGate, updateTower } from './Tower.js';
 
 /* ================================================================
    BOUCLE PRINCIPALE
@@ -26,7 +27,7 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(S.clock.getDelta(), 0.05);
   updateGamepad(dt);
-  if (S.tmAttackHeld && G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen) castPower();
+  if (S.tmAttackHeld && G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) castPower();
   if (G.started && !G.paused && !G.over && !G.dialog) {
     G.time += dt;
     updatePlayer(dt);
@@ -38,6 +39,7 @@ function loop() {
     updatePickups(dt);
     updateParticles(dt);
     checkPlate();
+    updateTower(dt); // Ascension de la Tour : dangers, FSM des Maîtres d'Étage
     updateTutorial();
     updateBuffs(dt);
     updateDirector(dt);
@@ -200,6 +202,7 @@ async function initGame() {
   initScene();
   buildWorld();
   buildHerbs();
+  buildTowerGate(); // portail de l'Ascension, sur la terrasse de la Tour du Levant
   S.BASE_PICKUPS = pickups.length;   // référence stable pour la sauvegarde
   S.STATIC_ENEMIES = enemies.length; // les renforts dynamiques ne sont pas sauvegardés
   buildPlayer();
@@ -212,7 +215,11 @@ async function initGame() {
   wireMenus();
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
-  if (import.meta.env.DEV) window.__ombreciel = { G, S, keys, player, p2, tut };
+  if (import.meta.env.DEV) {
+    const { inter, CAMPS } = await import('./state.js');
+    const { killEnemy } = await import('./Enemies.js');
+    window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, killEnemy };
+  }
   loop();
 }
 

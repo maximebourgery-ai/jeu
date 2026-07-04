@@ -14,14 +14,24 @@ import { applyQuest } from './Quests.js';
 export function saveGame(silent) {
   if (!G.started || G.over) return;
   try {
+    /* Dans la Tour (palier instancié), la position enregistrée est ramenée à
+       la terrasse : au chargement, le monde existe mais pas l'instance —
+       le joueur repart du portail, ses clefs/raccourcis (G.tower) en poche. */
+    const inTw = S.inTower;
+    const TER = { x: 58, y: 23.2, z: 46.8 };
     const s = { v: 6, path: G.path, skin: G.skin, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
       powers: G.powers, sel: G.sel,
       crystals: G.crystals, goldKey: G.goldKey, items: G.items,
       herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
-      hasWings: G.hasWings, upgrades: G.upgrades, checkpoint: G.checkpoint,
+      hasWings: G.hasWings, upgrades: G.upgrades,
+      checkpoint: inTw ? TER : G.checkpoint,
+      /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
+         raccourcis, Aura) et la matrice des Bivouacs découverts */
+      tower: G.tower, camps: G.camps,
       xp: G.xp, level: G.level, sp: G.sp, nodes: G.nodes, maxMana: G.maxMana,
       questI: S.questI, tut: Object.assign({}, tut),
-      px: player.pos.x, py: player.pos.y, pz: player.pos.z, yaw: S.yaw, pitch: S.pitch,
+      px: inTw ? TER.x : player.pos.x, py: inTw ? TER.y : player.pos.y, pz: inTw ? TER.z : player.pos.z,
+      yaw: S.yaw, pitch: S.pitch,
       pickups: pickups.slice(0, S.BASE_PICKUPS).map(p => p.taken ? 1 : 0),
       enemies: enemies.slice(0, S.STATIC_ENEMIES).map(e => e.dead ? 1 : 0),
       doors: doors.map(d => d.open ? 1 : 0),
@@ -51,6 +61,14 @@ export function loadGame() {
   if (Array.isArray(s.items)) G.items = s.items;
   G.herbs = s.herbs || 0; G.shadows = s.shadows || 0; G.orbes = s.orbes || 0;
   G.hasWings = !!s.hasWings; Object.assign(G.upgrades, s.upgrades || {});
+  // v7.1 : Ascension de la Tour + bivouacs découverts (fusion tolérante)
+  if (s.tower) {
+    Object.assign(G.tower.keys, s.tower.keys || {});
+    Object.assign(G.tower.bosses, s.tower.bosses || {});
+    Object.assign(G.tower.shortcuts, s.tower.shortcuts || {});
+    G.tower.aura = !!s.tower.aura;
+  }
+  G.camps = s.camps || {};
   G.xp = s.xp || 0; G.level = s.level || 1; G.sp = s.sp || 0;
   G.nodes = s.nodes || {};
   refreshPlayerVisual();

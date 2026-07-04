@@ -24,7 +24,19 @@ export const G = {
   rage: 0, maxRage: 100, // jauge de rage du Guerrier (voir Powers.js / UI.js)
   upgrades: { boltAoE: false }, firstPerson: false,
   checkpoint: { x: 0, y: 0.2, z: 60 },
-  shieldT: 0, time: 0, msgT: 0, vig: 0
+  shieldT: 0, time: 0, msgT: 0, vig: 0,
+  /* v7.1 — Ascension de la Tour du Levant : clefs de palier, Maîtres d'Étage
+     vaincus, raccourcis débloqués et Aura du Premier Foyer (Observatoire).
+     L'ouverture des portails dépend de ces flags stricts (jamais de trigger
+     physique) : « hasKilledBoss && hasFloorKey ». */
+  tower: {
+    keys: { copper: false, sap: false, ether: false },
+    bosses: { archiviste: false, racine: false, chevalier: false },
+    shortcuts: { p2: false, p3: false, p4: false },
+    aura: false
+  },
+  camps: {},        // bivouacs découverts (matrice de voyage rapide)
+  travelOpen: false // matrice des Bivouacs à l'écran
 };
 
 /* ---- Les Voies : chaque classe redéfinit l'attaque principale (modulaire) ---- */
@@ -211,6 +223,10 @@ export const keys = {};
 export const colliders = [], doors = [], pickups = [], inter = [], enemies = [], projectiles = [],
              tkCubes = [], spinners = [], flames = [], parts = [];
 export const pedestals = []; // cristaux de piédestal (retirés au chargement si déjà récoltés)
+/* Matrice des Bivouacs : chaque feu s'enregistre ici ({id, label, x, y, z,
+   travel}) ; ceux découverts (G.camps) deviennent des destinations de
+   voyage rapide — interdit si le joueur est en combat (S.combatT > 0). */
+export const CAMPS = [];
 /* Plaques runiques : { x, z, y, glow, door, questId, active } — un bloc posé
    dessus (Main céleste) ouvre la porte associée (voir checkPlate, Powers.js). */
 export const PLATES = [];
@@ -251,6 +267,17 @@ export const S = {
   COOP: false, P2PATH: 'mage',
   // directeur de renforts
   dirT: 10, curZone: null,
+  /* combat : > 0 tant qu'une ombre en chasse est proche (verrouille le
+     voyage rapide et le lock-on vertical de la caméra) */
+  combatT: 0,
+  // caméra : longueur courante du bras (spring arm — rétractation instantanée,
+  // retour lissé) pour chaque joueur, et murs actuellement « dithérés »
+  camD: 5.4, camD2: 5.4, dithered: new Set(),
+  /* dernier appui au sol du J1 (rubber-banding coop : le J2 tombé y est
+     ramené « au bord du dernier saut réussi par le Joueur 1 ») */
+  lastSafe: { x: 0, y: 0.2, z: 60 },
+  // Ascension de la Tour du Levant (paliers instanciés)
+  inTower: false, palier: 0, onHeal: null,
   // télékinésie
   tkHeld: null,
   // sauvegarde

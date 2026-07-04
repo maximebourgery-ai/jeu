@@ -10,14 +10,15 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   G, S, IS_TOUCH, POWERS, QUESTS, HINTS, tut, STEP_HEIGHT, LIGHT_SCALE,
   colliders, doors, pickups, inter, enemies, spinners, flames, parts,
-  tkCubes, pedestals, PLATES, player, p2
+  tkCubes, pedestals, PLATES, CAMPS, player, p2
 } from './state.js';
 import { assets, matFor, glow, modelClone, applyEnvironment } from './AssetManager.js';
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers } from './UI.js';
+import { $, showMsg, refreshPowers, openTravel } from './UI.js';
 import { questReach, openDialog } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt } from './Player.js'; // rideau de flammes (import cyclique sûr : usage différé)
+import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
 
 /* ---------------- SCÈNE ---------------- */
 export function initScene() {
@@ -137,7 +138,8 @@ export function mkCyl(r1, r2, h, x, y, z, kind, solid, seg) {
 export function addCol(m) {
   m.updateMatrixWorld(true);
   const b = new THREE.Box3().setFromObject(m);
-  const c = { min: b.min.clone(), max: b.max.clone(), on: true };
+  // la référence au mesh permet le « dithering » caméra (mur occultant à 20 %)
+  const c = { min: b.min.clone(), max: b.max.clone(), on: true, mesh: m };
   colliders.push(c);
   return c;
 }
@@ -479,8 +481,10 @@ function asciiWalls(rows, ox, oz, cell, h, y, kind) {
 }
 
 /* Feu de bivouac : point de contrôle réutilisable (sans PointLight pour
-   ménager le budget lumières — le halo additif suffit à le signaler). */
-function bivouac(x, y, z, label) {
+   ménager le budget lumières — le halo additif suffit à le signaler).
+   Chaque feu s'inscrit dans la matrice des Bivouacs (CAMPS) : se reposer le
+   « découvre » et ouvre l'interface de voyage rapide (voir UI.openTravel). */
+export function bivouac(x, y, z, label, id, travel) {
   const l1 = mkBox(1.1, 0.3, 0.3, x - 0.15, y, z - 0.1, 'woodF', false); l1.rotation.y = 0.6;
   const l2 = mkBox(1.1, 0.3, 0.3, x + 0.15, y, z + 0.15, 'woodF', false); l2.rotation.y = -0.5;
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.85, 6),
@@ -491,13 +495,25 @@ function bivouac(x, y, z, label) {
   halo.position.set(x, y + 0.65, z);
   S.scene.add(halo);
   flames.push({ flame, light: null, halo, base: 0, seed: Math.random() * 10 });
+  /* les feux instanciés (Tour) se réenregistrent à chaque build du palier :
+     on réutilise leur fiche pour ne jamais dupliquer la matrice */
+  const cid = id || ('camp' + CAMPS.length);
+  let camp = CAMPS.find(c => c.id === cid);
+  if (!camp) {
+    camp = { id: cid, label: label || 'bivouac', x: x + 1, y: y + 0.2, z, travel: travel !== false };
+    CAMPS.push(camp);
+  }
   addInter(x, y, z, 2.6, 'Se reposer au bivouac', () => {
     G.checkpoint = { x: x + 1, y: y + 0.2, z };
     G.hp = G.maxHp; G.mana = G.maxMana;
     if (S.COOP && p2.pos) { p2.hp = p2.maxHp; p2.mana = p2.maxMana; }
     A.pickup();
     spawnBurst(x, y + 1, z, 0xffc06a, 12);
+    const first = !G.camps[camp.id];
+    G.camps[camp.id] = true;
     showMsg('Vous vous reposez près du feu' + (label ? ' — ' + label : '') + '. Vous renaîtrez ici.', 3.5);
+    openTravel(camp);
+    if (first) saveGame(true); // découvrir un feu vaut bien une sauvegarde
   });
 }
 
@@ -880,7 +896,7 @@ export function buildWorld() {
   });
   torch(73, -6.5, 10, 0x66a8ff, 1.25, 18);
   torch(91, -6.5, 18, 0x66a8ff, 1.25, 18);
-  bivouac(75, -8, 17.5, 'les catacombes');
+  bivouac(75, -8, 17.5, 'les catacombes', 'catacombes');
   addPickup('heart', 74, -8, 3);
   addPickup('mana', 90, -8, 2);
   addInter(82, -8, 1.6, 2.6, 'Lire le fronton de l\'Ossuaire', () => {
@@ -1057,7 +1073,7 @@ export function buildOpenWorld() {
   addInter(0, 0, -29.5, 3, 'Contempler les Terres Perdues', () => {
     showMsg('Au-delà du seuil, la pierre redevient friche. Au sud, une muraille d\'arbres : la Forêt de Nuit.', 4);
   });
-  bivouac(4, 0, -31, 'les Terres Perdues');
+  bivouac(4, 0, -31, 'les Terres Perdues', 'terres');
   const RUINS = [
     [-11, -33, 3.2], [11, -31, 4], [-20, -38, 3.4], [18, -42, 3], [-30, -36, 4.6],
     [28, -40, 3.2], [-36, -44, 4], [34, -44, 3.6], [-24, -44, 3], [24, -33, 3.4]
@@ -1188,7 +1204,7 @@ export function buildOpenWorld() {
       showMsg('L\'arbre-sanctuaire est flétri, et la haie morte avec lui. Une Bénédiction dort dans l\'Ossuaire des catacombes...', 4);
     }
   });
-  bivouac(-39, 0, -81, 'le cœur de la forêt');
+  bivouac(-39, 0, -81, 'le cœur de la forêt', 'foret');
 
   /* canopée : des arbres plantés SUR les murs de haies (forêt dense) */
   const FTREES = [
@@ -1228,7 +1244,7 @@ export function buildOpenWorld() {
   addInter(0, 0, -93.2, 2.8, 'Lire l\'autel du Cœur', () => {
     showMsg('« Ici bat le cœur de la nuit. Qui reprend la Larme reprend l\'Aube. » Les gardiens veillent.', 4);
   });
-  bivouac(15, 0, -91, 'la Clairière du Cœur');
+  bivouac(15, 0, -91, 'la Clairière du Cœur', 'clairiere');
   torch(-10, 0, -92, 0x8a5aff, 1.2, 18);
   torch(10, 0, -92, 0x8a5aff, 1.2, 18);
   torch(0, 0, -99, 0xb08cff, 1.2, 18);

@@ -61,6 +61,8 @@ export function classAtk(path) {
     if (hasN('p_avatar')) P.dmg = Math.round(P.dmg * 1.15);
   }
   if (G.upgrades.boltAoE) P.aoe = true; // Transcendance (artisanat) : compatible
+  // Aura du Premier Foyer (Observatoire de l'Aube) : +15 % de dégâts, toutes voies
+  if (G.tower && G.tower.aura) P.dmg = Math.round(P.dmg * 1.15);
   return P;
 }
 export function nodeById(id) {
