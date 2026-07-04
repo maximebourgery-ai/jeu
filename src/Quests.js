@@ -50,6 +50,6 @@ export function updateTutorial() {
   else if (q.id === 'jump' && tut.jumped && tut.sprinted) questReach('jump');
   else if (q.id === 'hall') {
     const p = player.pos;
-    if (p.x > -14 && p.x < 14 && p.z > 1 && p.z < 29) questReach('hall');
+    if (p.x > -17 && p.x < 17 && p.z > 1 && p.z < 30) questReach('hall');
   }
 }

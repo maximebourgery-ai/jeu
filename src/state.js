@@ -61,14 +61,18 @@ export const ETYPES = {
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
 export const ZONES = [
-  { id: 'jardins', name: 'Jardins',            x: 2,   z: 52,  y: 0,  r: 26, lvl: 1,  cap: 3, types: ['sentinel', 'sentinel', 'wraith'] },
-  { id: 'hall',    name: 'Grand hall',         x: 0,   z: 16,  y: 0,  r: 15, lvl: 2,  cap: 3, types: ['sentinel', 'wraith'] },
-  { id: 'tour',    name: 'Tour du Levant',     x: 45,  z: 48,  y: 0,  r: 13, lvl: 3,  cap: 3, types: ['wraith', 'caster'] },
-  { id: 'cryptes', name: 'Cryptes',            x: 60,  z: 11,  y: -6, r: 15, lvl: 4,  cap: 5, types: ['sentinel', 'brute', 'caster'] },
-  { id: 'trone',   name: 'Salle du trône',     x: 0,   z: -9,  y: 0,  r: 12, lvl: 5,  cap: 4, types: ['brute', 'caster', 'wraith'] },
-  { id: 'ruines',  name: 'Ruines oubliées',    x: 0,   z: -35, y: 0,  r: 22, lvl: 6,  cap: 5, types: ['sentinel', 'wraith', 'caster'] },
-  { id: 'ravin',   name: 'Ravin des Colosses', x: -28, z: -55, y: 0,  r: 20, lvl: 8,  cap: 6, types: ['brute', 'caster', 'wraith'] },
-  { id: 'confins', name: 'Confins d\'Ombre',   x: 26,  z: -75, y: 0,  r: 22, lvl: 10, cap: 7, types: ['brute', 'caster', 'brute', 'wraith'] }
+  { id: 'jardins',   name: 'Jardins du Crépuscule', x: 0,   z: 54,  y: 0,   r: 28, lvl: 1,  cap: 3, types: ['sentinel', 'sentinel', 'wraith'] },
+  { id: 'parvis',    name: 'Parvis du Levant',      x: 55,  z: 60,  y: 0,   r: 18, lvl: 3,  cap: 3, types: ['sentinel', 'wraith'] },
+  { id: 'hall',      name: 'Grand hall',            x: 0,   z: 16,  y: 0,   r: 16, lvl: 2,  cap: 3, types: ['sentinel', 'wraith'] },
+  { id: 'biblio',    name: 'Bibliothèque',          x: -38, z: 15,  y: 0,   r: 17, lvl: 2,  cap: 3, types: ['sentinel', 'wraith', 'caster'] },
+  { id: 'aile',      name: 'Aile est',              x: 38,  z: 15,  y: 0,   r: 17, lvl: 3,  cap: 3, types: ['sentinel', 'brute'] },
+  { id: 'gardes',    name: 'Salle des gardes',      x: 82,  z: 10,  y: -8,  r: 14, lvl: 4,  cap: 4, types: ['sentinel', 'brute', 'caster'] },
+  { id: 'ossuaire',  name: 'Ossuaire',              x: 84,  z: -18, y: -8,  r: 22, lvl: 5,  cap: 5, types: ['wraith', 'sentinel', 'caster'] },
+  { id: 'gouffre',   name: 'Gouffre des Morts',     x: 105, z: 10,  y: -8,  r: 16, lvl: 5,  cap: 3, types: ['sentinel', 'caster'] },
+  { id: 'trone',     name: 'Salle du trône',        x: 0,   z: -14, y: 0,   r: 15, lvl: 6,  cap: 4, types: ['brute', 'caster', 'wraith'] },
+  { id: 'ruines',    name: 'Ruines des Terres Perdues', x: 0, z: -38, y: 0, r: 20, lvl: 7,  cap: 5, types: ['sentinel', 'brute', 'caster'] },
+  { id: 'foret',     name: 'Forêt de Nuit',         x: 0,   z: -70, y: 0,   r: 30, lvl: 8,  cap: 6, types: ['wraith', 'sentinel', 'wraith', 'caster'] },
+  { id: 'clairiere', name: 'Clairière du Cœur',     x: 0,   z: -95, y: 0,   r: 12, lvl: 10, cap: 4, types: ['brute', 'caster', 'wraith'] }
 ];
 
 /* ---- Arbre des pouvoirs ---- */
@@ -161,34 +165,44 @@ export const player = {
 /* ---- Histoire, quêtes, tutoriel ---- */
 export const STORY = [
   'Il y a cent ans, le château d\'Ombreciel veillait sur la vallée. Trois Larmes d\'Aube — cristaux de première lumière — brûlaient en son cœur et tenaient la nuit à distance.',
-  'Puis vint la Nuit sans lune. Les Larmes furent arrachées et dispersées. Les torches moururent une à une, et des sentinelles d\'ombre se levèrent dans les salles désertes.',
-  'Vous êtes le dernier porteur de flamme de votre ordre. Ce soir, vous franchissez les grilles d\'Ombreciel. Ravivez l\'Aube... ou rejoignez les ombres.'
+  'Puis vint la Nuit sans lune. Les Larmes furent arrachées : l\'une fut traînée au fond des catacombes, par-delà l\'Ossuaire et le Gouffre des Morts ; l\'autre scellée dans la salle du trône ; la dernière emportée au cœur de la Forêt de Nuit, au-delà des Terres Perdues, là où les arbres eux-mêmes forment un labyrinthe.',
+  'Vous êtes le dernier porteur de flamme de votre ordre. Les arts anciens — vent, main céleste, égide, givre, bénédiction — dorment encore dans la pierre d\'Ombreciel. Sans eux, aucune porte ne cédera. Ravivez l\'Aube... ou rejoignez les ombres.'
 ];
 export const QUESTS = [
-  { id: 'move',   text: 'Avancez avec les touches ZQSD (ou WASD).' },
-  { id: 'look',   text: 'Orientez la caméra avec la souris. Si elle ne répond pas, maintenez le clic gauche en la déplaçant.' },
-  { id: 'jump',   text: 'Sautez avec Espace, puis sprintez avec Shift.' },
-  { id: 'lumen',  text: 'Rejoignez la petite lueur bleue près de la fontaine et parlez-lui (E).', pos: [2.5, 1, 44.5] },
-  { id: 'garden', text: 'Repoussez les 2 Ombres du jardin (clic gauche : Trait astral).' },
-  { id: 'hall',   text: 'Franchissez le portail et entrez dans le grand hall.', pos: [0, 1, 15] },
-  { id: 'lever',  text: 'Trouvez le mécanisme qui ouvre la bibliothèque.', pos: [13, 1, 25] },
-  { id: 'dash',   text: 'Grimpez les étagères de la bibliothèque jusqu\'à l\'art qui y sommeille.', pos: [-34.3, 7.6, 16.5] },
-  { id: 'tower',  text: 'Gagnez le sommet de la Tour du Levant, à l\'est des jardins.', pos: [45, 23.6, 48.5] },
-  { id: 'plate',  text: 'Avec la Main céleste (touche 3), posez le bloc runique sur la plaque de l\'aile est.', pos: [25, 1, 16] },
-  { id: 'crypt',  text: 'Descendez dans les cryptes : l\'Égide, la Clef d\'or et une Larme s\'y trouvent.', pos: [67, -5, 6] },
-  { id: 'throne', text: 'Ouvrez la salle du trône avec la Clef d\'or, au nord du grand hall.', pos: [0, 1, 0.6] },
-  { id: 'tears',  text: 'Réunissez les 3 Larmes d\'Aube. Lumen connaît peut-être des secrets...' }
+  { id: 'move',    text: 'Avancez avec les touches ZQSD (ou WASD).' },
+  { id: 'look',    text: 'Orientez la caméra avec la souris. Si elle ne répond pas, maintenez le clic gauche en la déplaçant.' },
+  { id: 'jump',    text: 'Sautez avec Espace, puis sprintez avec Shift.' },
+  { id: 'lumen',   text: 'Rejoignez la petite lueur bleue près de la fontaine et parlez-lui (E).', pos: [2.5, 1, 44.5] },
+  { id: 'garden',  text: 'Repoussez les 2 Ombres des jardins : la herse du château se lèvera. (clic gauche : attaque)' },
+  { id: 'hall',    text: 'Franchissez la herse et entrez dans le grand hall.', pos: [0, 1, 16] },
+  { id: 'lever',   text: 'Trouvez le mécanisme qui ouvre la bibliothèque.', pos: [15, 1, 27] },
+  { id: 'dash',    text: 'Grimpez les étagères de la bibliothèque jusqu\'à la passerelle : le Pas du vent y sommeille.', pos: [-55, 8.4, 5] },
+  { id: 'tower',   text: 'Avec le Pas du vent (touche 2), franchissez le pont brisé du parvis est et gagnez le sommet de la Tour du Levant.', pos: [58, 23.8, 46] },
+  { id: 'plate',   text: 'Avec la Main céleste (touche 3), posez le bloc runique de l\'armurerie sur la plaque gravée de l\'aile est.', pos: [48, 1, 16] },
+  { id: 'crypt',   text: 'Descendez aux catacombes : la Clef d\'or et la Bénédiction sont perdues dans l\'Ossuaire.', pos: [86, -7, -30] },
+  { id: 'gouffre', text: 'Franchissez le Gouffre des Morts d\'un Pas du vent : l\'Égide veille sur l\'autre rive.', pos: [113, -7, 10] },
+  { id: 'flamme',  text: 'L\'Égide activée (touche 4), traversez le rideau de flammes : la première Larme est derrière.', pos: [123, -7, 10] },
+  { id: 'throne',  text: 'Ouvrez la salle du trône avec la Clef d\'or, au nord du grand hall : la deuxième Larme y est gardée.', pos: [0, 1, 1] },
+  { id: 'lost',    text: 'Avec deux Larmes en main, franchissez le passage scellé derrière le trône, vers les Terres Perdues.', pos: [0, 1, -26] },
+  { id: 'frost',   text: 'Trouvez le Souffle glacé dans les ruines et éteignez les ronces ardentes qui ferment la Forêt de Nuit.', pos: [12, 1, -42] },
+  { id: 'grove',   text: 'Traversez le labyrinthe de la Forêt de Nuit. Un arbre-sanctuaire flétri bloque la voie : la Bénédiction (touche 6) le ranimera.', pos: [-39, 1, -75] },
+  { id: 'tears',   text: 'Atteignez la Clairière du Cœur et arrachez la dernière Larme d\'Aube à ses gardiens.', pos: [0, 2.6, -95] }
 ];
 export const HINTS = {
-  garden: 'Les Ombres craignent ton Trait astral. Vise du regard, frappe au clic gauche.',
-  hall: 'Le portail du hall est grand ouvert, au nord des jardins. Les torches y brûlent encore.',
+  garden: 'Les Ombres craignent ton attaque. Vise du regard, frappe au clic gauche. La herse ne se lèvera qu\'une fois les jardins purgés.',
+  hall: 'La herse du château est levée, au nord de la fontaine. Les torches du grand hall brûlent encore.',
   lever: 'Cherche un levier de fer contre le mur est du grand hall.',
-  dash: 'Dans la bibliothèque, les étagères font un escalier pour qui ose grimper.',
-  tower: 'La Tour du Levant se dresse à l\'est des jardins. « Seul le vent franchit ce que la pierre refuse. »',
-  plate: 'Saisis le bloc runique avec la Main céleste (touche 3, puis clic) et pose-le sur la plaque gravée.',
-  crypt: 'Sous l\'aile est, les cryptes gardent l\'Égide, la Clef d\'or... et une Larme.',
-  throne: 'La serrure d\'or attend sa clef, au nord du grand hall.',
-  tears: 'Une Larme se cache aux jardins, derrière une haie plus sombre qui respire. Les autres : cryptes, et salle du trône.'
+  dash: 'Dans la bibliothèque, les étagères de l\'angle sud-ouest font un escalier vers la passerelle haute.',
+  tower: 'Au parvis est des jardins, un escalier mène au pont brisé. « Seul le vent franchit ce que la pierre refuse. »',
+  plate: 'Saisis le bloc runique de l\'armurerie avec la Main céleste (touche 3, puis clic) et pose-le sur la plaque gravée, dans la salle voisine.',
+  crypt: 'Sous l\'aile est, l\'escalier des catacombes est ouvert. Dans l\'Ossuaire, longe le mur de l\'ouest : la Bénédiction, puis la Clef d\'or.',
+  gouffre: 'À l\'est de la salle des gardes, le Gouffre des Morts n\'a plus de pont. Prends ton élan : saut, puis Pas du vent en plein vol.',
+  flamme: 'Le rideau de flammes ne brûle pas ce que l\'Égide protège. Active-la (touche 4) juste avant de traverser.',
+  throne: 'La serrure d\'or attend sa clef, au nord du grand hall. Les Colosses gardent la deuxième Larme.',
+  lost: 'Le passage scellé derrière le trône ne cède qu\'aux porteurs de deux Larmes.',
+  frost: 'Dans les ruines des Terres Perdues, le Souffle glacé dort sur son piédestal. Les ronces ardentes de la forêt le craignent.',
+  grove: 'La Forêt de Nuit est un labyrinthe : ses murs ne se franchissent pas. Cherche l\'arbre-sanctuaire flétri et rends-lui la vie (touche 6).',
+  tears: 'Au bout du labyrinthe, la Clairière du Cœur. Ses gardiens sont de niveau 10 : reviens plus fort si la nuit te submerge.'
 };
 export const tut = { moved: 0, looked: 0, jumped: false, sprinted: false, lumenMet: false, gardenKills: 0 };
 
@@ -197,7 +211,9 @@ export const keys = {};
 export const colliders = [], doors = [], pickups = [], inter = [], enemies = [], projectiles = [],
              tkCubes = [], spinners = [], flames = [], parts = [];
 export const pedestals = []; // cristaux de piédestal (retirés au chargement si déjà récoltés)
-export const PLATE = { x: 25, z: 16, active: false, glow: null };
+/* Plaques runiques : { x, z, y, glow, door, questId, active } — un bloc posé
+   dessus (Main céleste) ouvre la porte associée (voir checkPlate, Powers.js). */
+export const PLATES = [];
 export const zoneSeen = {};
 
 /* ---- Entrées partagées (manette / tactile / réseau) ---- */
@@ -205,7 +221,9 @@ export const gpMove = { x: 0, z: 0 };
 export const tmMove = { x: 0, z: 0 };
 
 export const STEP_HEIGHT = 0.62; // hauteur de rebord franchissable automatiquement (marche/mantle)
-export const SAVE_KEY = 'ombreciel_save_v6';
+/* v7 : refonte totale des niveaux (le monde, les portes et les objets ont
+   changé de place — les sauvegardes v6 seraient incohérentes, on repart). */
+export const SAVE_KEY = 'ombreciel_save_v7';
 
 /* Depuis three r155, l'éclairage "physiquement correct" est le seul mode :
    les intensités des PointLight/SpotLight doivent être multipliées par π
@@ -219,7 +237,8 @@ export const S = {
   composer: null, renderPass: null, bloomPass: null,
   shieldMesh: null, dirLight: null, beacon: null, lumen: null,
   // portes / éléments nommés du monde
-  libDoor: null, basementDoor: null, throneDoor: null, beyondDoor: null, leverHandle: null,
+  libDoor: null, basementDoor: null, throneDoor: null, beyondDoor: null,
+  gateDoor: null, leverHandle: null,
   // caméra / entrées J1
   yaw: 0, pitch: -0.22, camKick: 0, jumpQueued: 0,
   plOK: true, mDown: false, dragDist: 0,

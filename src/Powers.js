@@ -2,7 +2,7 @@
    POUVOIRS — sorts, projectiles, mêlée, dash, télékinésie
    ================================================================ */
 import * as THREE from 'three';
-import { G, S, PATHS, POWERS, keys, player, p2, colliders, enemies, projectiles, tkCubes, PLATE } from './state.js';
+import { G, S, PATHS, POWERS, keys, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
 import { A } from './Audio.js';
 import { showMsg, refreshPowers } from './UI.js';
 import { spawnBurst, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
@@ -410,15 +410,17 @@ export function updateTK(dt) {
   }
 }
 export function checkPlate() {
-  if (S.basementDoor.open) return;
-  for (const c of tkCubes) {
-    const cp = c.mesh.position;
-    if (Math.abs(cp.x - PLATE.x) < 1.3 && Math.abs(cp.z - PLATE.z) < 1.3 && cp.y - c.half < 0.6) {
-      openDoor(S.basementDoor);
-      PLATE.active = true;
-      PLATE.glow.material.color.setHex(0x4ae08a);
-      showMsg('La plaque s\'enfonce sous le bloc : la porte des cryptes coulisse dans la pierre.', 4);
-      questReach('plate');
+  for (const P of PLATES) {
+    if (P.active || P.door.open) continue;
+    for (const c of tkCubes) {
+      const cp = c.mesh.position;
+      if (Math.abs(cp.x - P.x) < 1.3 && Math.abs(cp.z - P.z) < 1.3 && cp.y - c.half < P.y + 0.6) {
+        openDoor(P.door);
+        P.active = true;
+        P.glow.material.color.setHex(0x4ae08a);
+        showMsg(P.msg || 'La plaque s\'enfonce sous le bloc : une porte coulisse dans la pierre.', 4);
+        if (P.questId) questReach(P.questId);
+      }
     }
   }
 }

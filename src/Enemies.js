@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, zoneSeen } from './state.js';
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
-import { spawnBurst, addPickup, pointSolid } from './World.js';
+import { spawnBurst, addPickup, pointSolid, openDoor } from './World.js';
 import { glow, modelClone, characterClone } from './AssetManager.js';
 import { gainXP, hasN } from './SkillTree.js';
 import { hurt, hurtP2 } from './Player.js';
@@ -166,8 +166,15 @@ export function updateEnemies(dt) {
     if (tx !== null) {
       const mdx = tx - e.g.position.x, mdz = tz - e.g.position.z;
       const l = Math.hypot(mdx, mdz) || 1;
-      e.g.position.x += mdx / l * sp * dt;
-      e.g.position.z += mdz / l * sp * dt;
+      /* Les ombres respectent les murs : chaque axe n'est appliqué que si la
+         destination est libre (sinon glissement le long de la paroi). Vital
+         dans l'Ossuaire et la Forêt de Nuit, sinon elles traverseraient les
+         murs des labyrinthes. */
+      const ey = e.floorY + 1.0;
+      const nx = e.g.position.x + mdx / l * sp * dt;
+      const nz = e.g.position.z + mdz / l * sp * dt;
+      if (!pointSolid(nx, ey, e.g.position.z)) e.g.position.x = nx;
+      if (!pointSolid(e.g.position.x, ey, nz)) e.g.position.z = nz;
       e.g.rotation.y = Math.atan2(mdx, mdz);
     }
     e.g.position.y = e.floorY + 0.95 + Math.sin(G.time * 3 + e.spawn.x) * 0.12;
@@ -183,8 +190,9 @@ export function damageEnemy(e, d, knock) {
   spawnBurst(e.g.position.x, e.g.position.y, e.g.position.z, 0xb08cff, 8);
   if (knock) {
     const l = Math.hypot(knock.x, knock.z) || 1;
-    e.g.position.x += knock.x / l * 0.4;
-    e.g.position.z += knock.z / l * 0.4;
+    const kx = e.g.position.x + knock.x / l * 0.4, kz = e.g.position.z + knock.z / l * 0.4;
+    // le recul ne projette pas les ombres à travers les murs des labyrinthes
+    if (!pointSolid(kx, e.floorY + 1.0, kz)) { e.g.position.x = kx; e.g.position.z = kz; }
   }
   if (e.hp <= 0) killEnemy(e);
 }
@@ -205,7 +213,8 @@ export function killEnemy(e) {
     tut.gardenKills++;
     if (tut.gardenKills >= 2) {
       questReach('garden');
-      showMsg('Les jardins respirent à nouveau. Le château vous attend.', 3.5);
+      if (S.gateDoor && !S.gateDoor.open) openDoor(S.gateDoor);
+      showMsg('Les jardins respirent à nouveau. Un grondement de chaînes : la herse du château se lève.', 4);
     }
   }
 }

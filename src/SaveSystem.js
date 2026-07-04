@@ -5,7 +5,7 @@
    Auto-sauvegarde toutes les 25 s + bouton dans le menu pause.
    Clé et format identiques à la v6 d'origine (ombreciel_save_v6).
    ================================================================ */
-import { G, S, SAVE_KEY, player, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, applyPath } from './state.js';
+import { G, S, SAVE_KEY, player, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, PLATES, applyPath } from './state.js';
 import { showMsg, buildPowersUI, refreshPowers } from './UI.js';
 import { openDoor, syncCube } from './World.js';
 import { refreshPlayerVisual, addWingsToPlayer } from './Player.js';
@@ -60,6 +60,8 @@ export function loadGame() {
   (s.pickups || []).forEach((t, i) => { const p = pickups[i]; if (t && p && !p.taken) { p.taken = true; S.scene.remove(p.mesh); } });
   (s.enemies || []).forEach((d, i) => { const e = enemies[i]; if (d && e && !e.dead) { e.dead = true; S.scene.remove(e.g); } });
   (s.doors || []).forEach((o, i) => { if (o && doors[i]) openDoor(doors[i]); });
+  // plaques runiques : si la porte associée est ouverte, la plaque était chargée
+  PLATES.forEach(p => { if (p.door.open) { p.active = true; p.glow.material.color.setHex(0x4ae08a); } });
   (s.inter || []).forEach((o, i) => { if (inter[i]) inter[i].on = !!o; });
   pedestals.forEach(pd => {
     if (G.powers[pd.powerId] && pd.cry.parent) {

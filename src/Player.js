@@ -280,7 +280,7 @@ export function updateP2(dt) {
     p.pos.set(G.checkpoint.x + 1.5, G.checkpoint.y, G.checkpoint.z);
     p.vel.set(0, 0, 0);
     hurtP2(20, null);
-    showMsg('Le vide recrache le second porteur près du sanctuaire...', 3);
+    showMsg('Le vide recrache le second porteur près du dernier bivouac...', 3);
   }
   p.mesh.position.copy(p.pos);
   const bob = (p.grounded && ml > 0.05) ? Math.abs(Math.sin(p.walkT * 1.6)) * 0.06 : 0;
@@ -379,7 +379,7 @@ export function updatePlayer(dt) {
   if (p.pos.y < -40) {
     p.pos.set(G.checkpoint.x, G.checkpoint.y, G.checkpoint.z); p.vel.set(0, 0, 0);
     hurt(20, null);
-    showMsg('Le vide vous recrache près de la fontaine...', 3);
+    showMsg('Le vide vous recrache près du dernier bivouac...', 3);
   }
   // mesh + animation de marche
   p.mesh.position.copy(p.pos);
@@ -479,7 +479,7 @@ export function hurt(d, src) {
     player.pos.set(G.checkpoint.x, G.checkpoint.y, G.checkpoint.z); player.vel.set(0, 0, 0);
     if (S.tkHeld) tkToggle();
     A.die();
-    showMsg('Les ombres vous ont submergé... Vous rouvrez les yeux près de la fontaine.', 4.5);
+    showMsg('Les ombres vous ont submergé... Vous rouvrez les yeux près du dernier feu de bivouac.', 4.5);
   }
 }
 export function hurtP2(d, src) {
@@ -500,7 +500,7 @@ export function hurtP2(d, src) {
     p2.pos.set(G.checkpoint.x + 1.5, G.checkpoint.y, G.checkpoint.z);
     p2.vel.set(0, 0, 0);
     A.die();
-    showMsg('Le second porteur de flamme a été submergé... Il se relève au sanctuaire.', 4);
+    showMsg('Le second porteur de flamme a été submergé... Il se relève au dernier bivouac.', 4);
   }
 }
 export function healSelf() {

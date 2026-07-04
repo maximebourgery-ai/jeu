@@ -116,7 +116,7 @@ export function updateHUD(dt) {
   $('vignette').style.opacity = Math.max(G.vig * 0.9, low);
   for (const f of flames) {
     const n = 0.82 + 0.3 * Math.sin(G.time * 9 + f.seed) + 0.12 * Math.sin(G.time * 23 + f.seed * 3);
-    f.light.intensity = f.base * n;
+    if (f.light) f.light.intensity = f.base * n; // les feux de bivouac n'ont pas de lumière (budget GPU)
     f.flame.scale.y = 0.85 + 0.3 * Math.abs(Math.sin(G.time * 7 + f.seed));
     f.halo.material.opacity = 0.35 + 0.2 * n;
   }
