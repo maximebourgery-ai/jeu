@@ -469,7 +469,7 @@ export function buildWorld() {
   mkBox(1, 5, 4, 15.5, 4, 15, 'stone');
   [[-16, 30.5], [16, 30.5], [-16, -0.5], [16, -0.5]].forEach(([tx, tz]) => {
     mkCyl(1.7, 2, 12, tx, 0, tz, 'stoneD', true, 9);
-    const c = new THREE.Mesh(new THREE.ConeGeometry(2.1, 2.6, 9), matFor('slabR', 2, 2));
+    const c = new THREE.Mesh(new THREE.ConeGeometry(2.1, 2.6, 9), matFor('roof', 4, 2));
     c.position.set(tx, 13.3, tz); c.castShadow = true; S.scene.add(c);
   });
   [[-8, 10], [8, 10], [-8, 20], [8, 20]].forEach(([cx, cz]) => {

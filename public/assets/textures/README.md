@@ -25,6 +25,17 @@ Familles reconnues (utilisées par les matériaux du jeu) :
 | `wood`  | bois, étagères, troncs (`wood`, `woodD`, `woodF`, `trunk`) |
 | `grass` | sol des jardins (`grass`) |
 | `iron`  | fer, grilles, mécanismes (`iron`) |
+| `roof`  | toits de tuiles des tours (`roof`) |
+
+Jeux fournis (source [Poly Haven](https://polyhaven.com), CC0, 2k) :
+
+- `stone_*` — aerial_rocks_02 (roche brute)
+- `slab_*`  — chipped_concrete (dalles ébréchées)
+- `iron_*`  — box_profile_metal_sheet (tôle nervurée, avec `iron_metalness`)
+- `roof_*`  — clay_roof_tiles_02 (tuiles de terre cuite)
+
+Les maps `_normal` sont converties d'EXR en PNG 1k et les `_roughness` /
+`_metalness` en JPG pour limiter le poids au chargement.
 
 Optionnel : `glow.png` (sprite de halo lumineux, dégradé radial blanc→transparent).
 

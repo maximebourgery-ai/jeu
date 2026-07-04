@@ -6,7 +6,7 @@ import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, z
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
 import { spawnBurst, addPickup, pointSolid } from './World.js';
-import { glow, modelClone } from './AssetManager.js';
+import { glow, modelClone, characterClone } from './AssetManager.js';
 import { gainXP, hasN } from './SkillTree.js';
 import { hurt, hurtP2 } from './Player.js';
 import { questReach } from './Quests.js';
@@ -19,13 +19,28 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   const g = new THREE.Group();
   const cloakMat = new THREE.MeshStandardMaterial({
     color: opt.color || T.color, roughness: 1, emissive: 0x0d0820 });
-  /* Modèle glb optionnel (enemy_<type>.glb) : remplace la silhouette
-     primitive. Le matériau cloakMat reste utilisé pour le flash de coup
-     (sur les primitives) ; halo de niveau conservé dans les deux cas. */
-  const glb = modelClone('enemy_' + (opt.type || 'sentinel'));
+  /* Modèle optionnel : enemy_<type>.glb dédié d'abord, sinon le personnage
+     partagé (character_2.fbx) décliné selon le rôle du méchant — teinte,
+     lueur et gabarit propres à chaque archétype. En dernier recours, la
+     silhouette primitive d'origine. Halo de niveau conservé dans tous les cas. */
+  const tk0 = opt.type || 'sentinel';
+  const glb = modelClone('enemy_' + tk0);
+  const chr = glb ? null : characterClone(tk0, 2.05);
+  let charMats = null, mixer = null;
   if (glb) {
     glb.scale.setScalar(s);
     g.add(glb);
+  } else if (chr) {
+    chr.scale.setScalar(s);
+    chr.position.y = -0.83; // origine du groupe à ~1 m du sol ; avec le
+    // flottement (±0,12) les pieds lévitent juste au-dessus, jamais dessous
+    g.add(chr);
+    charMats = chr.userData.charMats;
+    const clips = chr.userData.clips;
+    if (clips && clips.length) {
+      mixer = new THREE.AnimationMixer(chr.userData.charRoot);
+      mixer.clipAction(clips[0]).play();
+    }
   } else {
     /* Silhouettes différenciées par archétype :
        Colosse = masse large + poings · Traqueur = fuseau effilé · Ombre = base */
@@ -65,7 +80,7 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.25 * (lvl - 1);
   const hp0 = opt.hp || Math.round(T.hp * mul);
   const en = {
-    g, cloakMat, floorY, wps, wi: 0, state: 'patrol',
+    g, cloakMat, charMats, mixer, floorY, wps, wi: 0, state: 'patrol',
     hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul),
     speed: opt.speed || T.speed, chaseSpeed: opt.chase || T.chase,
     atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '',
@@ -76,10 +91,18 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   enemies.push(en);
   return en;
 }
+/* Flash d'état sur le personnage partagé : hex=null restaure la lueur
+   de base du rôle (méchant) mémorisée dans le matériau. */
+function setCharEmissive(e, hex) {
+  if (!e.charMats) return;
+  for (const m of e.charMats)
+    m.emissive.setHex(hex === null ? m.userData.baseEmissive : hex);
+}
 export function updateEnemies(dt) {
   for (const e of enemies) {
     if (e.dead) continue;
     e.atk -= dt; e.hitT -= dt;
+    if (e.mixer && e.stunT <= 0) e.mixer.update(dt);
     if (e.dotT > 0) {
       e.dotT -= dt; e.hp -= e.dotDps * dt;
       if (Math.random() < dt * 6) spawnBurst(e.g.position.x, e.g.position.y + 0.4, e.g.position.z, e.dotCol || 0x7ade5a, 2);
@@ -88,6 +111,7 @@ export function updateEnemies(dt) {
     if (e.stunT > 0) {
       e.stunT -= dt;
       e.cloakMat.emissive.setHex(0x1a3a6a);
+      setCharEmissive(e, 0x1a3a6a);
       e.g.position.y = e.floorY + 0.95;
       continue;
     }
@@ -148,6 +172,7 @@ export function updateEnemies(dt) {
     }
     e.g.position.y = e.floorY + 0.95 + Math.sin(G.time * 3 + e.spawn.x) * 0.12;
     e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : 0x0d0820);
+    setCharEmissive(e, e.hitT > 0 ? 0x992233 : null);
   }
 }
 export function damageEnemy(e, d, knock) {

@@ -20,15 +20,22 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 /* Familles de textures PBR attendues dans /assets/textures/ */
-const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron'];
-/* Modèles .glb attendus dans /assets/models/ */
+const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron', 'roof'];
+/* Modèles .glb (ou .fbx) attendus dans /assets/models/ */
 const MODEL_NAMES = [
   'player_mage', 'player_warrior', 'player_assassin', 'player_paladin',
   'enemy_sentinel', 'enemy_wraith', 'enemy_brute', 'enemy_caster',
   'tree', 'torch'
 ];
+/* Personnage humanoïde partagé (textures intégrées) : sert de base à
+   toutes les créatures d'ombre — décliné par rôle via characterClone().
+   Fourni en .glb (converti du FBX Mixamo d'origine) ; un .fbx (≥ 7.0)
+   déposé au même nom est accepté en secours. */
+const CHARACTER_URLS = ['/assets/models/character_2.glb', '/assets/models/character_2.fbx'];
 /* HDRI : environment.hdr (RGBELoader) essayé d'abord, puis environment.exr
    (EXRLoader). Aucun des deux : fallback gracieux (ciel dégradé d'origine). */
 const HDRI_URLS = ['/assets/hdri/environment.hdr', '/assets/hdri/environment.exr'];
@@ -41,7 +48,8 @@ const FAMILY_FALLBACK = {
   slab:  0x50546a, // dalles rgb(80,84,104) sur fond #484c60
   wood:  0x4c3624, // planches rgb(76,54,36) sur fond #4a3524
   grass: 0x1c3e26, // brins rgb(26,62,38) sur fond #20402a
-  iron:  0x2a2d38  // fer #2a2d38
+  iron:  0x2a2d38, // fer #2a2d38
+  roof:  0x7a4434  // tuiles de terre cuite
 };
 
 /* Définition des matériaux du jeu — identique à l'ancien MATDEF, mais la
@@ -59,6 +67,7 @@ const MATDEF = {
   grass:  { tex: 'grass', color: 0xffffff, rough: 1 },
   path:   { tex: 'slab',  color: 0x9aa2c0, rough: 0.96 },
   iron:   { tex: 'iron',  color: 0xffffff, rough: 0.6, metal: 0.5 },
+  roof:   { tex: 'roof',  color: 0xffffff, rough: 0.92 },
   hedge:  { color: 0x1c5230, rough: 1 },
   hedgeF: { color: 0x143c22, rough: 1 },
   leaf:   { color: 0x175226, rough: 1 },
@@ -73,7 +82,8 @@ const matCache = {};
 export const assets = {
   ready: false,
   textures: {},   // famille -> {map, normalMap, roughnessMap, metalnessMap} (maps éventuellement nulles)
-  models: {},     // nom -> THREE.Group (scène du glb), ou absent
+  models: {},     // nom -> THREE.Group (scène du glb/fbx), ou absent
+  character: null, // { scene, clips, height, minY, cx, cz } — personnage FBX partagé
   envTexture: null, // texture équirectangulaire HDR brute (background)
   envMap: null,     // radiance PMREM (scene.environment)
   glowTex: null,    // sprite de halo (fichier ou fallback DataTexture)
@@ -127,6 +137,31 @@ async function loadModel(url) {
   if (!(await binaryExists(url))) return null;
   return new Promise(res => {
     new GLTFLoader().load(url, gltf => res(gltf.scene || null), undefined, () => res(null));
+  });
+}
+/* Chargeur FBX tolérant (personnages Mixamo & co, textures intégrées).
+   Le groupe renvoyé garde ses .animations éventuelles. */
+async function loadFBX(url) {
+  if (!(await binaryExists(url))) return null;
+  return new Promise(res => {
+    new FBXLoader().load(url, g => res(g || null), undefined, err => {
+      console.warn('[AssetManager] FBX illisible : ' + url, err);
+      res(null);
+    });
+  });
+}
+/* Comme loadModel/loadFBX mais conserve aussi les clips d'animation
+   ({scene, animations}) — utilisé pour le personnage partagé. */
+async function loadRigged(url) {
+  if (url.toLowerCase().endsWith('.fbx')) {
+    const g = await loadFBX(url);
+    return g ? { scene: g, animations: g.animations || [] } : null;
+  }
+  if (!(await binaryExists(url))) return null;
+  return new Promise(res => {
+    new GLTFLoader().load(url,
+      gltf => res(gltf.scene ? { scene: gltf.scene, animations: gltf.animations || [] } : null),
+      undefined, () => res(null));
   });
 }
 async function loadHDR(url) {
@@ -216,13 +251,35 @@ export async function loadAssets(onStatus) {
   await Promise.all(TEXTURE_FAMILIES.map(loadFamily));
 
   status('Invocation des silhouettes…');
-  await Promise.all(MODEL_NAMES.map(async name => {
-    const m = await loadModel('/assets/models/' + name + '.glb');
-    if (m) {
-      m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      assets.models[name] = m;
-    }
-  }));
+  await Promise.all([
+    ...MODEL_NAMES.map(async name => {
+      const m = (await loadModel('/assets/models/' + name + '.glb'))
+        || (await loadFBX('/assets/models/' + name + '.fbx'));
+      if (m) {
+        m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        assets.models[name] = m;
+      }
+    }),
+    (async () => {
+      let r = null;
+      for (const url of CHARACTER_URLS) { r = await loadRigged(url); if (r) break; }
+      if (!r) {
+        console.info('[AssetManager] Pas de personnage (' + CHARACTER_URLS.join(' / ') + ') — silhouettes primitives conservées.');
+        return;
+      }
+      const c = r.scene;
+      c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      /* Mesure une fois pour toutes : sert à normaliser la taille et à poser
+         les pieds au sol quel que soit le repère d'origine du fichier (souvent en cm). */
+      const box = new THREE.Box3().setFromObject(c);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      assets.character = {
+        scene: c, clips: r.animations,
+        height: size.y || 1, minY: box.min.y, cx: center.x, cz: center.z
+      };
+    })()
+  ]);
 
   status('Lecture du ciel…');
   assets.envTexture = await loadEnvironmentAny(HDRI_URLS);
@@ -306,8 +363,64 @@ export function glow(color, scale, opacity) {
   return sp;
 }
 
-/* ---------- modèles glb (clone prêt à poser, ou null si absent) ---------- */
+/* ---------- modèles glb/fbx (clone prêt à poser, ou null si absent) ---------- */
 export function modelClone(name) {
   const m = assets.models[name];
-  return m ? m.clone(true) : null;
+  return m ? skeletonClone(m) : null; // clone sûr même pour les meshes skinnés
+}
+
+/* ---------- personnage partagé décliné par rôle ----------
+   Le même modèle sert tous les rôles du jeu ; chaque camp reçoit sa
+   lecture visuelle :
+   · Méchants (créatures d'ombre) — teinte assombrie et lueur maléfique
+     propre à chaque archétype (les couleurs reprennent ETYPES/state.js) :
+       sentinel « Ombre »    : violet nocturne, regard froid
+       wraith   « Traqueur » : silhouette amincie, spectrale (semi-translucide)
+       brute    « Colosse »  : masse rougeoyante de braise
+       caster   « Tisseur »  : pourpre magique saturé
+   · Gentils (héros/alliés) — rôle « hero » : couleurs d'origine préservées,
+     simple lueur d'âme froide (utilisé si un modèle de voie manque). */
+const CHARACTER_ROLES = {
+  sentinel: { tint: 0x8f84c8, emissive: 0x1a1040, glowInt: 0.6 },
+  wraith:   { tint: 0x74c4a8, emissive: 0x0a2e22, glowInt: 0.55, slim: 0.82, ghost: 0.8 },
+  brute:    { tint: 0xc08a70, emissive: 0x33090f, glowInt: 0.7 },
+  caster:   { tint: 0xa678d4, emissive: 0x2a0a42, glowInt: 0.8 },
+  hero:     { tint: 0xffffff, emissive: 0x0a1226, glowInt: 0.3 }
+};
+export function characterClone(role, targetH) {
+  const src = assets.character;
+  if (!src) return null;
+  const cfg = CHARACTER_ROLES[role] || CHARACTER_ROLES.sentinel;
+  const inner = skeletonClone(src.scene);
+  const mats = [];
+  inner.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    const list = Array.isArray(o.material) ? o.material : [o.material];
+    const clones = list.map(m => {
+      const c = m.clone(); // matériaux propres à ce clone : teinte + flash de coup indépendants
+      if (c.color) c.color.multiply(new THREE.Color(cfg.tint));
+      if (c.emissive !== undefined) {
+        c.emissive = new THREE.Color(cfg.emissive);
+        c.emissiveIntensity = cfg.glowInt;
+      }
+      if (cfg.ghost) { c.transparent = true; c.opacity = cfg.ghost; }
+      c.userData.baseEmissive = cfg.emissive;
+      mats.push(c);
+      return c;
+    });
+    o.material = Array.isArray(o.material) ? clones : clones[0];
+  });
+  /* Normalisation : hauteur cible en mètres, pieds posés sur l'origine du
+     groupe, centré en X/Z. */
+  const k = (targetH || 2.05) / src.height;
+  inner.scale.setScalar(k);
+  if (cfg.slim) inner.scale.x = inner.scale.z = k * cfg.slim;
+  inner.position.set(-src.cx * k, -src.minY * k, -src.cz * k);
+  const g = new THREE.Group();
+  g.add(inner);
+  g.userData.charMats = mats;   // pour flash de coup / étourdissement
+  g.userData.charRoot = inner;  // racine animable (AnimationMixer)
+  g.userData.clips = src.clips; // clips FBX éventuels
+  return g;
 }
