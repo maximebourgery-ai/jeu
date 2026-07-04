@@ -24,12 +24,15 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 /* Familles de textures PBR attendues dans /assets/textures/ */
-const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron', 'roof'];
+const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron', 'roof', 'hedge', 'leaf'];
 /* Modèles .glb (ou .fbx) attendus dans /assets/models/ */
 const MODEL_NAMES = [
   'player_mage', 'player_warrior', 'player_assassin', 'player_paladin',
   'enemy_sentinel', 'enemy_wraith', 'enemy_brute', 'enemy_caster',
-  'tree', 'torch'
+  'tree', 'torch',
+  /* décor : arbres variés, bosquet, sanctuaire (normalisés : pieds à y=0,
+     centrés, dimensions en mètres — voir public/assets/models/README.md) */
+  'maple_tree', 'trees_1', 'mosque'
 ];
 /* Personnages humanoïdes (textures intégrées) : chargés dans un registre.
    · Les créatures d'ombre (méchants) utilisent VILLAIN_CHARACTER.
@@ -56,7 +59,9 @@ const FAMILY_FALLBACK = {
   wood:  0x4c3624, // planches rgb(76,54,36) sur fond #4a3524
   grass: 0x1c3e26, // brins rgb(26,62,38) sur fond #20402a
   iron:  0x2a2d38, // fer #2a2d38
-  roof:  0x7a4434  // tuiles de terre cuite
+  roof:  0x7a4434, // tuiles de terre cuite
+  hedge: 0x1c5230, // feuillage dense des haies (ex-couleur unie « hedge »)
+  leaf:  0x175226  // feuillage clair (canopée, touffes d'herbe)
 };
 
 /* Définition des matériaux du jeu — identique à l'ancien MATDEF, mais la
@@ -75,9 +80,12 @@ const MATDEF = {
   path:   { tex: 'slab',  color: 0x9aa2c0, rough: 0.96 },
   iron:   { tex: 'iron',  color: 0xffffff, rough: 0.6, metal: 0.5 },
   roof:   { tex: 'roof',  color: 0xffffff, rough: 0.92 },
-  hedge:  { color: 0x1c5230, rough: 1 },
-  hedgeF: { color: 0x143c22, rough: 1 },
-  leaf:   { color: 0x175226, rough: 1 },
+  /* haies & feuillages : texturés (famille hedge/leaf) avec repli sur les
+     couleurs unies d'origine ; la fausse haie (hedgeF) garde une teinte
+     plus sombre pour rester repérable par les joueurs attentifs. */
+  hedge:  { tex: 'hedge', color: 0xffffff, rough: 1 },
+  hedgeF: { tex: 'hedge', color: 0x9ab09a, rough: 1 },
+  leaf:   { tex: 'leaf',  color: 0xffffff, rough: 1 },
   trunk:  { tex: 'wood',  color: 0x8a7460, rough: 1 },
   gold:   { color: 0xd9a83c, rough: 0.35, metal: 0.75, emissive: 0x30220a },
   rune:   { tex: 'stone', color: 0x8a78d8, rough: 0.7, emissive: 0x241a66 },

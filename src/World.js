@@ -235,10 +235,16 @@ export function torch(x, y, z, color, intensity, dist) {
 }
 export function tree(x, z, s) {
   s = s || 1;
-  const glb = modelClone('tree');
+  /* Variété : alterne déterministiquement (selon la position) entre les
+     modèles d'arbres disponibles — chêne (tree) et érable (maple_tree). */
+  const maple = Math.abs(Math.round(x * 13 + z * 7)) % 3 === 0;
+  const glb = maple
+    ? (modelClone('maple_tree') || modelClone('tree'))
+    : (modelClone('tree') || modelClone('maple_tree'));
   if (glb) {
     glb.position.set(x, 0, z);
     glb.scale.setScalar(s);
+    glb.rotation.y = (x * 7 + z * 3) % 6; // orientation variée mais stable
     S.scene.add(glb);
     // collision identique à l'original (tronc), le visuel primitif est masqué
     const trunk = mkCyl(0.2 * s, 0.3 * s, 1.6 * s, x, 0, z, 'trunk', true, 7);
@@ -1046,6 +1052,14 @@ export function buildOpenWorld() {
   /* joints d'enceinte de part et d'autre de la lisière de la forêt */
   mkBox(2, 12, 1, -61, 0, -47, 'stoneD');
   mkBox(14, 12, 1, 67, 0, -47, 'stoneD');
+  /* ANTI-TRICHE : scellés reliant l'enceinte des ruines (x ±44, fin à z -46)
+     aux joints de la lisière (z -47/-48). Sans eux, on pouvait contourner le
+     passage scellé (2 Larmes) en longeant les friches extérieures depuis
+     l'escalier des catacombes et entrer dans la bande de la forêt par
+     l'interstice x 44..60 / x -60..-44. Pleine profondeur z -48..-46 :
+     aucune bande résiduelle ne subsiste côté haies. */
+  mkBox(18, 12, 2, -53, 0, -47, 'stoneD');   // x -62..-44
+  mkBox(18, 12, 2, 53, 0, -47, 'stoneD');    // x  44..62 (recouvre le joint)
   mkBox(4, 0.06, 19, 3, 0.02, -37.5, 'path', false);
   torch(-2.4, 3, -28.8, 0x8a5aff, 1.25, 18);
   addInter(0, 0, -29.5, 3, 'Contempler les Terres Perdues', () => {
@@ -1065,6 +1079,13 @@ export function buildOpenWorld() {
   });
   torch(-14, 0, -42, 0x9a6cff, 1.1, 17);
   torch(14, 0, -38, 0x66c8ff, 1.1, 17);
+  /* Friche boisée : chênes et érables isolés entre les ruines (modèles GLB),
+     à l'écart du chemin, du piédestal et des rondes des ombres. */
+  [[-40, -31, 1.15], [-28, -30.5, 1], [20, -30.5, 1.3], [38, -31, 1], [40, -37, 1.2], [-41, -40, 1]]
+    .forEach(([tx, tz, ts]) => tree(tx, tz, ts));
+  /* silhouettes de canopée dans la friche scellée de l'ouest (skyline
+     au-dessus de l'enceinte, zone inaccessible — décor uniquement) */
+  [[-52, -20], [-56, -36], [-48, -8]].forEach(([tx, tz], i) => tree(tx, tz, 1.6 + (i % 2) * 0.3));
   /* le Souffle glacé, gardé par les Colosses des ruines */
   pedestal(12, -42, 0, 'frost', 0x9fe8ff,
     'Souffle glacé appris ! (touche 5, puis clic) Un souffle qui gèle les ombres — et éteint les feux maudits.');
@@ -1186,6 +1207,57 @@ export function buildOpenWorld() {
   mkEnemy(0, -98, 0, [[-6, -98], [6, -98]], { type: 'caster', lvl: 10 });
   /* un Traqueur de plus : la Clairière est le pic de difficulté du jeu */
   mkEnemy(0, -92, 0, [[-8, -92], [8, -92]], { type: 'wraith', lvl: 10 });
+
+  /* ================================================================
+     LES CONFINS DU LEVANT (zone d'exploration bonus) — x 17..74, z -46..31
+     Friches au sud-est du château, accessibles seulement une fois la porte
+     des catacombes ouverte (on ressort par le palier de l'escalier).
+     Aucun pouvoir ni Larme ne s'y trouve : décor GLB, ressources, lore.
+     Les scellés z -47 empêchent d'en atteindre la Forêt de Nuit.
+     ================================================================ */
+  [[24, -8, 1], [36, -24, 1.25], [24, -20, 1], [62, -16, 1.3], [46, -32, 1],
+   [70, -32, 1.2], [52, -42, 1], [62, 2, 1.15], [68, -6, 1]]
+    .forEach(([tx, tz, ts]) => tree(tx, tz, ts));
+  /* Bosquets denses (trees_1) — arbres morts aux racines massives */
+  [[50, -38, 0.6], [66, -10, 2.4]].forEach(([bx, bz, rot]) => {
+    const grove = modelClone('trees_1');
+    if (grove) {
+      grove.position.set(bx, 0, bz);
+      grove.rotation.y = rot;
+      S.scene.add(grove);
+    }
+  });
+  /* Le Sanctuaire de l'Arbre : bâtisse oubliée des Confins */
+  const sanctuary = modelClone('mosque');
+  if (sanctuary) {
+    sanctuary.position.set(38, 0, -14);
+    sanctuary.rotation.y = Math.PI * 0.5; // façade vers l'ouest
+    S.scene.add(sanctuary);
+    addCol(sanctuary); // emprise solide : repère à contourner, non pénétrable
+    torch(29, 1.2, -10, 0xffc86a, 1.2, 16);
+    torch(29, 1.2, -18, 0xffc86a, 1.2, 16);
+    addPickup('heart', 28, 0, -14);
+    addInter(29, 0, -14, 3.2, 'Se recueillir au Sanctuaire de l\'Arbre', () => {
+      showMsg('« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son sanctuaire tient encore debout — la Nuit n\'ose pas y entrer. »', 5);
+    });
+  }
+  /* Récompenses d'exploration des Confins */
+  addPickup('maxhp', 62, 0, -40);
+  addPickup('mana', 46, 0, -6);
+  addPickup('heart', 68, 0, 4);
+  /* Flèche des Confins — repère visuel marquant la limite explorée */
+  const spireMat = new THREE.MeshStandardMaterial({ color: 0x241a3a, roughness: 0.7, emissive: 0x140a24 });
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(2.2, 16, 8), spireMat);
+  spire.position.set(58, 8, -34); spire.castShadow = true; S.scene.add(spire); addCol(spire);
+  const spireGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xb08cff }));
+  spireGem.position.set(58, 16.4, -34); spireGem.add(glow(0xb08cff, 3, 0.6));
+  S.scene.add(spireGem); spinners.push(spireGem);
+  addInter(58, 0, -31.5, 3.5, 'Lire les runes de la flèche', () => {
+    showMsg('« Ici finit la carte des anciens. Ce qui suit n\'appartient qu\'à ceux qui osent. »', 4.5);
+  });
+  /* Canopée de la marche de l'est (bande scellée x 60..74 derrière le
+     labyrinthe : inaccessible, silhouettes au-dessus des haies) */
+  [[66, -58, 1.8], [70, -78, 2.1], [64, -94, 1.9]].forEach(([tx, tz, ts]) => tree(tx, tz, ts));
 }
 
 /* ---------------- HERBES LUNAIRES (jardins + forêt) ---------------- */

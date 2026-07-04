@@ -1,5 +1,5 @@
 /* ================================================================
-   LES TOURS D'OMBRECIEL — v6 (architecture Vite modulaire)
+   LES TOURS D'OMBRECIEL — v7 (architecture Vite modulaire)
    Point d'entrée : écran de chargement, initialisation, démarrage,
    boucle principale (avec bloom en solo, scissor en coop), et le
    mode dual jeu / manette smartphone (?controller=ID).
