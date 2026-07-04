@@ -10,9 +10,10 @@ import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
 import { initScene, setCamAspects, buildWorld, buildHerbs, updateDoors, updatePickups, updateParticles } from './World.js';
-import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer } from './Player.js';
+import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
-import { castPower, updateProjectiles, updateTK, checkPlate } from './Powers.js';
+import { castPower, updateProjectiles, updateTK, checkPlate, updateAimAssist } from './Powers.js';
+import { updateFx } from './Animations.js';
 import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad } from './Controls.js';
@@ -30,9 +31,11 @@ function loop() {
   if (S.tmAttackHeld && G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) castPower();
   if (G.started && !G.paused && !G.over && !G.dialog) {
     G.time += dt;
+    updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs
     updatePlayer(dt);
     if (S.COOP && p2.mesh) updateP2(dt);
     updateEnemies(dt);
+    updateFx(dt);        // arcs de taillade, ondes de choc au sol
     updateProjectiles(dt);
     updateTK(dt);
     updateDoors(dt);
@@ -69,6 +72,7 @@ function loop() {
 function startPlaySetup() {
   if (IS_TOUCH) {
     $('touch').classList.remove('hidden');
+    document.body.classList.add('touchmode'); // épure le HUD (voir style.css)
     tryFullscreenMobile();
   }
   if (S.COOP) {
@@ -124,6 +128,7 @@ function wireMenus() {
       document.querySelectorAll('.classbtn').forEach(b => b.classList.remove('sel'));
       btn.classList.add('sel');
       applyPath(btn.dataset.path);
+      refreshPlayerVisual(); // le corps 3D reflète la voie choisie dès le menu
       buildPowersUI();
     });
   });

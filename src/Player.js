@@ -8,6 +8,7 @@ import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
 import { damageEnemy } from './Enemies.js';
+import { animateArms } from './Animations.js';
 
 export function lerpAngle(a, b, t) {
   let d = b - a;
@@ -31,7 +32,11 @@ export function mkClassBody(pathId, identity) {
     h.position.y = 1.1;
     g.add(h);
   }
-  let staffPart, robePart;
+  /* Chaque voie porte son arme dans un groupe-pivot ancré à l'épaule
+     droite (parts.arm) : les gestes d'attaque procéduraux (Animations.js)
+     font tourner ce pivot — le coup part de l'épaule, comme un vrai bras.
+     L'Assassin a un second pivot à gauche (parts.armL) pour alterner. */
+  let staffPart, robePart, armLPart = null, tipPart = null;
   if (pathId === 'warrior') {
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.82, 0.36),
       new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.6, metalness: 0.3 }));
@@ -51,18 +56,20 @@ export function mkClassBody(pathId, identity) {
     const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.05),
       new THREE.MeshStandardMaterial({ color: T.glowLight, roughness: 0.5, emissive: T.glowLight, emissiveIntensity: 0.4 }));
     crest.position.y = 1.8;
+    const arm = new THREE.Group(); arm.position.set(0.46, 1.02, 0.14);
     const sword = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.3, 0.035),
       new THREE.MeshStandardMaterial({ color: 0xc7ccd6, roughness: 0.2, metalness: 0.85 }));
-    sword.position.set(0.46, 0.9, 0.14); sword.rotation.z = -0.22; sword.castShadow = true;
+    sword.position.set(0, -0.12, 0); sword.rotation.z = -0.22; sword.castShadow = true;
     // lame qui luit doucement de la teinte d'identité : signature visuelle des coups
     const swordGlow = glow(T.glowLight, 0.7, 0.5); swordGlow.position.y = 0.62;
     sword.add(swordGlow);
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.055, 0.055),
       new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
-    guard.position.set(0.46, 0.29, 0.14); guard.rotation.z = -0.22;
+    guard.position.set(0, -0.73, 0); guard.rotation.z = -0.22;
+    arm.add(sword, guard);
     const plight = new THREE.PointLight(T.glowLight, 0.4 * LIGHT_SCALE, 6, 2); plight.position.y = 1.6;
-    g.add(torso, pl, pr, belt, head, helm, crest, sword, guard, plight);
-    staffPart = sword; robePart = torso;
+    g.add(torso, pl, pr, belt, head, helm, crest, arm, plight);
+    staffPart = arm; robePart = torso;
   } else if (pathId === 'assassin') {
     const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.36, 1.05, 9),
       new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.85 }));
@@ -77,10 +84,14 @@ export function mkClassBody(pathId, identity) {
       new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.9 }));
     hood.position.y = 1.56; hood.castShadow = true;
     const dagMat = new THREE.MeshStandardMaterial({ color: 0xd8ffe8, roughness: 0.15, metalness: 0.8 });
+    const armL = new THREE.Group(); armL.position.set(-0.34, 0.95, 0.12);
     const dagL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 0.02), dagMat);
-    dagL.position.set(-0.34, 0.76, 0.12); dagL.rotation.z = 0.32;
+    dagL.position.set(0, -0.19, 0); dagL.rotation.z = 0.32;
+    armL.add(dagL);
+    const armR = new THREE.Group(); armR.position.set(0.34, 0.95, 0.12);
     const dagR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 0.02), dagMat.clone());
-    dagR.position.set(0.34, 0.76, 0.12); dagR.rotation.z = -0.32;
+    dagR.position.set(0, -0.19, 0); dagR.rotation.z = -0.32;
+    armR.add(dagR);
     // pointes vénéneuses : petite lueur au bout de chaque lame
     const dagGlowL = glow(T.glow, 0.4, 0.55); dagGlowL.position.y = 0.24; dagL.add(dagGlowL);
     const dagGlowR = glow(T.glow, 0.4, 0.55); dagGlowR.position.y = 0.24; dagR.add(dagGlowR);
@@ -88,8 +99,8 @@ export function mkClassBody(pathId, identity) {
     const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), eyeMat); e1.position.set(-0.08, 1.34, 0.19);
     const e2 = e1.clone(); e2.position.x = 0.08;
     const plight = new THREE.PointLight(T.glow, 0.35 * LIGHT_SCALE, 5, 2); plight.position.y = 1.48;
-    g.add(cloak, sash, head, hood, dagL, dagR, e1, e2, plight);
-    staffPart = dagR; robePart = cloak;
+    g.add(cloak, sash, head, hood, armL, armR, e1, e2, plight);
+    staffPart = armR; robePart = cloak; armLPart = armL;
   } else if (pathId === 'paladin') {
     /* Paladin : bastion cuirassé — armure claire, écu, marteau d'aube, anneau doré */
     const armorMat = new THREE.MeshStandardMaterial({ color: 0xb8bdc9, roughness: 0.3, metalness: 0.7 });
@@ -118,13 +129,15 @@ export function mkClassBody(pathId, identity) {
       new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.35, metalness: 0.7 }));
     boss.position.set(-0.5, 0.78, 0.1);
     // marteau d'aube au bras droit
+    const arm = new THREE.Group(); arm.position.set(0.48, 1.04, 0.14);
     const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.2, 6), matFor('woodF', 1, 1));
-    haft.position.set(0.48, 0.86, 0.14); haft.castShadow = true;
+    haft.position.set(0, -0.18, 0); haft.castShadow = true;
     const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.18), armorMat);
-    hammerHead.position.set(0.48, 1.5, 0.14); hammerHead.castShadow = true;
+    hammerHead.position.set(0, 0.46, 0); hammerHead.castShadow = true;
+    arm.add(haft, hammerHead);
     const plight = new THREE.PointLight(0xffd97a, 0.45 * LIGHT_SCALE, 6, 2); plight.position.y = 1.7;
-    g.add(torso, tabard, belt, head, helm, haloRing, shield, boss, haft, hammerHead, plight);
-    staffPart = haft; robePart = torso;
+    g.add(torso, tabard, belt, head, helm, haloRing, shield, boss, arm, plight);
+    staffPart = arm; robePart = torso;
   } else {
     const robe = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.15, 9),
       new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.9 }));
@@ -141,16 +154,18 @@ export function mkClassBody(pathId, identity) {
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.05, 10),
       new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.95 }));
     brim.position.y = 1.5;
+    const arm = new THREE.Group(); arm.position.set(0.42, 1.06, 0.12);
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.5, 6), matFor('woodF', 1, 1));
-    staff.position.set(0.42, 0.85, 0.12); staff.castShadow = true;
+    staff.position.set(0, -0.21, 0); staff.castShadow = true;
     const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: T.glow }));
-    tip.position.set(0.42, 1.66, 0.12);
+    tip.position.set(0, 0.6, 0);
     tip.add(glow(T.glow, 1.3, 0.6));
+    arm.add(staff, tip);
     const plight = new THREE.PointLight(T.glowLight, 0.55 * LIGHT_SCALE, 7, 2); plight.position.y = 1.7;
-    g.add(robe, belt, head, hat, brim, staff, tip, plight);
-    staffPart = staff; robePart = robe;
+    g.add(robe, belt, head, hat, brim, arm, plight);
+    staffPart = arm; robePart = robe; tipPart = tip;
   }
-  return { g, parts: { staff: staffPart, robe: robePart } };
+  return { g, parts: { arm: staffPart, armL: armLPart, robe: robePart, tip: tipPart } };
 }
 export function buildPlayer() {
   player.pos = new THREE.Vector3(0, 0.2, 60);
@@ -262,8 +277,7 @@ export function updateP2(dt) {
   p.mesh.position.copy(p.pos);
   const bob = (p.grounded && ml > 0.05) ? Math.abs(Math.sin(p.walkT * 1.6)) * 0.06 : 0;
   p.mesh.position.y = p.pos.y + bob;
-  p.parts.staff.rotation.x = Math.sin(p.walkT * 1.6) * 0.14 * (ml > 0.05 ? 1 : 0);
-  p.parts.robe.rotation.z = Math.sin(p.walkT * 1.6) * 0.05 * (ml > 0.05 ? 1 : 0);
+  animateArms(p, dt, ml > 0.05);
   if (ml > 0.05 || p.dashT > 0) {
     const ty = Math.atan2(vx, vz);
     p.mesh.rotation.y = lerpAngle(p.mesh.rotation.y, ty, 12 * dt);
@@ -371,8 +385,22 @@ export function updatePlayer(dt) {
   p.mesh.position.copy(p.pos);
   const bob = (p.grounded && ml > 0) ? Math.abs(Math.sin(p.walkT * 1.6)) * 0.06 : 0;
   p.mesh.position.y = p.pos.y + bob;
-  p.parts.staff.rotation.x = Math.sin(p.walkT * 1.6) * 0.14 * (ml > 0 ? 1 : 0);
-  p.parts.robe.rotation.z = Math.sin(p.walkT * 1.6) * 0.05 * (ml > 0 ? 1 : 0);
+  animateArms(p, dt, ml > 0);
+  /* Recentrage doux vers la cible verrouillée au moment d'un coup (tactile/
+     manette) : la caméra "colle" brièvement à l'ennemi sans jamais voler
+     le contrôle — le glissement du pouce garde toujours le dernier mot. */
+  if (S.faceT > 0) {
+    S.faceT -= dt;
+    const t = S.aimTarget;
+    if (t && !t.dead) {
+      const dx = t.g.position.x - p.pos.x, dz = t.g.position.z - p.pos.z;
+      const want = Math.atan2(-dx, -dz);
+      S.yaw = lerpAngle(S.yaw, want, 7 * dt);
+      const dh = Math.hypot(dx, dz) || 1;
+      const wantP = Math.atan2((t.g.position.y + 0.6 * t.s) - (p.pos.y + 1.6), dh);
+      S.pitch += (Math.max(-1.22, Math.min(0.85, wantP)) - S.pitch) * Math.min(1, 5 * dt);
+    }
+  }
   if (ml > 0.01 || p.dashT > 0) {
     const ty = Math.atan2(vx, vz);
     p.mesh.rotation.y = lerpAngle(p.mesh.rotation.y, ty, 12 * dt);

@@ -403,6 +403,36 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
   + Joueur 2 réunis sur la plaque gravée pèsent le poids d'un Colosse (alternative
   coop au bloc runique).
 
+### 11 bis. Refonte du gameplay mobile (v7.2)
+
+- **Un bouton par sort** sous le pouce droit (plus de cycle ⟳) : arc de 5 boutons
+  autour du bouton d'attaque, chacun avec **voile de recharge** qui descend et
+  **grisage** si la mana manque ; les boutons n'apparaissent qu'une fois l'art appris.
+  L'icône du bouton d'attaque reflète l'arme de la voie (✦ ⚔ 🗡 ✙). La rangée de
+  sorts « clavier » du bas est masquée en mode tactile (doublon).
+- **Visée jamais figée** (tactile & manette) : un **aimant doux** choisit la meilleure
+  cible dans le cône de regard (± 18° pour accrocher, ± 31° d'hystérésis pour garder,
+  46 m max, ligne de vue vérifiée) — marqueur **◈ orange** au-dessus de la cible ;
+  **toucher un ennemi à l'écran le verrouille 6 s** (marqueur doré, toucher le vide
+  relâche) ; **glisser le bouton d'attaque sans le lâcher affine la visée pendant le
+  tir** (double-stick, sensibilité réduite pour la précision) ; chaque coup **recentre
+  brièvement la caméra** vers la cible sans jamais voler le contrôle. À la souris
+  (pointer lock) : visée libre 100 % manuelle, rien ne change.
+- **La mêlée pardonne** : Frappe lourde et Marteau d'aube partent vers la cible
+  aimantée même si le réticule est à côté.
+- **Animations d'attaque par voie** (bras armé monté sur pivot d'épaule,
+  `Animations.js`) : estocade du bâton + pointe qui flamboie (Mage), taillade épaule +
+  torsion (Guerrier), jets de dagues alternés droite/gauche (Assassin), marteau levé
+  haut puis abattu (Paladin) ; **traînées de coups** (arc lumineux orienté dans la
+  direction du coup) et **anneaux d'onde de choc au sol** (Verdict, Fureur, Souffle
+  glacé, Onde de choc).
+- **Pas du vent directionnel** : suit le joystick tactile / stick manette (plus
+  seulement le clavier).
+- **Divers tactile** : un tap bref sur le bouton d'attaque frappe immédiatement (le
+  coup part au `pointerdown`), retour haptique léger (vibration) au lancement d'un
+  sort et au verrouillage d'une cible, zones adaptées aux encoches
+  (`env(safe-area-inset-*)`).
+
 ---
 
 ## 10. Résumé du fil rouge en une ligne par étape

@@ -2,7 +2,8 @@
    POUVOIRS — sorts, projectiles, mêlée, dash, télékinésie
    ================================================================ */
 import * as THREE from 'three';
-import { G, S, PATHS, POWERS, keys, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
+import { G, S, IS_TOUCH, PATHS, POWERS, keys, gpMove, tmMove, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
+import { playAttack, slashArc, groundRing } from './Animations.js';
 import { A } from './Audio.js';
 import { showMsg, refreshPowers } from './UI.js';
 import { spawnBurst, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
@@ -12,8 +13,72 @@ import { camDirVec, camDirVec2, hurt, hurtP2, healSelf } from './Player.js';
 import { damageEnemy, chainLightning } from './Enemies.js';
 import { questReach } from './Quests.js';
 
-/* Point visé par le réticule central (ce que la caméra "voit" vraiment), max 60m */
+/* ================================================================
+   VISÉE ASSISTÉE (tactile & manette) — la visée n'est plus rivée au
+   réticule central : un aimant doux choisit la meilleure cible dans le
+   cône de regard, le joueur peut la verrouiller d'un simple toucher sur
+   l'ennemi, et chaque coup recentre brièvement la caméra dessus. À la
+   souris (pointer lock), rien ne change : visée libre 100 % manuelle.
+   ================================================================ */
+export function assistOn() {
+  return IS_TOUCH || S.gpActiveT > 0;
+}
+export function assistTarget() {
+  return (assistOn() && S.aimTarget && !S.aimTarget.dead) ? S.aimTarget : null;
+}
+/* Ligne de vue dégagée entre la caméra et l'ennemi (pas de mur entre les deux) */
+function hasLOS(o, e) {
+  const to = new THREE.Vector3().subVectors(e.g.position, o);
+  const d = to.length();
+  if (d < 0.001) return true;
+  to.multiplyScalar(1 / d);
+  for (let i = 0; i < colliders.length; i++) {
+    const c = colliders[i];
+    if (!c.on) continue;
+    const t = rayAABB(o, to, c.min, c.max);
+    if (t !== null && t < d - 0.6) return false;
+  }
+  return true;
+}
+export function updateAimAssist(dt) {
+  if (S.aimManualT > 0) S.aimManualT -= dt;
+  if (!assistOn() || !S.camera) { S.aimTarget = null; return; }
+  const o = S.camera.position, dir = camDirVec();
+  /* Cible verrouillée à la main (toucher sur l'ennemi) : prioritaire tant
+     qu'elle est vivante, pas trop loin et que le verrou n'a pas expiré. */
+  const man = S.aimManual;
+  if (man && !man.dead && S.aimManualT > 0 &&
+      o.distanceTo(man.g.position) < 55 && hasLOS(o, man)) {
+    S.aimTarget = man;
+    return;
+  }
+  if (man && (man.dead || S.aimManualT <= 0)) S.aimManual = null;
+  /* Sélection douce : meilleur compromis angle/distance dans le cône de
+     regard. Hystérésis : la cible en cours bénéficie d'un cône élargi pour
+     ne pas "sauter" d'un ennemi à l'autre au moindre tremblement. */
+  const keep = S.aimTarget && !S.aimTarget.dead ? S.aimTarget : null;
+  let best = null, bestScore = Infinity;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const to = new THREE.Vector3().subVectors(e.g.position, o);
+    const d = to.length();
+    if (d > 46 || d < 0.001) continue;
+    to.multiplyScalar(1 / d);
+    const ang = Math.acos(Math.max(-1, Math.min(1, to.dot(dir))));
+    const lim = (e === keep) ? 0.55 : 0.32; // ± 18° pour accrocher, ± 31° pour garder
+    if (ang > lim) continue;
+    if (!hasLOS(o, e)) continue;
+    const score = ang * 2 + d * 0.02 - (e === keep ? 0.25 : 0);
+    if (score < bestScore) { bestScore = score; best = e; }
+  }
+  S.aimTarget = best;
+}
+
+/* Point visé par le réticule central (ce que la caméra "voit" vraiment), max 60m.
+   Avec l'assist (tactile/manette), c'est le torse de la cible aimantée. */
 export function aimPoint() {
+  const t = assistTarget();
+  if (t) return new THREE.Vector3(t.g.position.x, t.g.position.y + 0.55 * t.s, t.g.position.z);
   const dir = camDirVec();
   const o = S.camera.position;
   let best = 60;
@@ -66,6 +131,7 @@ export function castPower() {
   G.cd[pw.id] = cool;
   if (pw.id === 'bolt') {
     const P = classAtk(G.path);
+    if (assistTarget()) S.faceT = 0.28; // la caméra colle brièvement à la cible aimantée
     if (P.melee) meleeStrike(P); else fireBolt(P);
   }
   else if (pw.id === 'dash') doDash();
@@ -89,6 +155,7 @@ export function frostNova(pl) {
   pl = pl || player;
   A.shield();
   spawnBurst(pl.pos.x, pl.pos.y + 1, pl.pos.z, 0xbfe8ff, 20);
+  groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xbfe8ff, 6.5); // onde de givre lisible au sol
   if (pl === player) S.camKick = 0.14;
   for (const e of enemies) {
     if (e.dead) continue;
@@ -163,6 +230,7 @@ export function rageBurst(P, pl) {
   showMsg('FUREUR DÉCHAÎNÉE !', 1.2);
   spawnBurst(pl.pos.x, pl.pos.y + 0.4, pl.pos.z, 0xff5a2a, 30);
   spawnBurst(pl.pos.x, pl.pos.y + 1.3, pl.pos.z, 0xffaa3a, 18);
+  groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xff5a2a, 7); // onde dévastatrice visible
   for (const e of enemies) {
     if (e.dead) continue;
     const dx = e.g.position.x - pl.pos.x, dz = e.g.position.z - pl.pos.z;
@@ -173,12 +241,26 @@ export function rageBurst(P, pl) {
     }
   }
 }
-/* Frappe lourde du Guerrier / Marteau d'aube du Paladin : arc de mêlée devant le lanceur */
+/* Frappe lourde du Guerrier / Marteau d'aube du Paladin : arc de mêlée devant le lanceur.
+   Avec l'assist, le coup part vers la cible aimantée même si le réticule est
+   à côté — la mêlée tactile pardonne, elle ne réclame pas une visée au pixel. */
 export function meleeStrike(P, pl, f) {
   pl = pl || player;
-  f = f || camDirVec();
+  if (!f) {
+    f = camDirVec();
+    const t = assistTarget();
+    if (t && pl === player) {
+      const dx = t.g.position.x - pl.pos.x, dz = t.g.position.z - pl.pos.z;
+      const l = Math.hypot(dx, dz) || 1;
+      f = new THREE.Vector3(dx / l, 0, dz / l);
+    }
+  }
+  const path = pl === player ? G.path : p2.path;
+  playAttack(pl, path);
   A.impact();
   if (pl === player) S.camKick = 0.2;
+  const arcCol = path === 'paladin' ? 0xffd97a : 0xffaa3a;
+  slashArc(pl.pos.x + f.x * 1.1, pl.pos.y + 1.05, pl.pos.z + f.z * 1.1, f, arcCol, P.aoe ? P.range + 1.4 : P.range);
   spawnBurst(pl.pos.x + f.x * 1.5, pl.pos.y + 1.1, pl.pos.z + f.z * 1.5, 0xffaa00, 18);
   const rageReady = pl === player
     ? (G.path === 'warrior' && G.rage >= G.maxRage)
@@ -220,6 +302,7 @@ export function meleeStrike(P, pl, f) {
   }
   if (P.shock) {
     spawnBurst(pl.pos.x, pl.pos.y + 0.3, pl.pos.z, 0xd9a83c, 22);
+    groundRing(pl.pos.x, pl.pos.y, pl.pos.z, path === 'paladin' ? 0xffd97a : 0xd9a83c, P.shock);
     for (const e of enemies) {
       if (e.dead) continue;
       const dx = e.g.position.x - pl.pos.x, dz = e.g.position.z - pl.pos.z;
@@ -235,6 +318,7 @@ export function meleeStrike(P, pl, f) {
 export function fireBolt(P, pl, dirO, target) {
   P = P || classAtk(G.path);
   pl = pl || player;
+  playAttack(pl, pl === player ? G.path : p2.path); // geste de lancer (estocade / jet de dague)
   A.bolt();
   target = target || aimPoint();
   const originDir = dirO || camDirVec(); // pour le point de départ visuel (au bout du bâton)
@@ -374,6 +458,9 @@ export function doDash() {
   if (keys['KeyS']) mz -= 1;
   if (keys['KeyD']) mx += 1;
   if (keys['KeyA']) mx -= 1;
+  // joystick tactile et stick manette : le Pas du vent suit la direction
+  // du déplacement en cours (sinon il file toujours droit devant)
+  mx += gpMove.x + tmMove.x; mz += gpMove.z + tmMove.z;
   let dx = f.x * mz + r.x * mx, dz = f.z * mz + r.z * mx;
   const l = Math.hypot(dx, dz);
   if (l < 0.01) { dx = f.x; dz = f.z; }

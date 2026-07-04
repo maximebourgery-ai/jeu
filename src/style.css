@@ -101,23 +101,54 @@ canvas{display:block}
 #p2power{font-size:11px;font-family:Verdana,sans-serif;color:#c8d2ee;text-align:right;margin-top:2px}
 #splitline{position:fixed;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:rgba(232,224,204,.35);z-index:4;display:none}
 #cross2{position:absolute;top:50%;left:75%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:0 0 6px rgba(0,0,0,.9);display:none}
-/* ---------- Contrôles tactiles (mobile) ---------- */
+/* ---------- Contrôles tactiles (mobile) — refonte gameplay ----------
+   Pouce gauche : joystick (à fond = sprint). Pouce droit : gros bouton
+   d'attaque (maintenir = enchaîner, glisser = viser en tirant) entouré
+   d'un arc de sorts à lancement direct, recharge visible sur chaque
+   bouton. Toucher un ennemi à l'écran le verrouille (marqueur ◈). */
 #touch{position:fixed;inset:0;z-index:6;pointer-events:none}
 #lookzone{position:absolute;top:0;right:0;width:55%;height:100%;pointer-events:auto;touch-action:none}
-#joy{position:absolute;left:26px;bottom:30px;width:128px;height:128px;border-radius:50%;
+#joy{position:absolute;left:calc(26px + env(safe-area-inset-left,0px));bottom:30px;width:132px;height:132px;border-radius:50%;
   background:rgba(20,26,52,.35);border:2px solid rgba(150,180,255,.35);pointer-events:auto;touch-action:none}
 #joyknob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px;border-radius:50%;
   background:rgba(140,170,255,.45);border:2px solid rgba(200,220,255,.6);box-shadow:0 0 14px rgba(100,150,255,.4)}
 .tbtn{position:absolute;border-radius:50%;border:2px solid rgba(150,180,255,.4);background:rgba(15,19,40,.55);
   color:#e8e0cc;font-family:Georgia,serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
-  display:flex;align-items:center;justify-content:center;text-shadow:0 0 8px rgba(120,180,255,.7)}
+  display:flex;align-items:center;justify-content:center;text-shadow:0 0 8px rgba(120,180,255,.7);overflow:hidden}
 .tbtn:active{background:rgba(70,90,160,.6)}
-#t-attack{right:26px;bottom:36px;width:86px;height:86px;font-size:34px;border-color:rgba(255,170,110,.55)}
-#t-jump{right:128px;bottom:110px;width:66px;height:66px;font-size:26px}
-#t-act{right:34px;bottom:140px;width:56px;height:56px;font-size:22px}
-#t-spell{right:150px;bottom:34px;width:56px;height:56px;font-size:22px}
+#t-attack{right:calc(20px + env(safe-area-inset-right,0px));bottom:26px;width:96px;height:96px;font-size:38px;
+  border-color:rgba(255,170,110,.55);box-shadow:0 0 22px rgba(255,150,80,.25)}
+#t-attack:active{background:rgba(160,80,40,.5)}
+#t-jump{right:calc(130px + env(safe-area-inset-right,0px));bottom:30px;width:68px;height:68px;font-size:26px}
+#t-act{right:calc(26px + env(safe-area-inset-right,0px));bottom:208px;width:54px;height:54px;font-size:20px}
 #t-craft{left:26px;top:52%;width:48px;height:48px;font-size:20px}
 #t-pause{right:14px;top:14px;width:44px;height:44px;font-size:18px}
+/* --- Arc de sorts à lancement direct autour du bouton d'attaque --- */
+#spellbar{position:absolute;inset:0;pointer-events:none}
+.sbtn{position:absolute;border-radius:50%;border:2px solid rgba(150,180,255,.45);background:rgba(15,19,40,.62);
+  color:#cfe6ff;font-family:Georgia,serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
+  display:none;align-items:center;justify-content:center;font-size:22px;overflow:hidden;
+  text-shadow:0 0 8px rgba(120,180,255,.7)}
+.sbtn.owned{display:flex}
+.sbtn:active{background:rgba(70,90,160,.65);transform:scale(.92)}
+.sbtn.nomana{filter:grayscale(.7);opacity:.45}
+#ts-dash{right:calc(212px + env(safe-area-inset-right,0px));bottom:36px;width:60px;height:60px}
+#ts-frost{right:calc(26px + env(safe-area-inset-right,0px));bottom:138px;width:56px;height:56px}
+#ts-shield{right:calc(96px + env(safe-area-inset-right,0px));bottom:152px;width:56px;height:56px}
+#ts-heal{right:calc(166px + env(safe-area-inset-right,0px));bottom:152px;width:56px;height:56px}
+#ts-tk{right:calc(232px + env(safe-area-inset-right,0px));bottom:120px;width:56px;height:56px}
+/* voile de recharge : descend du haut du bouton, disparaît quand le sort est prêt */
+.tbtn .scd,.sbtn .scd{position:absolute;left:0;right:0;top:0;height:0;background:rgba(3,5,12,.74);
+  pointer-events:none;border-radius:0}
+/* En mode tactile, la rangée de sorts « clavier » du bas fait doublon avec
+   les boutons dédiés sous le pouce : on l'efface pour dégager l'écran. */
+body.touchmode #powers{display:none}
+/* --- Marqueur de cible verrouillée (visée aimantée) --- */
+#lockon{position:fixed;left:-100px;top:-100px;transform:translate(-50%,-50%);font-size:30px;color:#ff9a5a;
+  text-shadow:0 0 12px rgba(255,120,60,.9),0 0 4px #000;pointer-events:none;z-index:5;
+  animation:lockpulse .9s ease-in-out infinite}
+#lockon.manual{color:#ffd97a;text-shadow:0 0 14px rgba(255,210,110,.95),0 0 4px #000}
+@keyframes lockpulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.22)}}
 #craftpanel{position:absolute;left:84px;top:46%;background:rgba(7,9,20,.92);border:1px solid rgba(150,180,255,.4);
   border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
 #craftpanel button{background:#1a2142;color:#e8e0cc;border:1px solid rgba(150,180,255,.35);border-radius:8px;

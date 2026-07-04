@@ -3,14 +3,15 @@
    + boutons), manette Xbox/PS (Gamepad API).
    La manette smartphone (PeerJS) est dans Network.js.
    ================================================================ */
-import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove } from './state.js';
+import * as THREE from 'three';
+import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove, enemies } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, refreshInv, closeTravel } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
 import { tryInteract, tryInteractP2 } from './World.js';
-import { castPower, castPowerP2, cyclePower, castSpecific } from './Powers.js';
+import { castPower, castPowerP2, castSpecific } from './Powers.js';
 
 /* ---------------- ENTRÉES (verrouillage souris + repli glisser) ---------------- */
 export function lockPointer() {
@@ -113,6 +114,7 @@ export function initControls() {
    ================================================================ */
 export function updateGamepad(dt) {
   if (S.gpDisabled) return;
+  S.gpActiveT = Math.max(0, S.gpActiveT - dt); // la visée assistée suit l'activité manette
   let pads = [];
   try {
     pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -129,6 +131,7 @@ export function updateGamepad(dt) {
   if (!gp) return;
   const dz = v => Math.abs(v) > 0.18 ? v : 0;
   const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  if (gp.buttons.some(x => x && x.pressed) || gp.axes.some(a => Math.abs(a) > 0.18)) S.gpActiveT = 2;
   // Pause (Start)
   if (b(9) && !S.gpPrev[9] && G.started && !G.over && !G.dialog) {
     G.paused = !G.paused;
@@ -181,11 +184,38 @@ export function updateGamepad(dt) {
 }
 
 /* ================================================================
-   CONTRÔLES TACTILES (téléphone / tablette)
-   Joystick virtuel à gauche · glisser à droite = caméra ·
-   boutons : ✦ attaque (maintien possible) · ▲ saut (maintenir = planer
-   avec les ailes) · E agir · ⟳ changer de sort · ⚒ artisanat · II pause
+   CONTRÔLES TACTILES (téléphone / tablette) — refonte gameplay :
+   · Joystick virtuel à gauche (poussé à fond = sprint)
+   · Glisser à droite = caméra · TOUCHER UN ENNEMI = le verrouiller
+   · Bouton d'attaque : maintenir pour enchaîner, GLISSER SANS LÂCHER
+     pour affiner la visée pendant le tir (double-stick)
+   · Un bouton dédié par sort (plus de cycle ⟳) avec recharge visible
+   · ▲ saut (maintenir = planer avec les ailes) · E agir · ⚒ artisanat
    ================================================================ */
+
+/* Toucher un ennemi à l'écran = le verrouiller quelques secondes (la
+   dague ◈ le suit). Un toucher dans le vide relâche le verrou manuel. */
+function pickTapTarget(x, y) {
+  if (!S.camera || !G.started) return;
+  let best = null, bd = 64; // rayon de tolérance en pixels
+  const v = new THREE.Vector3();
+  for (const e of enemies) {
+    if (e.dead) continue;
+    if (S.camera.position.distanceTo(e.g.position) > 55) continue;
+    v.set(e.g.position.x, e.g.position.y + 0.55 * e.s, e.g.position.z).project(S.camera);
+    if (v.z > 1 || v.z < -1) continue;
+    const sx = (v.x * 0.5 + 0.5) * innerWidth, sy = (1 - (v.y * 0.5 + 0.5)) * innerHeight;
+    const d = Math.hypot(sx - x, sy - y);
+    if (d < bd) { bd = d; best = e; }
+  }
+  if (best) {
+    S.aimManual = best; S.aimManualT = 6;
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
+  } else if (S.aimManual) {
+    S.aimManual = null; S.aimManualT = 0;
+  }
+}
+
 export function setupTouch() {
   if (!IS_TOUCH) return;
   const joy = $('joy'), knob = $('joyknob'), look = $('lookzone');
@@ -213,18 +243,21 @@ export function setupTouch() {
   };
   joy.addEventListener('pointerup', joyEnd);
   joy.addEventListener('pointercancel', joyEnd);
-  /* --- Zone caméra : glisser pour orienter, tap pour avancer un dialogue --- */
-  let lookId = null, lx = 0, ly = 0;
+  /* --- Zone caméra : glisser pour orienter · tap bref = verrouiller
+     l'ennemi touché (ou avancer un dialogue) --- */
+  let lookId = null, lx = 0, ly = 0, lookMoved = 0, lookT0 = 0;
   look.addEventListener('pointerdown', e => {
     e.preventDefault();
     if (G.dialog) { dlgNext(); return; }
     lookId = e.pointerId; lx = e.clientX; ly = e.clientY;
+    lookMoved = 0; lookT0 = performance.now();
     look.setPointerCapture(e.pointerId);
   });
   look.addEventListener('pointermove', e => {
     if (e.pointerId !== lookId) return;
     const dx = e.clientX - lx, dy = e.clientY - ly;
     lx = e.clientX; ly = e.clientY;
+    lookMoved += Math.abs(dx) + Math.abs(dy);
     if (G.started && !G.paused && !G.dialog) {
       S.yaw -= dx * 0.0052;
       S.pitch -= dy * 0.0052;
@@ -232,9 +265,43 @@ export function setupTouch() {
       tut.looked += (Math.abs(dx) + Math.abs(dy)) * 0.0052;
     }
   });
-  const lookEnd = e => { if (e.pointerId === lookId) lookId = null; };
+  const lookEnd = e => {
+    if (e.pointerId !== lookId) return;
+    lookId = null;
+    // tap bref et immobile = tentative de verrouillage de cible
+    if (lookMoved < 12 && performance.now() - lookT0 < 350 && G.started && !G.paused && !G.dialog)
+      pickTapTarget(e.clientX, e.clientY);
+  };
   look.addEventListener('pointerup', lookEnd);
-  look.addEventListener('pointercancel', lookEnd);
+  look.addEventListener('pointercancel', e => { if (e.pointerId === lookId) lookId = null; });
+  /* --- Bouton d'attaque : maintenir = enchaîner les coups, glisser sans
+     lâcher = affiner la visée pendant le tir (sensibilité réduite pour la
+     précision — le double-stick des shooters mobiles) --- */
+  const atk = $('t-attack');
+  let atkId = null, ax = 0, ay = 0;
+  atk.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (G.dialog) { dlgNext(); return; }
+    atkId = e.pointerId; ax = e.clientX; ay = e.clientY;
+    try { atk.setPointerCapture(e.pointerId); } catch (err) {}
+    S.tmAttackHeld = true;
+    /* le coup part dès l'appui : un tap bref frappe aussi (le maintien,
+       lui, enchaîne via la boucle principale — la recharge fait le tri) */
+    if (G.started && !G.paused && !G.over && !G.inv && !G.treeOpen && !G.travelOpen) castPower();
+  });
+  atk.addEventListener('pointermove', e => {
+    if (e.pointerId !== atkId) return;
+    const dx = e.clientX - ax, dy = e.clientY - ay;
+    ax = e.clientX; ay = e.clientY;
+    if (G.started && !G.paused && !G.dialog) {
+      S.yaw -= dx * 0.0036;
+      S.pitch -= dy * 0.0036;
+      S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
+    }
+  });
+  const atkEnd = e => { if (e.pointerId === atkId) { atkId = null; S.tmAttackHeld = false; } };
+  atk.addEventListener('pointerup', atkEnd);
+  atk.addEventListener('pointercancel', atkEnd);
   /* --- Boutons --- */
   const bind = (id, down, up) => {
     const el = $(id);
@@ -249,15 +316,21 @@ export function setupTouch() {
     if (G.started && !G.paused && !G.over) S.jumpQueued = 0.14;
     S.tmJumpHeld = true;
   }, () => { S.tmJumpHeld = false; });
-  bind('t-attack', () => {
-    if (G.dialog) { dlgNext(); return; }
-    S.tmAttackHeld = true;
-  }, () => { S.tmAttackHeld = false; });
   bind('t-act', () => {
     if (G.dialog) { dlgNext(); return; }
     tryInteract();
   });
-  bind('t-spell', () => cyclePower(1));
+  /* Un bouton par sort : lancement direct, sans cycle — le pouce droit a
+     toute la panoplie sous lui, comme sur manette. */
+  document.querySelectorAll('#spellbar .sbtn').forEach(btn => {
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (G.dialog) { dlgNext(); return; }
+      if (!G.started || G.paused || G.over || G.inv) return;
+      castSpecific(btn.dataset.power);
+      try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
+    });
+  });
   bind('t-craft', () => $('craftpanel').classList.toggle('hidden'));
   bind('t-tree', () => toggleTree());
   bind('cr-h', () => craftAction('H'));

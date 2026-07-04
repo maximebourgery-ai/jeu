@@ -28,16 +28,23 @@
   <div id="hint"><b>ZQSD</b> marcher · <b>souris</b> caméra · <b>clic</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint<br/><b>E</b> agir · <b>1-6</b> sorts · <b>Tab</b> sac · <b>H</b> potion · <b>O</b> orbe · <b>C</b> transcender · <b>K</b> pouvoirs · <b>V</b> vue · <b>Échap</b> pause</div>
   <div id="cross"></div>
   <div id="cross2"></div>
+  <div id="lockon" class="hidden">◈</div>
 </div>
 <div id="ebars"></div>
 <div id="splitline"></div>
 <div id="touch" class="hidden">
   <div id="lookzone"></div>
   <div id="joy"><div id="joyknob"></div></div>
-  <button class="tbtn" id="t-attack">✦</button>
+  <button class="tbtn" id="t-attack"><span class="aico">✦</span><div class="scd"></div></button>
   <button class="tbtn" id="t-jump">▲</button>
   <button class="tbtn" id="t-act">E</button>
-  <button class="tbtn" id="t-spell">⟳</button>
+  <div id="spellbar">
+    <button class="sbtn" id="ts-dash"   data-power="dash">⟫<div class="scd"></div></button>
+    <button class="sbtn" id="ts-tk"     data-power="tk">☄<div class="scd"></div></button>
+    <button class="sbtn" id="ts-shield" data-power="shield">◎<div class="scd"></div></button>
+    <button class="sbtn" id="ts-frost"  data-power="frost">❄<div class="scd"></div></button>
+    <button class="sbtn" id="ts-heal"   data-power="heal">✚<div class="scd"></div></button>
+  </div>
   <button class="tbtn" id="t-craft">⚒</button>
   <button class="tbtn" id="t-tree">✥</button>
   <button class="tbtn" id="t-pause">II</button>
@@ -88,7 +95,8 @@
   <div class="controls">
     <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic gauche</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
     <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion (2 herbes) · <b>O</b> forger un orbe (3 ombres) · <b>C</b> transcender (orbes) · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
-    🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>un bouton par sort</b> (X/Y/LB/RB/LT/RT) · 📱 Manette smartphone via le menu pause
+    🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>un bouton par sort</b> (X/Y/LB/RB/LT/RT) · 📱 Manette smartphone via le menu pause<br/>
+    📱 <b>Mobile :</b> un bouton par sort sous le pouce droit · glissez le bouton d'attaque pour viser en tirant · <b>touchez un ennemi</b> pour le verrouiller (visée aimantée)
   </div>
 </div>
 

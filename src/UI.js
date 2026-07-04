@@ -1,6 +1,6 @@
 /* ---------------- UI / HUD ---------------- */
 import * as THREE from 'three';
-import { G, S, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners } from './state.js';
+import { G, S, IS_TOUCH, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners } from './state.js';
 import { A } from './Audio.js';
 import { xpNeed } from './SkillTree.js';
 import { nearInter, spawnBurst } from './World.js';
@@ -56,6 +56,9 @@ export function buildPowersUI() {
     d.innerHTML = '<div class="nm">' + p.name + ' · ' + costTxt + '</div><span class="ico">' + p.icon + '</span><span class="lock">🔒</span><small>' + (i + 1) + '</small><div class="cd"></div>';
     c.appendChild(d);
   });
+  // bouton d'attaque tactile : l'icône reflète l'arme de la voie choisie
+  const ta = $('t-attack');
+  if (ta) { const ai = ta.querySelector('.aico'); if (ai) ai.textContent = PATHS[G.path].icon; }
   refreshPowers();
 }
 export function refreshPowers() {
@@ -63,6 +66,9 @@ export function refreshPowers() {
     const d = $('pw-' + p.id);
     d.classList.toggle('owned', !!G.powers[p.id]);
     d.classList.toggle('sel', G.sel === p.id);
+    // boutons tactiles dédiés : n'apparaissent qu'une fois l'art appris
+    const b = $('ts-' + p.id);
+    if (b) b.classList.toggle('owned', !!G.powers[p.id]);
   });
 }
 export function refreshInv() {
@@ -149,6 +155,34 @@ export function updateHUD(dt) {
     const el = $('pw-' + p.id).querySelector('.cd');
     el.style.height = (G.cd[p.id] > 0 ? G.cd[p.id] / p.cool * 100 : 0) + '%';
   });
+  /* Boutons tactiles : voile de recharge qui descend + grisage si le
+     joueur n'a pas la mana du sort — l'état est lisible sous le pouce. */
+  if (IS_TOUCH) {
+    POWERS.forEach(p => {
+      const b = p.id === 'bolt' ? $('t-attack') : $('ts-' + p.id);
+      if (!b) return;
+      const cd = b.querySelector('.scd');
+      if (cd) cd.style.height = (G.cd[p.id] > 0 ? Math.min(100, G.cd[p.id] / p.cool * 100) : 0) + '%';
+      if (p.id !== 'bolt') b.classList.toggle('nomana', p.cost > 0 && G.mana < p.cost);
+    });
+  }
+  /* Marqueur ◈ de la visée aimantée : suit la cible douce (orange) ou la
+     cible verrouillée d'un toucher (dorée). */
+  const lk = $('lockon');
+  if (lk) {
+    const t = (S.aimTarget && !S.aimTarget.dead && G.started && !G.paused && !G.over) ? S.aimTarget : null;
+    if (t) {
+      const v = new THREE.Vector3(t.g.position.x, t.g.position.y + 1.05 * t.s + 0.9, t.g.position.z);
+      v.project(S.camera);
+      if (v.z < 1 && v.z > -1) {
+        const vw = S.COOP ? innerWidth / 2 : innerWidth;
+        lk.style.left = (v.x * 0.5 + 0.5) * vw + 'px';
+        lk.style.top = (1 - (v.y * 0.5 + 0.5)) * innerHeight + 'px';
+        lk.classList.remove('hidden');
+        lk.classList.toggle('manual', S.aimManual === t && S.aimManualT > 0);
+      } else lk.classList.add('hidden');
+    } else lk.classList.add('hidden');
+  }
   const it = (G.started && !G.paused && !G.over && !G.dialog) ? nearInter() : null;
   $('prompt').textContent = it ? ('E — ' + it.label) : '';
   if (G.msgT > 0) {

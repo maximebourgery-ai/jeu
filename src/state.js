@@ -262,6 +262,13 @@ export const S = {
   // gamepad / tactile
   gpSprint: false, gpJumpHeld: false, gpPrev: {}, gpDisabled: false,
   tmJumpHeld: false, tmAttackHeld: false,
+  /* Visée assistée (tactile & manette) : cible douce choisie dans le cône
+     de regard (aimTarget), cible verrouillée à la main d'un simple toucher
+     sur l'ennemi (aimManual, expire après aimManualT secondes), activité
+     manette récente (gpActiveT) et recentrage bref de la caméra vers la
+     cible au moment d'un coup (faceT). La visée n'est jamais figée : le
+     joueur peut toujours corriger au doigt, l'assist ne fait qu'aimanter. */
+  aimTarget: null, aimManual: null, aimManualT: 0, gpActiveT: 0, faceT: 0,
   // progression / narration
   questI: -1, storyIdx: 0, dlg: null, // dlg = {pages:[],i:0,after:fn}
   // coop
