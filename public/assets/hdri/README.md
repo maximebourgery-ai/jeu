@@ -1,12 +1,16 @@
 # Environnement HDRI
 
-Déposez ici un fichier `environment.hdr` (équirectangulaire, Radiance HDR).
+Déposez ici un fichier `environment.hdr` (équirectangulaire, Radiance HDR)
+**ou** `environment.exr` (équirectangulaire, OpenEXR).
 
-S'il est présent, il est chargé via `RGBELoader` + `PMREMGenerator` et
-appliqué en `scene.environment` (éclairage d'image) et `scene.background`.
+L'AssetManager essaie d'abord `environment.hdr` (via `RGBELoader`), puis
+`environment.exr` (via `EXRLoader`). Le premier trouvé est passé au
+`PMREMGenerator` et appliqué en `scene.environment` (éclairage d'image)
+et `scene.background`.
 
-S'il est absent, le jeu garde son ciel nocturne et son éclairage
-ambiant/directionnel d'origine — un simple avertissement est loggé en console.
+Si aucun des deux n'est présent, le jeu garde son ciel nocturne et son
+éclairage ambiant/directionnel d'origine — un simple avertissement est
+loggé en console.
 
 Conseil : une HDRI de nuit étoilée / crépuscule froid respecte la direction
 artistique du jeu (ambiance nocturne bleutée).

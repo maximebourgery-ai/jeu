@@ -1,14 +1,19 @@
 # Textures PBR
 
 Déposez ici les jeux de textures PBR. L'AssetManager cherche, pour chaque
-famille de matériau, les fichiers suivants (extension `.jpg` ou `.png`) :
+famille de matériau, les fichiers suivants (extensions essayées dans
+l'ordre : `.jpg`, `.png`, puis `.exr` via `EXRLoader`) :
 
 ```
 <famille>_color.jpg       (albedo / couleur — obligatoire pour activer la famille)
 <famille>_normal.jpg      (optionnel)
-<famille>_roughness.jpg   (optionnel)
+<famille>_roughness.jpg   (optionnel — .exr supporté, ex. brick_roughness.exr)
 <famille>_metalness.jpg   (optionnel)
 ```
+
+Espaces colorimétriques : les maps `_color` sont chargées en sRGB ; les maps
+de données (`_normal`, `_roughness`, `_metalness`) restent en espace linéaire
+(les `.exr` sont linéaires par nature).
 
 Familles reconnues (utilisées par les matériaux du jeu) :
 

@@ -52,6 +52,13 @@ export function classAtk(path) {
     if (hasN('a_fatal')) P.fatal = true;
     P.count = hasN('a_fan') ? 5 : (hasN('a_twin') ? 2 : 1);
     if (hasN('a_poison')) P.poison = true;
+    P.backstab = true; // critique ×2,5 dans le dos (voir updateProjectiles)
+  } else if (path === 'paladin') {
+    if (hasN('p_might')) P.dmg = Math.round(P.dmg * 1.55);
+    if (hasN('p_smite')) P.shock = 6;      // onde de lumière (réutilise le pattern w_shock)
+    if (hasN('p_reach')) P.range += 1.2;
+    if (hasN('p_conse')) P.holyburn = true; // brûlure de lumière au contact
+    if (hasN('p_avatar')) P.dmg = Math.round(P.dmg * 1.15);
   }
   if (G.upgrades.boltAoE) P.aoe = true; // Transcendance (artisanat) : compatible
   return P;
@@ -71,6 +78,7 @@ export function buyNode(id) {
   if (id === 'g_vit') { G.maxHp += 40; G.hp = Math.min(G.maxHp, G.hp + 40); }
   if (id === 'g_wis') { G.maxMana += 40; G.mana = G.maxMana; }
   if (id === 'w_titan') { G.maxHp += 30; G.hp = Math.min(G.maxHp, G.hp + 30); }
+  if (id === 'p_avatar') { G.maxHp += 40; G.hp = Math.min(G.maxHp, G.hp + 40); }
   G.items.push('Pouvoir — ' + n.name);
   spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, 0xffd97a, 20);
   showMsg('✧ ' + n.name + ' appris !', 2.5);

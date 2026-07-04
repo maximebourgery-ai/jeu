@@ -19,7 +19,7 @@ export function craftAction(k) {
       G.shadows -= 3; G.orbes++; A.power();
       spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, 0xb08cff, 18);
       showMsg('Trois essences d\'ombre fusionnent : Orbe d\'obscurité forgé (◉ ' + G.orbes + ').', 3);
-    } else showMsg('Il vous faut 3 essences d\'ombre (● ' + G.shadows + '/3). Terrassez des sentinelles...', 2.5);
+    } else showMsg('Il vous faut 3 essences d\'ombre (● ' + G.shadows + '/3). Terrassez des Ombres...', 2.5);
   } else if (k === 'C') {
     if (!G.upgrades.boltAoE) {
       if (G.orbes >= 2) {

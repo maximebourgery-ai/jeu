@@ -21,6 +21,7 @@ export const G = {
   path: 'mage', herbs: 0, shadows: 0, orbes: 0, hasWings: false,
   xp: 0, level: 1, sp: 0, nodes: {}, treeOpen: false, openWorld: false,
   furyT: 0, hasteT: 0, comboN: 0, comboT: 0,
+  rage: 0, maxRage: 100, // jauge de rage du Guerrier (voir Powers.js / UI.js)
   upgrades: { boltAoE: false }, firstPerson: false,
   checkpoint: { x: 0, y: 0.2, z: 60 },
   shieldT: 0, time: 0, msgT: 0, vig: 0
@@ -28,9 +29,12 @@ export const G = {
 
 /* ---- Les Voies : chaque classe redéfinit l'attaque principale (modulaire) ---- */
 export const PATHS = {
-  mage:     { name: 'Mage',     boltName: 'Trait astral',  icon: '✦', dmg: 16, pSpeed: 26, cost: 10, cool: 0.45, move: 1,    melee: false, dashCool: 1.1,  hpBonus: 0 },
-  warrior:  { name: 'Guerrier', boltName: 'Frappe lourde', icon: '⚔', dmg: 34, pSpeed: 0,  cost: 6,  cool: 0.8,  move: 0.95, melee: true,  range: 2.8, dashCool: 1.3, hpBonus: 40 },
-  assassin: { name: 'Assassin', boltName: 'Dague astrale', icon: '🗡', dmg: 11, pSpeed: 34, cost: 7,  cool: 0.26, move: 1.12, melee: false, dashCool: 0.55, hpBonus: 0 }
+  mage:     { name: 'Mage',     boltName: 'Trait astral',   icon: '✦', dmg: 16, pSpeed: 26, cost: 10, cool: 0.45, move: 1,    melee: false, dashCool: 1.1,  hpBonus: 0 },
+  warrior:  { name: 'Guerrier', boltName: 'Frappe lourde',  icon: '⚔', dmg: 34, pSpeed: 0,  cost: 6,  cool: 0.8,  move: 0.95, melee: true,  range: 2.8, dashCool: 1.3, hpBonus: 40 },
+  assassin: { name: 'Assassin', boltName: 'Dague astrale',  icon: '🗡', dmg: 11, pSpeed: 34, cost: 7,  cool: 0.26, move: 1.12, melee: false, dashCool: 0.55, hpBonus: 0 },
+  /* Paladin : le bastion de l'ordre — le plus résistant des 4 voies (+70 PV),
+     mêlée à portée allongée (3.6 > 2.8 du Guerrier) mais dégâts moindres. */
+  paladin:  { name: 'Paladin',  boltName: 'Marteau d\'aube', icon: '✙', dmg: 26, pSpeed: 0,  cost: 7,  cool: 0.85, move: 0.9,  melee: true,  range: 3.6, dashCool: 1.5, hpBonus: 70 }
 };
 export function applyPath(id) {
   G.path = id;
@@ -38,16 +42,22 @@ export function applyPath(id) {
   POWERS[0].name = P.boltName; POWERS[0].icon = P.icon; POWERS[0].cost = P.cost; POWERS[0].cool = P.cool;
   POWERS[1].cool = P.dashCool;
   G.maxHp = 100 + P.hpBonus; G.hp = G.maxHp;
+  G.rage = 0; // la jauge de rage (Guerrier) repart de zéro à chaque changement de voie
 }
 
 /* ================================================================
    PROGRESSION — types d'ennemis, niveaux, zones
    ================================================================ */
+/* 3 archétypes principaux bien lisibles + 1 type rare à distance :
+   · sentinel → OMBRE     : basique, équilibrée (violet sombre, yeux cyan)
+   · brute    → COLOSSE   : très lent, dévastateur (masse rouge sombre, yeux braise)
+   · wraith   → TRAQUEUR  : ultra-rapide, fragile (silhouette fine verte, yeux acides)
+   · caster   → TISSEUR   : rare, projectiles hostiles à distance (inchangé) */
 export const ETYPES = {
-  sentinel: { name: 'Sentinelle', hp: 30, dmg: 12, speed: 2.2, chase: 4.2, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
-  wraith:   { name: 'Spectre',    hp: 18, dmg: 9,  speed: 3.4, chase: 6.4, scale: 0.85, color: 0x142e30, eye: 0x8fffc8, xp: 14 },
-  brute:    { name: 'Colosse',    hp: 90, dmg: 24, speed: 1.5, chase: 3.2, scale: 1.55, color: 0x381228, eye: 0xffb86a, xp: 32 },
-  caster:   { name: 'Tisseur',    hp: 26, dmg: 14, speed: 2.0, chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true }
+  sentinel: { name: 'Ombre',    hp: 30,  dmg: 12, speed: 2.2,  chase: 4.4, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
+  wraith:   { name: 'Traqueur', hp: 16,  dmg: 8,  speed: 3.9,  chase: 7.6, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
+  brute:    { name: 'Colosse',  hp: 110, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
+  caster:   { name: 'Tisseur',  hp: 26,  dmg: 14, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true }
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
 export const ZONES = [
@@ -106,6 +116,19 @@ export const TREES = {
    { id: 'a_dance',  icon: '❈', name: 'Danse des ombres',  desc: 'Chaque victime recharge le Pas du vent et vous accélère 3 s.', req: 5, needs: 'a_poison' }] },
   { branch: 'Transcendance — Terres Perdues', nodes: [
    { id: 'a_shadow', icon: '✺', name: 'Voile d\'ombre',    desc: 'Récupération de tous les arts encore 30 % plus rapide.', req: 8 }] }
+ ],
+ paladin: [
+  { branch: 'Voie du Jugement', nodes: [
+   { id: 'p_might',  icon: '✙', name: 'Jugement solaire',  desc: '+55 % de dégâts : le Marteau d\'aube pèse du poids de l\'ordre entier.', req: 2 },
+   { id: 'p_smite',  icon: '❁', name: 'Verdict',           desc: 'Chaque frappe libère une onde de lumière à 360° (50 % des dégâts).', req: 5, needs: 'p_might' }] },
+  { branch: 'Voie du Rempart', nodes: [
+   { id: 'p_guard',  icon: '⛨', name: 'Peau de pierre',    desc: 'Les coups des ombres vous entament 25 % de moins.', req: 2 },
+   { id: 'p_retal',  icon: '❖', name: 'Représailles',      desc: 'Chaque coup reçu embrase les ombres proches d\'un éclat d\'aube.', req: 5, needs: 'p_guard' }] },
+  { branch: 'Voie de la Lumière', nodes: [
+   { id: 'p_reach',  icon: '☨', name: 'Bras de l\'aurore', desc: 'Portée de mêlée encore allongée (+1,2 m).', req: 2 },
+   { id: 'p_conse',  icon: '☀', name: 'Consécration',      desc: 'Les ennemis frappés brûlent de lumière pendant 3 s.', req: 5, needs: 'p_reach' }] },
+  { branch: 'Transcendance — Terres Perdues', nodes: [
+   { id: 'p_avatar', icon: '☉', name: 'Avatar de l\'Aube', desc: '+40 PV définitifs et +15 % de dégâts supplémentaires.', req: 8 }] }
  ]
 };
 
@@ -146,7 +169,7 @@ export const QUESTS = [
   { id: 'look',   text: 'Orientez la caméra avec la souris. Si elle ne répond pas, maintenez le clic gauche en la déplaçant.' },
   { id: 'jump',   text: 'Sautez avec Espace, puis sprintez avec Shift.' },
   { id: 'lumen',  text: 'Rejoignez la petite lueur bleue près de la fontaine et parlez-lui (E).', pos: [2.5, 1, 44.5] },
-  { id: 'garden', text: 'Repoussez les 2 sentinelles d\'ombre du jardin (clic gauche : Trait astral).' },
+  { id: 'garden', text: 'Repoussez les 2 Ombres du jardin (clic gauche : Trait astral).' },
   { id: 'hall',   text: 'Franchissez le portail et entrez dans le grand hall.', pos: [0, 1, 15] },
   { id: 'lever',  text: 'Trouvez le mécanisme qui ouvre la bibliothèque.', pos: [13, 1, 25] },
   { id: 'dash',   text: 'Grimpez les étagères de la bibliothèque jusqu\'à l\'art qui y sommeille.', pos: [-34.3, 7.6, 16.5] },
@@ -157,7 +180,7 @@ export const QUESTS = [
   { id: 'tears',  text: 'Réunissez les 3 Larmes d\'Aube. Lumen connaît peut-être des secrets...' }
 ];
 export const HINTS = {
-  garden: 'Les sentinelles craignent ton Trait astral. Vise du regard, frappe au clic gauche.',
+  garden: 'Les Ombres craignent ton Trait astral. Vise du regard, frappe au clic gauche.',
   hall: 'Le portail du hall est grand ouvert, au nord des jardins. Les torches y brûlent encore.',
   lever: 'Cherche un levier de fer contre le mur est du grand hall.',
   dash: 'Dans la bibliothèque, les étagères font un escalier pour qui ose grimper.',

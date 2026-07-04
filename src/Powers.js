@@ -126,13 +126,42 @@ export function doDashP2() {
   p2.vel.y = Math.max(p2.vel.y, 0.5);
   spawnBurst(p2.pos.x, p2.pos.y + 0.8, p2.pos.z, 0x9fe8ff, 8);
 }
-/* Frappe lourde du Guerrier : arc de mêlée devant le lanceur */
+/* ---- Jauge de rage du Guerrier (J1) ----
+   Se remplit en infligeant des coups de mêlée (+12 par frappe au but,
+   +3 par ennemi supplémentaire touché) et en subissant des dégâts
+   (+50 % des dégâts reçus, voir hurt() dans Player.js). À pleine jauge,
+   la PROCHAINE frappe de mêlée déclenche automatiquement une onde
+   dévastatrice à 360° (déclenchement naturel : aucun bouton en plus,
+   compatible clavier/manette/tactile), puis la jauge se vide. */
+export function gainRage(n) {
+  if (G.path !== 'warrior') return;
+  G.rage = Math.min(G.maxRage, G.rage + n);
+}
+export function rageBurst(P, pl) {
+  G.rage = 0;
+  A.impact(); A.dash();
+  S.camKick = 0.35;
+  showMsg('FUREUR DÉCHAÎNÉE !', 1.2);
+  spawnBurst(pl.pos.x, pl.pos.y + 0.4, pl.pos.z, 0xff5a2a, 30);
+  spawnBurst(pl.pos.x, pl.pos.y + 1.3, pl.pos.z, 0xffaa3a, 18);
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.g.position.x - pl.pos.x, dz = e.g.position.z - pl.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 7 && Math.abs(e.g.position.y - (pl.pos.y + 1)) < 3.5) {
+      damageEnemy(e, Math.round(P.dmg * 2), { x: dx, z: dz });
+      if (!e.dead) e.stunT = Math.max(e.stunT || 0, 0.8);
+    }
+  }
+}
+/* Frappe lourde du Guerrier / Marteau d'aube du Paladin : arc de mêlée devant le lanceur */
 export function meleeStrike(P, pl, f) {
   pl = pl || player;
   f = f || camDirVec();
   A.impact();
   if (pl === player) S.camKick = 0.16;
   spawnBurst(pl.pos.x + f.x * 1.5, pl.pos.y + 1.1, pl.pos.z + f.z * 1.5, 0xffaa00, 12);
+  const rageReady = pl === player && G.path === 'warrior' && G.rage >= G.maxRage;
   const R = P.aoe ? P.range + 1.4 : P.range; // transcendance : arc élargi
   let dmg = P.dmg, finisher = false;
   if (P.combo && pl === player) {
@@ -148,6 +177,7 @@ export function meleeStrike(P, pl, f) {
       const dot = (dx * f.x + dz * f.z) / (d || 1);
       if (dot > 0.3 || d < 1.3) {
         damageEnemy(e, Math.round(dmg), { x: dx, z: dz }); touched++; dealt += dmg;
+        if (P.holyburn && !e.dead) { e.dotT = 3; e.dotDps = 7; e.dotCol = 0xffd97a; } // Consécration
         if (P.exec && !e.dead && e.hp / e.maxHp < P.exec) {
           spawnBurst(e.g.position.x, e.g.position.y + 0.5, e.g.position.z, 0xff3a3a, 16);
           showMsg('EXÉCUTION !', 0.9);
@@ -160,6 +190,8 @@ export function meleeStrike(P, pl, f) {
     S.camKick = 0.3; A.impact();
     spawnBurst(pl.pos.x + f.x * 1.8, pl.pos.y + 1.1, pl.pos.z + f.z * 1.8, 0xff5a2a, 26);
   }
+  if (rageReady) rageBurst(P, pl);
+  else if (touched && pl === player) gainRage(12 + 3 * (touched - 1));
   if (touched && hasN('w_fury')) G.furyT = 2;
   if (touched && P.lifesteal && pl === player) G.hp = Math.min(G.maxHp, G.hp + dealt * P.lifesteal);
   if (P.shock) {
@@ -208,7 +240,7 @@ export function fireBolt(P, pl, dirO, target) {
       life: P.pierce ? 3.2 : 2.2, dmg: P.dmg,
       aoe: !!P.aoe, aoeR: P.aoeR || 3.4, burn: !!P.burn,
       pierce: !!P.pierce, hits: 0, chain: P.chain || 0, stun: P.stun || 0,
-      sniper: !!P.sniper, fatal: !!P.fatal, poison: !!P.poison,
+      sniper: !!P.sniper, fatal: !!P.fatal, poison: !!P.poison, backstab: !!P.backstab,
       ox: start.x, oy: start.y, oz: start.z });
   }
   // Éclair de lancement + recul caméra pour donner du poids au sort
@@ -250,8 +282,26 @@ export function updateProjectiles(dt) {
           let dmg = pr.dmg || 16;
           const dist = Math.hypot(pos.x - (pr.ox || pos.x), pos.y - (pr.oy || pos.y), pos.z - (pr.oz || pos.z));
           if (pr.sniper) dmg *= Math.min(2.5, 1 + dist * 0.08);
-          if (pr.fatal && dist > 14) {
-            dmg *= 3;
+          /* Critiques de l'Assassin — règle de non-cumul : le multiplicateur
+             le plus élevé entre Tir fatal (×3, >14 m) et Dans le dos (×2,5,
+             l'ennemi tourne le dos au tireur : dot regard·vers-tireur < -0.5)
+             s'applique seul. La montée en dégâts avec la distance (a_range,
+             jusqu'à ×2,5) reste indépendante, comme avant. */
+          let crit = 1;
+          if (pr.fatal && dist > 14) crit = 3;
+          if (pr.backstab) {
+            const ry = e.g.rotation.y;
+            const tox = (pr.ox || pos.x) - e.g.position.x, toz = (pr.oz || pos.z) - e.g.position.z;
+            const tl = Math.hypot(tox, toz) || 1;
+            const facing = Math.sin(ry) * tox / tl + Math.cos(ry) * toz / tl;
+            if (facing < -0.5 && crit < 2.5) {
+              crit = 2.5;
+              spawnBurst(pos.x, pos.y, pos.z, 0xd8ffe8, 16);
+              showMsg('DANS LE DOS ×2,5 !', 0.9);
+            }
+          }
+          if (crit > 1) dmg *= crit;
+          if (crit >= 3) {
             spawnBurst(pos.x, pos.y, pos.z, 0xff3a6a, 20);
             showMsg('TIR FATAL ×3 !', 0.9);
           }

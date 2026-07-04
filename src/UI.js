@@ -82,6 +82,15 @@ export function updateHUD(dt) {
   $('mpnum').textContent = Math.max(0, Math.round(G.mana)) + ' / ' + G.maxMana;
   $('xpfill').style.width = Math.min(100, G.xp / xpNeed(G.level) * 100) + '%';
   $('xpnum').textContent = Math.round(G.xp) + ' / ' + xpNeed(G.level) + ' XP';
+  /* Jauge de rage : visible uniquement pour la voie Guerrier */
+  const rb = $('ragebar');
+  rb.classList.toggle('hidden', G.path !== 'warrior');
+  if (G.path === 'warrior') {
+    const full = G.rage >= G.maxRage;
+    $('ragefill').style.width = Math.min(100, G.rage / G.maxRage * 100) + '%';
+    $('ragenum').textContent = full ? 'FUREUR PRÊTE — frappez !' : ('Rage ' + Math.round(G.rage) + ' / ' + G.maxRage);
+    rb.classList.toggle('full', full);
+  }
   $('lvltxt').innerHTML = 'Niveau <b>' + G.level + '</b> — ' + PATHS[G.path].name + (G.sp > 0 ? ' · <b>' + G.sp + ' point' + (G.sp > 1 ? 's' : '') + ' de pouvoir (K / ✥)</b>' : '');
   $('crystals').textContent = '✦ ' + G.crystals + '/3  ☘' + G.herbs + '  ●' + G.shadows + '  ◉' + G.orbes;
   if (S.COOP) {

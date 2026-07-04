@@ -1,12 +1,13 @@
 /* ---------------- JOUEURS (J1 clavier/souris · J2 manette en coop) ---------------- */
 import * as THREE from 'three';
-import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, tut, LIGHT_SCALE } from './state.js';
+import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE } from './state.js';
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
 import { slide, slideP, rayAABB, spawnBurst } from './World.js';
 import { matFor, glow, modelClone } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
-import { tkToggle } from './Powers.js';
+import { tkToggle, gainRage } from './Powers.js';
+import { damageEnemy } from './Enemies.js';
 
 export function lerpAngle(a, b, t) {
   let d = b - a;
@@ -89,6 +90,41 @@ export function mkClassBody(pathId, identity) {
     const plight = new THREE.PointLight(T.glow, 0.35 * LIGHT_SCALE, 5, 2); plight.position.y = 1.48;
     g.add(cloak, sash, head, hood, dagL, dagR, e1, e2, plight);
     staffPart = dagR; robePart = cloak;
+  } else if (pathId === 'paladin') {
+    /* Paladin : bastion cuirassé — armure claire, écu, marteau d'aube, anneau doré */
+    const armorMat = new THREE.MeshStandardMaterial({ color: 0xb8bdc9, roughness: 0.3, metalness: 0.7 });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.86, 0.4), armorMat);
+    torso.position.y = 0.62; torso.castShadow = true;
+    const tabard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.78, 0.05),
+      new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.8 }));
+    tabard.position.set(0, 0.6, 0.22);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.37, 0.13, 9),
+      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
+    belt.position.y = 0.86;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.235, 10, 10),
+      new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.8 }));
+    head.position.y = 1.36; head.castShadow = true;
+    const helm = new THREE.Mesh(new THREE.SphereGeometry(0.27, 9, 9, 0, Math.PI * 2, 0, Math.PI * 0.55), armorMat);
+    helm.position.y = 1.42; helm.castShadow = true;
+    // anneau d'aube flottant au-dessus du casque
+    const haloRing = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 18),
+      new THREE.MeshStandardMaterial({ color: 0xffd97a, roughness: 0.3, metalness: 0.5,
+        emissive: 0xd9a83c, emissiveIntensity: 0.8 }));
+    haloRing.position.y = 1.86; haloRing.rotation.x = Math.PI / 2;
+    // écu au bras gauche
+    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.06, 8), armorMat);
+    shield.position.set(-0.46, 0.78, 0.1); shield.rotation.z = Math.PI / 2; shield.castShadow = true;
+    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.35, metalness: 0.7 }));
+    boss.position.set(-0.5, 0.78, 0.1);
+    // marteau d'aube au bras droit
+    const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.2, 6), matFor('woodF', 1, 1));
+    haft.position.set(0.48, 0.86, 0.14); haft.castShadow = true;
+    const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.18), armorMat);
+    hammerHead.position.set(0.48, 1.5, 0.14); hammerHead.castShadow = true;
+    const plight = new THREE.PointLight(0xffd97a, 0.45 * LIGHT_SCALE, 6, 2); plight.position.y = 1.7;
+    g.add(torso, tabard, belt, head, helm, haloRing, shield, boss, haft, hammerHead, plight);
+    staffPart = haft; robePart = torso;
   } else {
     const robe = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.15, 9),
       new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.9 }));
@@ -386,7 +422,19 @@ export function updateCamera() {
 export function hurt(d, src) {
   if (player.invuln > 0 || G.shieldT > 0) return;
   player.invuln = 0.5;
+  if (G.path === 'paladin' && hasN('p_guard')) d = Math.round(d * 0.75); // Peau de pierre
   G.hp -= d; G.vig = 1;
+  gainRage(d * 0.5); // Guerrier : la douleur nourrit la rage (+50 % des dégâts subis)
+  if (G.path === 'paladin' && hasN('p_retal') && src) {
+    // Représailles : un éclat d'aube blesse les ombres proches
+    spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0xffd97a, 12);
+    for (const e of enemies) {
+      if (e.dead) continue;
+      const dx = e.g.position.x - player.pos.x, dz = e.g.position.z - player.pos.z;
+      if (Math.hypot(dx, dz) < 3.5 && Math.abs(e.g.position.y - (player.pos.y + 1)) < 3)
+        damageEnemy(e, 8, { x: dx, z: dz });
+    }
+  }
   A.hurt();
   if (src) {
     const kx = player.pos.x - src.x, kz = player.pos.z - src.z;

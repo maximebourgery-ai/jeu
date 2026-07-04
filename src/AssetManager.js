@@ -4,9 +4,11 @@
    (cTex / speck / initTextures / TEX / initMats / matFor).
 
    · Textures PBR par famille de matériau (color / normal / roughness /
-     metalness) via THREE.TextureLoader, depuis /assets/textures/.
+     metalness) via THREE.TextureLoader (.jpg / .png) ou EXRLoader (.exr),
+     depuis /assets/textures/.
    · Modèles .glb via GLTFLoader depuis /assets/models/.
-   · HDRI (.hdr) via RGBELoader + PMREMGenerator depuis /assets/hdri/.
+   · HDRI via RGBELoader (.hdr) ou EXRLoader (.exr) + PMREMGenerator,
+     depuis /assets/hdri/ (environment.hdr essayé d'abord, puis .exr).
 
    TOUT est optionnel : si un fichier est absent (404), on retombe
    gracieusement sur une couleur unie équivalente au rendu procédural
@@ -17,16 +19,19 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 
 /* Familles de textures PBR attendues dans /assets/textures/ */
 const TEXTURE_FAMILIES = ['brick', 'stone', 'slab', 'wood', 'grass', 'iron'];
 /* Modèles .glb attendus dans /assets/models/ */
 const MODEL_NAMES = [
-  'player_mage', 'player_warrior', 'player_assassin',
+  'player_mage', 'player_warrior', 'player_assassin', 'player_paladin',
   'enemy_sentinel', 'enemy_wraith', 'enemy_brute', 'enemy_caster',
   'tree', 'torch'
 ];
-const HDRI_URL = '/assets/hdri/environment.hdr';
+/* HDRI : environment.hdr (RGBELoader) essayé d'abord, puis environment.exr
+   (EXRLoader). Aucun des deux : fallback gracieux (ciel dégradé d'origine). */
+const HDRI_URLS = ['/assets/hdri/environment.hdr', '/assets/hdri/environment.exr'];
 
 /* Couleur moyenne des anciennes textures procédurales : sert de teinte de
    repli quand la map PBR correspondante n'est pas fournie. */
@@ -87,8 +92,25 @@ function loadTexture(url, srgb) {
     }, undefined, () => res(null));
   });
 }
+/* Chargeur EXR tolérant : utilisé pour les maps de données (roughness,
+   metalness, normal) fournies en OpenEXR. Les données EXR sont linéaires
+   par nature (EXRLoader pose LinearSRGBColorSpace), ce qui est exactement
+   l'espace attendu pour ces maps — on ne touche pas au colorSpace. */
+const exrLoader = new EXRLoader();
+function loadEXRTexture(url) {
+  return new Promise(async res => {
+    if (!(await binaryExists(url))) return res(null);
+    exrLoader.load(url, t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 4;
+      res(t);
+    }, undefined, () => res(null));
+  });
+}
 async function loadTextureAnyExt(base, srgb) {
-  return (await loadTexture(base + '.jpg', srgb)) || (await loadTexture(base + '.png', srgb));
+  return (await loadTexture(base + '.jpg', srgb))
+    || (await loadTexture(base + '.png', srgb))
+    || (await loadEXRTexture(base + '.exr'));
 }
 /* Vérifie qu'un fichier binaire existe vraiment : les serveurs SPA (dont le
    serveur de dev Vite) renvoient index.html (200, text/html) pour les chemins
@@ -109,12 +131,20 @@ async function loadModel(url) {
 }
 async function loadHDR(url) {
   if (!(await binaryExists(url))) return null;
+  const loader = url.toLowerCase().endsWith('.exr') ? new EXRLoader() : new RGBELoader();
   return new Promise(res => {
-    new RGBELoader().load(url, t => {
+    loader.load(url, t => {
       t.mapping = THREE.EquirectangularReflectionMapping;
       res(t);
     }, undefined, () => res(null));
   });
+}
+async function loadEnvironmentAny(urls) {
+  for (const url of urls) {
+    const t = await loadHDR(url);
+    if (t) return t;
+  }
+  return null;
 }
 
 /* ---------- fallbacks générés en mémoire (DataTexture, pas de canvas 2D) ---------- */
@@ -195,9 +225,9 @@ export async function loadAssets(onStatus) {
   }));
 
   status('Lecture du ciel…');
-  assets.envTexture = await loadHDR(HDRI_URL);
+  assets.envTexture = await loadEnvironmentAny(HDRI_URLS);
   if (!assets.envTexture)
-    console.warn('[AssetManager] Aucun HDRI trouvé (' + HDRI_URL + ') — éclairage ambiant/directionnel de base conservé.');
+    console.warn('[AssetManager] Aucun HDRI trouvé (' + HDRI_URLS.join(' / ') + ') — éclairage ambiant/directionnel de base conservé.');
 
   assets.glowTex = (await loadTexture('/assets/textures/glow.png', true)) || makeGlowTexture();
   assets.skyTex = makeSkyTexture();
@@ -250,7 +280,16 @@ export function matFor(kind, ru, rv) {
       .multiply(new THREE.Color(FAMILY_FALLBACK[def.tex] || 0x808080));
     params.color = c.getHex();
   }
-  const m = new THREE.MeshStandardMaterial(params);
+  /* MeshPhysicalMaterial (superset de MeshStandardMaterial, mêmes params) :
+     rendu PBR complet pour toutes les familles. La famille « brick » (murs
+     du château, seules vraies textures fournies) reçoit un sheen très léger
+     qui adoucit les rasances sur la pierre/mortier — volontairement subtil. */
+  const m = new THREE.MeshPhysicalMaterial(params);
+  if (def.tex === 'brick' && fam && fam.map) {
+    m.sheen = 0.18;
+    m.sheenRoughness = 0.9;
+    m.sheenColor = new THREE.Color(0x8a8fa8); // reflet froid pierre/mortier
+  }
   if (def.emissive) m.emissive = new THREE.Color(def.emissive);
   matCache[key] = m;
   return m;

@@ -11,6 +11,7 @@
     <div class="bar"><div class="fill" id="hpfill"></div><span class="barnum" id="hpnum"></span></div>
     <div class="bar"><div class="fill" id="mpfill"></div><span class="barnum" id="mpnum"></span></div>
     <div class="bar xpbar"><div class="fill" id="xpfill"></div><span class="barnum" id="xpnum"></span></div>
+    <div class="bar ragebar hidden" id="ragebar"><div class="fill" id="ragefill"></div><span class="barnum" id="ragenum"></span></div>
     <div id="lvltxt"></div>
   </div>
   <div id="objective"></div>
@@ -62,7 +63,8 @@
   <div id="classes">
     <div class="classbtn sel" data-path="mage"><span class="ci">✦</span><span class="cn">MAGE</span><div class="cdsc">Trait astral à distance. Équilibré, fidèle à l'ordre des porteurs de flamme.</div></div>
     <div class="classbtn" data-path="warrior"><span class="ci">⚔</span><span class="cn">GUERRIER</span><div class="cdsc">Frappe lourde au corps à corps, +40 PV max. Lent mais dévastateur.</div></div>
-    <div class="classbtn" data-path="assassin"><span class="ci">🗡</span><span class="cn">ASSASSIN</span><div class="cdsc">Dagues astrales rapides, déplacement +12 %, Pas du vent quasi instantané.</div></div>
+    <div class="classbtn" data-path="assassin"><span class="ci">🗡</span><span class="cn">ASSASSIN</span><div class="cdsc">Dagues astrales rapides, déplacement +12 %, Pas du vent quasi instantané. Critique ×2,5 dans le dos.</div></div>
+    <div class="classbtn" data-path="paladin"><span class="ci">✙</span><span class="cn">PALADIN</span><div class="cdsc">Marteau d'aube à longue portée, +70 PV max. Le bastion inébranlable de l'ordre.</div></div>
   </div>
   <div id="modes">
     <button class="modebtn sel" data-mode="solo">1 JOUEUR</button>
@@ -73,6 +75,7 @@
     <button class="p2btn sel" data-p2path="mage">✦ Mage</button>
     <button class="p2btn" data-p2path="warrior">⚔ Guerrier</button>
     <button class="p2btn" data-p2path="assassin">🗡 Assassin</button>
+    <button class="p2btn" data-p2path="paladin">✙ Paladin</button>
   </div>
   <button id="btn-start">Commencer l'aventure</button>
   <button id="btn-continue" class="hidden">Continuer la partie sauvegardée</button>

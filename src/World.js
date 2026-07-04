@@ -40,7 +40,12 @@ export function initScene() {
      scissor multi-caméra direct (voir loop() dans main.js). */
   S.composer = new EffectComposer(S.renderer);
   S.renderPass = new RenderPass(S.scene, S.camera);
-  S.bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.4, 0.85);
+  /* Réglage bloom pour surfaces PBR réelles (textures brick + HDRI, ACES) :
+     seuil relevé 0.85 → 0.95 et force 0.55 → 0.5 (rayon 0.4 → 0.35) pour que
+     la pierre bien exposée ne « brille » plus. Les éléments magiques (Larmes,
+     sorts, cristaux, halos) restent au-dessus du seuil : leurs matériaux
+     MeshBasic pleine intensité + sprites additifs dépassent 1.0 en HDR. */
+  S.bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.35, 0.95);
   S.composer.addPass(S.renderPass);
   S.composer.addPass(S.bloomPass);
   S.composer.addPass(new OutputPass());
@@ -702,7 +707,7 @@ export function buildWorld() {
       openDialog([
         'Enfin... un porteur de flamme. Je suis Lumen, dernier souffle du foyer d\'Ombreciel.',
         'Jadis, trois Larmes d\'Aube baignaient ce château de lumière. La Nuit sans lune les a arrachées : une aux jardins, une aux cryptes, une à la salle du trône.',
-        'Depuis, les sentinelles d\'ombre rôdent. Elles craignent une seule chose : ton Trait astral. Vise-les du regard et frappe d\'un clic gauche.',
+        'Depuis, les Ombres rôdent — et avec elles les Traqueurs voraces et les Colosses de nuit. Elles craignent une seule chose : ton Trait astral. Vise-les du regard et frappe d\'un clic gauche.',
         'Chasse d\'abord les deux ombres qui souillent ces jardins. Puis entre au château. Reviens me voir si le doute te prend.'
       ], () => questReach('lumen'));
     } else {

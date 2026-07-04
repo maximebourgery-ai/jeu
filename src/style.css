@@ -116,24 +116,45 @@ canvas{display:block}
 .bar.xpbar{height:9px}
 .xpbar .barnum{font-size:8px;letter-spacing:0}
 #xpfill{background:linear-gradient(90deg,#7a5a14,#ffd97a);width:0%}
+/* ---------- Jauge de rage (voie Guerrier uniquement) ---------- */
+.bar.ragebar{height:11px;border-color:rgba(255,120,60,.5)}
+.ragebar .barnum{font-size:8px;letter-spacing:1px;color:#ffd6b8}
+#ragefill{background:linear-gradient(90deg,#6a1408,#ff5a2a);width:0%;transition:width .15s ease-out}
+.bar.ragebar.full{border-color:#ff8a3a;box-shadow:0 0 12px rgba(255,120,50,.65);animation:ragepulse 1s ease-in-out infinite}
+.bar.ragebar.full #ragefill{background:linear-gradient(90deg,#c22a08,#ffb03a)}
+@keyframes ragepulse{0%,100%{box-shadow:0 0 8px rgba(255,120,50,.45)}50%{box-shadow:0 0 18px rgba(255,150,60,.85)}}
 #lvltxt{font-size:12px;font-family:Verdana,sans-serif;color:#cfd8f2;letter-spacing:1px;text-shadow:0 1px 3px #000;margin-top:2px}
 #lvltxt b{color:#ffd97a}
-#tree{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:86vh;overflow-y:auto;background:rgba(8,10,22,.96);border:1px solid rgba(255,215,120,.4);border-radius:12px;padding:18px 22px;z-index:9;box-shadow:0 0 50px rgba(255,200,80,.15)}
-#tree h3{color:#ffd97a;font-weight:normal;letter-spacing:2px;font-size:18px;margin-bottom:6px}
-#treepts{font-size:12px;font-family:Verdana,sans-serif;color:#94a0c4;margin-bottom:14px}
-#treepts b{color:#ffd97a}
-.tbranch{margin-bottom:14px}
-.tbranch .bt{color:#8fc8ff;font-size:14px;letter-spacing:2px;margin-bottom:6px}
+/* Arbre des pouvoirs — refonte épurée : voile sombre flouté, lignes fines,
+   typographie allégée, mêmes tons dorés/bleutés que le reste de l'interface. */
+#tree{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:86vh;overflow-y:auto;
+  background:rgba(5,7,15,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(232,224,204,.14);border-radius:14px;padding:26px 30px;z-index:9;
+  box-shadow:0 24px 70px rgba(0,0,0,.55)}
+#tree::-webkit-scrollbar{width:8px}
+#tree::-webkit-scrollbar-thumb{background:rgba(232,224,204,.16);border-radius:4px}
+#tree h3{color:#ffd97a;font-weight:normal;letter-spacing:5px;font-size:16px;margin-bottom:6px;opacity:.95}
+#treepts{font-size:11px;font-family:Verdana,sans-serif;color:#7f8bb0;letter-spacing:.5px;margin-bottom:20px;
+  padding-bottom:14px;border-bottom:1px solid rgba(232,224,204,.1)}
+#treepts b{color:#ffd97a;font-weight:normal}
+.tbranch{margin-bottom:20px}
+.tbranch .bt{color:#8fc8ff;font-size:12px;letter-spacing:3px;margin-bottom:9px;opacity:.85;text-transform:uppercase}
 .tnodes{display:flex;gap:10px;flex-wrap:wrap}
-.tnode{width:216px;background:rgba(12,16,34,.85);border:1px solid rgba(150,180,255,.25);border-radius:10px;padding:10px;cursor:pointer;transition:all .15s}
-.tnode.owned{border-color:#3ade8c;box-shadow:0 0 12px rgba(60,220,140,.25);cursor:default}
-.tnode.locked{opacity:.42;cursor:default}
-.tnode.buyable:hover{border-color:#ffd97a;box-shadow:0 0 14px rgba(255,215,120,.4)}
-.tnode .tn{font-size:14px;color:#e8e0cc;letter-spacing:1px}
+.tnode{width:216px;background:rgba(255,255,255,.03);border:1px solid rgba(150,180,255,.14);border-radius:10px;
+  padding:11px 12px;cursor:pointer;transition:border-color .18s,background .18s,box-shadow .18s}
+.tnode.owned{border-color:rgba(60,220,140,.5);background:rgba(60,220,140,.05);cursor:default}
+.tnode.locked{opacity:.35;cursor:default}
+.tnode.buyable{border-color:rgba(255,215,120,.35)}
+.tnode.buyable:hover{border-color:rgba(255,215,120,.8);background:rgba(255,215,120,.06);box-shadow:0 0 18px rgba(255,215,120,.18)}
+.tnode .tn{font-size:13.5px;color:#e8e0cc;letter-spacing:1px;font-weight:normal}
 .tnode.owned .tn{color:#9fffc8}
-.tnode .td{font-size:11px;font-family:Verdana,sans-serif;color:#94a0c4;line-height:1.5;margin-top:4px}
-.tnode .tr{font-size:10px;font-family:Verdana,sans-serif;color:#6a769a;margin-top:5px}
-#treeclose{background:#1a2142;color:#cfd8f2;border:1px solid rgba(150,180,255,.35);border-radius:8px;padding:8px 22px;font-family:Georgia,serif;font-size:14px;cursor:pointer;margin-top:4px}
+.tnode .td{font-size:10.5px;font-family:Verdana,sans-serif;color:#8791b4;line-height:1.55;margin-top:5px}
+.tnode .tr{font-size:9.5px;font-family:Verdana,sans-serif;color:#5c6788;letter-spacing:.5px;margin-top:7px;
+  padding-top:6px;border-top:1px solid rgba(232,224,204,.07)}
+#treeclose{background:transparent;color:#cfd8f2;border:1px solid rgba(232,224,204,.25);border-radius:8px;
+  padding:8px 26px;font-family:Georgia,serif;font-size:13px;letter-spacing:2px;cursor:pointer;margin-top:8px;
+  transition:border-color .18s,color .18s}
+#treeclose:hover{border-color:#ffd97a;color:#ffd97a}
 #t-tree{left:26px;top:38%;width:48px;height:48px;font-size:20px}
 /* ---------- Barres de vie des ennemis ---------- */
 #ebars{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}

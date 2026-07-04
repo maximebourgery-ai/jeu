@@ -27,9 +27,13 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     glb.scale.setScalar(s);
     g.add(glb);
   } else {
-    const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.55 * s, 1.5 * s, 8), cloakMat);
+    /* Silhouettes différenciées par archétype :
+       Colosse = masse large + poings · Traqueur = fuseau effilé · Ombre = base */
+    const tk = opt.type || 'sentinel';
+    const wFac = tk === 'brute' ? 1.3 : (tk === 'wraith' ? 0.68 : 1);
+    const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.55 * s * wFac, 1.5 * s, 8), cloakMat);
     cloak.castShadow = true;
-    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.28 * s, 8, 8), cloakMat);
+    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.28 * s * (tk === 'wraith' ? 0.82 : 1), 8, 8), cloakMat);
     hood.position.y = 0.72 * s;
     hood.castShadow = true;
     const eyeMat = new THREE.MeshBasicMaterial({ color: T.eye || 0x8ff4ff });
@@ -40,6 +44,19 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     wisp1.position.set(0.3 * s, -0.85 * s, 0.1 * s);
     const wisp2 = wisp1.clone(); wisp2.position.set(-0.28 * s, -0.9 * s, -0.12 * s);
     g.add(cloak, hood, e1, e2, wisp1, wisp2);
+    if (tk === 'brute') {
+      // Poings massifs du Colosse
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 7, 7), cloakMat);
+      fist.position.set(0.62 * s, 0.15 * s, 0.15 * s); fist.castShadow = true;
+      const fist2 = fist.clone(); fist2.position.x = -0.62 * s;
+      g.add(fist, fist2);
+    } else if (tk === 'wraith') {
+      // Traînée d'ombre du Traqueur (penché en avant, prêt à bondir)
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12 * s, 0.9 * s, 5), cloakMat);
+      tail.position.set(0, -0.2 * s, -0.45 * s); tail.rotation.x = 1.1;
+      g.add(tail);
+      cloak.rotation.x = 0.18;
+    }
   }
   const halo = glow(LVL_HALO[Math.min(lvl - 1, LVL_HALO.length - 1)], 2.2 * s, 0.3);
   g.add(halo);
