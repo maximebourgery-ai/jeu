@@ -77,7 +77,11 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   g.add(halo);
   g.position.set(x, floorY + 0.95, z);
   S.scene.add(g);
-  const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.25 * (lvl - 1);
+  /* Courbe de difficulté : les PV grimpent fort avec le niveau de zone
+     (les ombres tardives sont des sacs à PV redoutables) mais les dégâts
+     montent un peu moins vite qu'avant (0,22/niv au lieu de 0,25) pour
+     que la fin de partie reste dure sans one-shots injustes. */
+  const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.22 * (lvl - 1);
   const hp0 = opt.hp || Math.round(T.hp * mul);
   const en = {
     g, cloakMat, charMats, mixer, floorY, wps, wi: 0, state: 'patrol',
@@ -290,11 +294,13 @@ export function updateDirector(dt) {
   }
   S.dirT -= dt;
   if (S.dirT > 0) return;
-  S.dirT = Math.max(9, 24 - S.questI * 1.2);
-  if (!z || S.questI < 5) return; // pas de renforts pendant le tutoriel
+  /* Rythme des renforts calé sur les 18 quêtes de la refonte : très calme
+     au début (20 s+ vers la quête du levier), soutenu en fin de partie (9 s). */
+  S.dirT = Math.max(9, 26 - S.questI);
+  if (!z || S.questI < 6) return; // aucun renfort avant l'ouverture de la bibliothèque
   let alive = 0; for (const e of enemies) if (!e.dead) alive++;
   if (alive >= 26) return;
-  const cap = z.cap + Math.floor(S.questI / 3);
+  const cap = z.cap + Math.floor(S.questI / 5);
   if (aliveIn(z) >= cap) return;
   for (let t = 0; t < 8; t++) {
     const a = Math.random() * Math.PI * 2, d = 10 + Math.random() * 6;
@@ -302,7 +308,8 @@ export function updateDirector(dt) {
     if (Math.hypot(x - z.x, zz - z.z) > z.r) continue;
     if (pointSolid(x, z.y + 1.2, zz)) continue;
     const type = z.types[Math.floor(Math.random() * z.types.length)];
-    const lvl = z.lvl + (S.questI >= 10 ? 1 : 0);
+    /* +1 niveau de renforts seulement après le passage scellé (fin de partie) */
+    const lvl = z.lvl + (S.questI >= 14 ? 1 : 0);
     const e = mkEnemy(x, zz, z.y, [[x, zz], [x + 3, zz], [x, zz + 3]], { type: type, lvl: lvl, dyn: true });
     e.state = 'chase'; e.alerted = true;
     spawnBurst(x, z.y + 1, zz, 0x6a4a9e, 14);

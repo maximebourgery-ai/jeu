@@ -614,10 +614,13 @@ export function buildWorld() {
   addPickup('mana', -12, 0, 47);
   addPickup('heart', -30, 0, 50);
   addPickup('heart', 26, 0, 68);
-  /* Ombres des jardins (tag 'garden' : leur chute lève la herse) */
-  mkEnemy(-10, 46, 0, [[-10, 46], [6, 46]], { tag: 'garden', type: 'sentinel', lvl: 1 });
-  mkEnemy(14, 58, 0, [[14, 56], [14, 66], [24, 60]], { tag: 'garden', type: 'sentinel', lvl: 1 });
-  mkEnemy(8, 62, 0, [[8, 60], [0, 64], [12, 64]], { type: 'wraith', lvl: 1 });
+  /* Ombres des jardins (tag 'garden' : leur chute lève la herse).
+     PV et dégâts réduits : ce sont les adversaires du tutoriel, elles
+     tombent en 2 coups et ne punissent pas les erreurs de débutant. */
+  mkEnemy(-10, 46, 0, [[-10, 46], [6, 46]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 22, dmg: 8 });
+  mkEnemy(14, 58, 0, [[14, 56], [14, 66], [24, 60]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 22, dmg: 8 });
+  /* le Traqueur rôde près du labyrinthe de haies, loin du point d'éveil */
+  mkEnemy(-12, 68, 0, [[-12, 68], [-4, 72], [-16, 72]], { type: 'wraith', lvl: 1, hp: 12, dmg: 6 });
 
   /* ---- LUMEN, l'esprit-guide ---- */
   S.lumen = new THREE.Group();
@@ -738,10 +741,11 @@ export function buildWorld() {
   // porte de la bibliothèque (ouverte par le levier)
   S.libDoor = mkDoor(1, 4, 4, -17.5, 0, 16, 'woodD');
 
+  /* 3 ombres seulement : le premier Tisseur attend en bibliothèque
+     (les archétypes se découvrent un à un : Ombre → Traqueur → Tisseur → Colosse) */
   mkEnemy(0, 15, 0, [[-9, 9], [9, 9], [9, 23], [-9, 23]], { type: 'sentinel', lvl: 2 });
   mkEnemy(-10, 25, 0, [[-10, 25], [10, 25]], { type: 'sentinel', lvl: 2 });
   mkEnemy(5, 8, 0, [[5, 8], [-3, 12], [7, 14]], { type: 'wraith', lvl: 2 });
-  mkEnemy(-13, 6, 0, [[-13, 6], [-13, 20]], { type: 'caster', lvl: 2 });
 
   /* ================================================================
      BIBLIOTHÈQUE (niveau 2) — x -58..-18, z 0..31, PLAFOND à 9 m
@@ -834,7 +838,8 @@ export function buildWorld() {
   addPickup('heart', 34, 0, 26);
   addPickup('mana', 54, 0, 26);
   mkEnemy(28, 20, 0, [[28, 20], [34, 6]], { type: 'sentinel', lvl: 3 });
-  mkEnemy(48, 24, 0, [[48, 24], [44, 8]], { type: 'brute', lvl: 3 });
+  /* premier Colosse : lent et télégraphié, dégâts plafonnés pour la leçon d'esquive */
+  mkEnemy(48, 24, 0, [[48, 24], [44, 8]], { type: 'brute', lvl: 3, dmg: 28 });
 
   /* ================================================================
      CATACOMBES (niveaux 4-5) — sous-sol à -8 m, plafonds à -3 m
@@ -1179,6 +1184,8 @@ export function buildOpenWorld() {
   mkEnemy(-5, -94, 0, [[-5, -92], [-5, -97]], { type: 'brute', lvl: 10 });
   mkEnemy(5, -94, 0, [[5, -97], [5, -92]], { type: 'brute', lvl: 10 });
   mkEnemy(0, -98, 0, [[-6, -98], [6, -98]], { type: 'caster', lvl: 10 });
+  /* un Traqueur de plus : la Clairière est le pic de difficulté du jeu */
+  mkEnemy(0, -92, 0, [[-8, -92], [8, -92]], { type: 'wraith', lvl: 10 });
 }
 
 /* ---------------- HERBES LUNAIRES (jardins + forêt) ---------------- */
