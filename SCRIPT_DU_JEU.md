@@ -100,6 +100,9 @@ moins. Les ombres du tutoriel des jardins restent bridées : 27 PV / 9 dégâts.
 Les archétypes se découvrent **un à un** : Ombre (jardins) → Traqueur → Tisseur
 (bibliothèque) → Colosse (aile est, version « leçon d'esquive » aux dégâts plafonnés).
 
+Trois archétypes de fin de partie (niv. 14-16) hantent l'Outre-Ciel : **Séraphin
+déchu**, **Écho de l'Aube** et **Titan d'obsidienne** — voir § 4 ter.
+
 ---
 
 ## 4. Progression complète (quêtes dans l'ordre)
@@ -405,6 +408,8 @@ checkpoint.
 | 6 | **Bénédiction** (soin) | Ossuaire (chemin obligatoire) | ranime l'arbre-sanctuaire |
 | 4 | **Égide** (bouclier) | rive est du Gouffre | rideau de flammes |
 | 5 | **Souffle glacé** (gel) | ruines des Terres Perdues | éteint les ronces ardentes |
+| 7 | **Nova d'Aurore** (v8) | Outre-Ciel, étage 16 | déchire le voile de l'Avale-Lune (§ 4 ter) |
+| 8 | **Astre d'Aube** (v8) | Cœur de la Nuit, étage 19 | la comète visée — puissance pure (§ 4 ter) |
 
 Chaque piédestal joue un petit texte d'apprentissage, ex. : *« Pas du vent appris !
 (touche 2, puis clic) Un élan fulgurant qui franchit les gouffres. »*

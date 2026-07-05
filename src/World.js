@@ -15,7 +15,7 @@ import {
 import { assets, matFor, glow } from './AssetManager.js';
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, openTravel } from './UI.js';
-import { questReach, openDialog, guide } from './Quests.js';
+import { questReach, openDialog, guide, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt } from './Player.js'; // rideau de flammes (import cyclique sûr : usage différé)
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
@@ -447,8 +447,10 @@ export function updatePickups(dt) {
         G.crystals++; A.power();
         spawnBurst(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, 0xffd97a, 20);
         showMsg('Larme d\'Aube recueillie — ' + G.crystals + ' / 3', 4);
-        if (QUESTS[S.questI] && QUESTS[S.questI].id === 'tears')
-          $('objective').textContent = '✧ Objectif — Réunissez les 3 Larmes d\'Aube (' + G.crystals + ' / 3). Lumen connaît peut-être des secrets...';
+        if (QUESTS[S.questI] && QUESTS[S.questI].id === 'tears') {
+          if (G.crystals >= 3) applyQuest(); // la suite : l'Ascension, puis l'Outre-Ciel
+          else $('objective').textContent = '✧ Objectif — Réunissez les 3 Larmes d\'Aube (' + G.crystals + ' / 3). Lumen connaît peut-être des secrets...';
+        }
         if (G.crystals >= 3) setTimeout(winGame, 1400);
         /* (plus de point de contrôle gratuit ici : seuls les bivouacs,
            volontairement rares, fixent votre point de renaissance) */
@@ -608,6 +610,31 @@ export function winGame() {
   G.over = true;
   if (document.exitPointerLock) document.exitPointerLock();
   $('win').classList.remove('hidden');
+}
+
+/* Après la quête principale, Lumen devient le guide de l'Ascension puis de
+   l'Outre-Ciel (v8) : son indice suit l'avancée de la Tour, étape par étape,
+   jusqu'à la Couronne de l'Aube. */
+function towerLumenHint() {
+  const T = G.tower;
+  const known = POWERS.slice(0, 6).filter(p => G.powers[p.id]).length;
+  if (known < 6)
+    return 'Les trois Larmes brûlent à nouveau... mais il te manque des arts anciens (' + known + ' / 6). Le portail doré de la terrasse de la Tour du Levant ne s\'ouvre qu\'aux six.';
+  if (!T.aura)
+    return 'Le portail doré de la terrasse t\'attend : vingt étages, quatre clefs. Au quinzième, l\'Observatoire de l\'Aube — et une vérité que je te dois depuis trop longtemps.';
+  if (!T.met.maela)
+    return 'Près de l\'autel de l\'Observatoire, une ombre agenouillée essaie de parler depuis un siècle. Ton Aura est sa voix, porteur de flamme : écoute-la.';
+  if (!T.bosses.berger)
+    return T.bridge
+      ? 'Le pont de constellations est tissé : l\'île du Berger des Étoiles t\'attend au sommet de l\'Outre-Ciel. Vise son troupeau quand il plonge.'
+      : 'Dans l\'Outre-Ciel, retrouve les trois Éclats d\'étoile d\'Orin (' + T.shards + ' / 3) : sans son pont de constellations, l\'île du Berger reste hors d\'atteinte.';
+  if (!T.met.veilleur)
+    return 'La Clef d\'Astre ouvre le Cœur de la Nuit sans lune. Au bout de la salle figée, un Veilleur garde la dernière porte : parle-lui — il attend depuis cent ans.';
+  if (!T.bosses.avale)
+    return 'L\'Avale-Lune digère la lune derrière la porte de la Dernière Nuit. Souviens-toi : la Nova d\'Aurore (touche 7), prononcée tout contre son voile, le déchire — frappe quand il saigne de lumière.';
+  if (!T.crown)
+    return 'La bête est déchirée... mais la Couronne de l\'Aube attend toujours son porteur, au centre de l\'arène. Retourne la cueillir.';
+  return 'La lune veille à nouveau sur Ombreciel, et les ombres dorment enfin. Il n\'y a plus rien que je puisse t\'apprendre — merci, porteur d\'aube.';
 }
 
 /* ================================================================
@@ -871,7 +898,7 @@ export function buildWorld() {
       ], () => questReach('lumen'));
     } else {
       const q = QUESTS[S.questI];
-      const h = q ? HINTS[q.id] : null;
+      const h = q ? HINTS[q.id] : towerLumenHint();
       openDialog([h || 'L\'Aube est proche, porteur de flamme. Je le sens.']);
     }
   });
