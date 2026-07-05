@@ -251,6 +251,7 @@ export const p2 = {
   cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0, nova: 0, meteor: 0 },
   yaw: 0, pitch: -0.22, shieldT: 0, invuln: 0, dashT: 0, stepT: 0, walkT: 0,
   grounded: false, airJumped: false, jumpQ: 0,
+  poisonT: 0, poisonDps: 0, // venin en cours (voir applyPoison, Player.js)
   rage: 0, // jauge de rage du Guerrier quand le J2 incarne cette voie (voir Powers.js)
   input: { mx: 0, mz: 0, sprint: false, jumpHeld: false },
   pos: null, vel: null, dashDir: null, mesh: null, parts: null, wings: null, shieldMesh: null, mixer: null
@@ -411,6 +412,9 @@ export const S = {
   /* combat : > 0 tant qu'une ombre en chasse est proche (verrouille le
      voyage rapide et le lock-on vertical de la caméra) */
   combatT: 0,
+  /* poison / corruption du J1 (venin de la Racine, nuit liquide, crocs de
+     l'Avale-Lune...) : dégâts sur la durée — voir applyPoison, Player.js */
+  poisonT: 0, poisonDps: 0,
   // caméra : longueur courante du bras (spring arm — rétractation instantanée,
   // retour lissé) pour chaque joueur, et murs actuellement « dithérés »
   camD: 4.55, camD2: 4.55, dithered: new Set(),

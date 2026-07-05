@@ -588,6 +588,7 @@ export function updatePlayer(dt) {
     p.mesh.rotation.y = lerpAngle(p.mesh.rotation.y, ty, 12 * dt);
   }
   if (p.mixer) p.mixer.update(dt);
+  tickPoison(dt); // le venin des Maîtres d'Étage ronge la chair (J1 + J2)
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
   // Aura du Premier Foyer (Observatoire de l'Aube) : le foyer répare la chair
   if (G.tower.aura) G.hp = Math.min(G.maxHp, G.hp + 1.2 * dt);
@@ -693,6 +694,41 @@ export function updateCamera() {
 }
 
 /* ---------------- DÉGÂTS ---------------- */
+/* Poison / corruption : certains coups des Maîtres d'Étage (venin de la
+   Racine, crocs de l'Avale-Lune) et les mares (poison, nuit liquide)
+   laissent un venin qui ronge la chair pendant t secondes. L'Égide bloque
+   l'application ; le venin ne porte jamais le coup fatal (1 PV plancher) —
+   il force à boire une potion ou fuir, pas à mourir sans se battre. */
+export function applyPoison(pl, t, dps) {
+  if (pl === p2) {
+    if (p2.shieldT > 0) return;
+    if (p2.poisonT <= 0) spawnBurst(p2.pos.x, p2.pos.y + 1, p2.pos.z, 0x7ade5a, 10);
+    p2.poisonT = Math.max(p2.poisonT, t); p2.poisonDps = dps;
+  } else {
+    if (G.shieldT > 0) return;
+    if (S.poisonT <= 0) {
+      spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0x7ade5a, 10);
+      showMsg('EMPOISONNÉ ! Le venin ronge votre chair...', 2.4);
+    }
+    S.poisonT = Math.max(S.poisonT, t); S.poisonDps = dps;
+  }
+}
+function tickPoison(dt) {
+  if (S.poisonT > 0) {
+    S.poisonT -= dt;
+    G.hp = Math.max(1, G.hp - S.poisonDps * dt);
+    G.vig = Math.max(G.vig, 0.4);
+    if (Math.random() < dt * 7)
+      spawnBurst(player.pos.x + (Math.random() - 0.5) * 0.7, player.pos.y + 0.6 + Math.random(),
+        player.pos.z + (Math.random() - 0.5) * 0.7, 0x7ade5a, 1);
+  }
+  if (S.COOP && p2.pos && p2.poisonT > 0) {
+    p2.poisonT -= dt;
+    p2.hp = Math.max(1, p2.hp - p2.poisonDps * dt);
+    if (Math.random() < dt * 7)
+      spawnBurst(p2.pos.x, p2.pos.y + 0.8 + Math.random(), p2.pos.z, 0x7ade5a, 1);
+  }
+}
 export function hurt(d, src) {
   if (player.invuln > 0 || G.shieldT > 0) return;
   player.invuln = 0.5;
@@ -760,8 +796,8 @@ export function healSelf(pl) {
   pl = pl || player;
   A.pickup();
   const heal = 40 + 12 * (G.pupg.heal || 0); // Forge des Arts : rangs de Bénédiction
-  if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + heal);
-  else G.hp = Math.min(G.maxHp, G.hp + heal);
+  if (pl === p2) { p2.hp = Math.min(p2.maxHp, p2.hp + heal); p2.poisonT = 0; }
+  else { G.hp = Math.min(G.maxHp, G.hp + heal); S.poisonT = 0; } // la Bénédiction purge le venin
   spawnBurst(pl.pos.x, pl.pos.y + 1.2, pl.pos.z, 0x9fffb0, 16);
   lightPillar(pl.pos.x, pl.pos.y - 0.8, pl.pos.z, 0x9fffb0); // colonne de vie
   // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction,

@@ -9,17 +9,19 @@ import { showMsg, refreshPowers } from './UI.js';
 import { spawnBurst, spawnTrail, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
 import { glow } from './AssetManager.js';
 import { coolMul, classAtk, hasN } from './SkillTree.js';
-import { camDirVec, camDirVec2, hurt, hurtP2, healSelf } from './Player.js';
+import { camDirVec, camDirVec2, hurt, hurtP2, healSelf, applyPoison } from './Player.js';
 import { damageEnemy, chainLightning } from './Enemies.js';
 import { questReach } from './Quests.js';
 
 /* ================================================================
-   VISÉE ASSISTÉE (tactile & manette) — la visée n'est plus rivée au
-   réticule central : un aimant doux choisit la meilleure cible dans le
-   cône de regard, le joueur peut la verrouiller d'un simple toucher sur
-   l'ennemi, et chaque coup recentre brièvement la caméra dessus. À la
-   souris (pointer lock), rien ne change : visée libre 100 % manuelle.
+   VISÉE ASSISTÉE (tactile & manette) — une AIDE légère, pas un pilote
+   automatique : le tir part là où pointe le réticule, et l'aimant ne
+   fait que le dévier de ~10 % vers la cible du cône de regard. Toucher
+   la cible reste le travail du joueur. À la souris (pointer lock),
+   rien ne change : visée libre 100 % manuelle.
    ================================================================ */
+/* Force de l'aimant : 0 = aucune aide, 1 = verrouillage total. */
+const AIM_MAGNET = 0.1;
 export function assistOn() {
   return IS_TOUCH || S.gpActiveT > 0;
 }
@@ -95,12 +97,14 @@ function rayHitDist(o, dir) {
   return best;
 }
 /* Point visé par le réticule central (ce que la caméra "voit" vraiment).
-   Avec l'assist (tactile/manette), c'est le torse de la cible aimantée. */
+   Avec l'assist (tactile/manette), le point libre glisse LÉGÈREMENT
+   (AIM_MAGNET) vers le torse de la cible — l'essentiel reste manuel. */
 export function aimPoint() {
-  const t = assistTarget();
-  if (t) return new THREE.Vector3(t.g.position.x, t.g.position.y + 0.55 * t.s, t.g.position.z);
   const dir = camDirVec(), o = S.camera.position;
-  return o.clone().addScaledVector(dir, rayHitDist(o, dir));
+  const free = o.clone().addScaledVector(dir, rayHitDist(o, dir));
+  const t = assistTarget();
+  if (!t) return free;
+  return free.lerp(new THREE.Vector3(t.g.position.x, t.g.position.y + 0.55 * t.s, t.g.position.z), AIM_MAGNET);
 }
 export function aimPoint2() {
   const dir = camDirVec2(), o = S.cam2.position;
@@ -120,7 +124,8 @@ export function castPower() {
   G.cd[pw.id] = cool;
   if (pw.id === 'bolt') {
     const P = classAtk(G.path);
-    if (assistTarget()) S.faceT = 0.28; // la caméra colle brièvement à la cible aimantée
+    /* (plus de recentrage caméra automatique sur la cible : la visée
+       appartient au joueur — l'assist n'est qu'un léger aimant) */
     if (P.melee) meleeStrike(P); else fireBolt(P);
   }
   else if (pw.id === 'dash') doDash();
@@ -301,8 +306,8 @@ export function rageBurst(P, pl) {
   }
 }
 /* Frappe lourde du Guerrier / Marteau d'aube du Paladin : arc de mêlée devant le lanceur.
-   Avec l'assist, le coup part vers la cible aimantée même si le réticule est
-   à côté — la mêlée tactile pardonne, elle ne réclame pas une visée au pixel. */
+   L'assist ne fait plus pivoter le coup sur la cible : il incline juste
+   l'arc de ~10 % vers elle — c'est au joueur de faire face à l'ennemi. */
 export function meleeStrike(P, pl, f) {
   pl = pl || player;
   if (!f) {
@@ -311,7 +316,9 @@ export function meleeStrike(P, pl, f) {
     if (t && pl === player) {
       const dx = t.g.position.x - pl.pos.x, dz = t.g.position.z - pl.pos.z;
       const l = Math.hypot(dx, dz) || 1;
-      f = new THREE.Vector3(dx / l, 0, dz / l);
+      f = new THREE.Vector3(
+        f.x + (dx / l - f.x) * AIM_MAGNET, 0,
+        f.z + (dz / l - f.z) * AIM_MAGNET).normalize();
     }
   }
   const path = pl === player ? G.path : p2.path;
@@ -409,26 +416,16 @@ export function fireBolt(P, pl, dirO, target) {
   /* Vraie balistique : les projectiles RETOMBENT en vol. À la souris, il
      faut viser au-dessus de la cible lointaine et gérer sa distance ; les
      dagues de l'Assassin, plus véloces, sont plus tendues que le trait du
-     Mage. La visée aimantée (tactile/manette) compense l'ESSENTIEL de la
-     chute (85 %) — une aide, plus un pilote automatique. */
+     Mage. L'assist (tactile/manette) ne compense plus qu'un TIERS de la
+     chute (30 %) : gérer sa distance redevient le travail du tireur. */
   const grav = isAss ? 3.4 : 5.2;
   const assisted = pl === player && assistTarget();
   if (assisted) {
     const tof = start.distanceTo(target) / (P.pSpeed || 26);
     target = target.clone();
-    target.y += 0.5 * grav * tof * tof * 0.85;
+    target.y += 0.5 * grav * tof * tof * 0.3;
   }
   const baseDir = target.clone().sub(start).normalize();
-  if (assisted) {
-    /* L'aimant n'est plus infaillible : dispersion angulaire ±~2,5°.
-       De près on touche presque toujours, de loin (avec la chute mal
-       compensée) il faut encore soigner placement et distance. */
-    const err = 0.09;
-    baseDir.x += (Math.random() - 0.5) * err;
-    baseDir.y += (Math.random() - 0.5) * err;
-    baseDir.z += (Math.random() - 0.5) * err;
-    baseDir.normalize();
-  }
   const col = P.pierce ? 0xffe9a8 : (isAss ? 0xd8ffe8 : 0x8feaff);
   const count = P.count || 1;
   const spreadTot = count > 1 ? (count === 2 ? 0.1 : 0.42) : 0;
@@ -540,11 +537,11 @@ export function updateProjectiles(dt) {
       const near = (pp) => Math.hypot(pos.x - pp.x, pos.z - pp.z) < 0.65 && Math.abs(pos.y - (pp.y + 1.1)) < 1.3;
       if (near(player.pos)) {
         if (G.shieldT > 0) { spawnBurst(pos.x, pos.y, pos.z, 0x66c8ff, 7); A.impact(); }
-        else hurt(pr.dmg, pos);
+        else { hurt(pr.dmg, pos); if (pr.pois) applyPoison(player, pr.pois[0], pr.pois[1]); }
         hit = true;
       } else if (S.COOP && p2.pos && near(p2.pos)) {
         if (p2.shieldT > 0) { spawnBurst(pos.x, pos.y, pos.z, 0x66c8ff, 7); A.impact(); }
-        else hurtP2(pr.dmg, pos);
+        else { hurtP2(pr.dmg, pos); if (pr.pois) applyPoison(p2, pr.pois[0], pr.pois[1]); }
         hit = true;
       }
     } else if (!hit) {

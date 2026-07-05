@@ -139,7 +139,8 @@ export function usePotion() {
   }
   G.potions--;
   G.hp = Math.min(G.maxHp, G.hp + 50); A.pickup();
-  if (S.COOP && p2.mesh) p2.hp = Math.min(p2.maxHp, p2.hp + 50);
+  S.poisonT = 0; // la potion lunaire purge aussi le venin
+  if (S.COOP && p2.mesh) { p2.hp = Math.min(p2.maxHp, p2.hp + 50); p2.poisonT = 0; }
   spawnBurst(player.pos.x, player.pos.y + 1.2, player.pos.z, 0x9fffb0, 14);
   showMsg('Vous buvez une Potion lunaire : +50 PV' + (S.COOP ? ' pour les deux porteurs' : '') + ' (🧪 reste ' + G.potions + ').', 2.5);
   if (G.inv) refreshInv();

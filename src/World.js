@@ -573,11 +573,16 @@ export function addInter(x, y, z, r, label, fn) {
   return it;
 }
 export function nearInterP(pl) {
+  /* La PLUS PROCHE interaction à portée gagne — pas la première enregistrée.
+     (Bug « étage infranchissable » : quand une plaque d'étage chevauchait un
+     portail de sas, la plaque, construite avant, volait le E pour toujours.) */
+  let best = null, bestD = Infinity;
   for (const i of inter) {
     if (!i.on) continue;
-    if (Math.hypot(pl.pos.x - i.x, pl.pos.z - i.z) < i.r && Math.abs(pl.pos.y - i.y) < 2.8) return i;
+    const d = Math.hypot(pl.pos.x - i.x, pl.pos.z - i.z);
+    if (d < i.r && Math.abs(pl.pos.y - i.y) < 2.8 && d < bestD) { bestD = d; best = i; }
   }
-  return null;
+  return best;
 }
 export function nearInter() {
   return nearInterP(player);
