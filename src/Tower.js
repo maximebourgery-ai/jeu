@@ -143,7 +143,10 @@ function mkPortal(x, y, z, color, label, canOpen, lockedMsg, onEnter) {
   ring.position.set(x, y + 1.9, z);
   ring.add(glow(color, 3, 0.45));
   S.scene.add(ring); spinners.push(ring);
-  addInter(x, y, z, 2.4, label, () => {
+  /* rayon GÉNÉREUX (3,6 m) : un portail fait 3,2 m de large avec son
+     linteau — avec l'ancien rayon (2,4 m), on pouvait être visiblement
+     « au portail » sans que le E n'apparaisse (retour joueur, étage 9). */
+  addInter(x, y, z, 3.6, label, () => {
     if (!canOpen()) { showMsg(lockedMsg(), 3.2); return; }
     A.door();
     spawnBurst(x, y + 1.8, z, color, 22);
@@ -536,21 +539,29 @@ function buildPalier2() {
   addPickup('mana', TX - 19, 3.25, TZ - 12);
   bivouac(TX - 14, 3.25, TZ - 4.5, 'la Salle de l\'Alchimiste', 'alchimiste', false, 4.5);
 
-  /* étage 7 (y 6) : corniche nord (montée par piliers taillés) */
+  /* étage 7 (y 6) : corniche nord — montée par piliers taillés, avec une
+     marche intermédiaire (l'ascension se fait en petits sauts lisibles) */
   mkBox(3, 4.5, 2.6, TX - 6, 0, TZ - 14, 'stoneR');
+  mkBox(2.4, 5.4, 2.4, TX - 6, 0, TZ - 12.8, 'stoneR');
   mkBox(12, 0.5, 7, TX - 1, 5.75, TZ - 17.5, 'stoneR');
   floorSign(7, 'Les racines percent la pierre comme du papier.', TX + 3, 6.25, TZ - 19);
   addPickup('mana', TX - 4, 6.25, TZ - 18);
 
-  /* étage 8 (y 9) : balcon est au-dessus du vide */
+  /* étage 8 (y 9) : balcon est au-dessus du vide — marche intermédiaire
+     entre le pilier et le balcon (fini le grand saut au pixel près) */
   mkBox(2.8, 7.5, 2.6, TX + 7, 0, TZ - 16, 'stoneR');
+  mkBox(2.4, 8.4, 2.4, TX + 8.3, 0, TZ - 16, 'stoneR');
   mkBox(10, 0.5, 8, TX + 14, 8.75, TZ - 14, 'stoneR');
   floorSign(8, 'D\'ici, la Serre entière murmure.', TX + 17, 9.25, TZ - 10);
   addPickup('heart', TX + 17, 9.25, TZ - 17);
   mkHazard(TX + 13, TZ - 11, 4, 3, 9.25, 1.4, 8, 0x4ade5a, 'poison');
 
-  /* étage 9 (y 12) : l'autel de la Racine */
+  /* étage 9 (y 12) : l'autel de la Racine.
+     Montée ADOUCIE (retour joueur « étage pas passable ») : pilier (10,5),
+     puis marche intermédiaire (11,4) collée au bord est de la plateforme —
+     trois petits sauts lisibles au lieu d'un grand saut au pixel. */
   mkBox(2.6, 10.5, 2.6, TX + 8, 0, TZ - 19, 'stoneR');
+  mkBox(2.4, 11.4, 2.4, TX + 7.2, 0, TZ - 17, 'stoneR');
   mkBox(16, 0.5, 10, TX - 2, 11.75, TZ - 16.5, 'stoneR');
   /* plaque écartée du portail du Palier III (leurs zones d'interaction se
      chevauchaient : le E lisait la plaque au lieu d'ouvrir le sas) */
