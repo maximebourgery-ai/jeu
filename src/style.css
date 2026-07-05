@@ -172,12 +172,6 @@ canvas{display:block;touch-action:none}
 #qrstatus{margin-top:12px;font-size:13px;font-family:Verdana,sans-serif;color:#ffd97a}
 #qrlink{margin-top:8px;font-size:10px;font-family:Verdana,sans-serif;color:#5f6b8c;word-break:break-all;max-width:280px}
 #qrpanel button{margin-top:14px;background:#1a2142;color:#cfd8f2;border:1px solid rgba(150,180,255,.35);border-radius:8px;padding:8px 22px;font-family:Georgia,serif;font-size:14px;cursor:pointer}
-/* ---------- Mode manette (smartphone) ---------- */
-#ctrl{position:fixed;inset:0;display:flex;background:#000;touch-action:none}
-#ctrl button{flex:1;border:none;color:#fff;font-size:2em;font-weight:bold;font-family:Verdana,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
-#c-jump{background:#333}
-#c-attack{background:#8a0a14}
-#c-status{position:fixed;top:10px;left:0;right:0;text-align:center;color:#ffd97a;font-size:13px;font-family:Verdana,sans-serif;pointer-events:none;text-shadow:0 1px 3px #000}
 /* ---------- Coop écran scindé ---------- */
 #modes{display:flex;gap:12px;margin:6px 0 4px}
 .modebtn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:10px;padding:10px 20px;color:#cfd8f2;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:1px}
@@ -243,10 +237,6 @@ body.touchmode #powers{display:none}
   animation:lockpulse .9s ease-in-out infinite}
 #lockon.manual{color:#ffd97a;text-shadow:0 0 14px rgba(255,210,110,.95),0 0 4px #000}
 @keyframes lockpulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.22)}}
-#craftpanel{position:absolute;left:84px;top:46%;background:rgba(7,9,20,.92);border:1px solid rgba(150,180,255,.4);
-  border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
-#craftpanel button{background:#1a2142;color:#e8e0cc;border:1px solid rgba(150,180,255,.35);border-radius:8px;
-  padding:9px 14px;font-family:Verdana,sans-serif;font-size:12px;text-align:left}
 /* ---------- XP & Arbre des pouvoirs ---------- */
 .bar.xpbar{height:9px}
 .xpbar .barnum{font-size:8px;letter-spacing:0}

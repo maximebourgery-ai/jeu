@@ -10,12 +10,11 @@
    ================================================================ */
 import Peer from 'peerjs';
 import QRCode from 'qrcode';
-import { G, S, CTRL_ID, tmMove, settings } from './state.js';
+import { G, S, CTRL_ID, POWERS, tmMove, settings } from './state.js';
 import { $, showMsg } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { tryInteract } from './World.js';
-import { cyclePower, castSpecific } from './Powers.js';
-import { toggleTree } from './SkillTree.js';
+import { castSpecific } from './Powers.js';
 
 /* Serveurs STUN + TURN publics (Open Relay Project) : le TURN est ce qui
    manquait le plus souvent — sans lui, la connexion échoue dès que l'un des
@@ -82,9 +81,8 @@ export function openManettePanel() {
       else if (d.t === 'atkdown') { if (!G.paused && !G.inv && !G.treeOpen) S.tmAttackHeld = true; }
       else if (d.t === 'atkup') S.tmAttackHeld = false;
       else if (d.t === 'interact' && !G.paused) tryInteract();
-      else if (d.t === 'spell' && !G.paused) cyclePower(1);
-      else if (d.t === 'dash' && !G.paused && !G.treeOpen) castSpecific('dash');
-      else if (d.t === 'tree') toggleTree();
+      else if (d.t === 'cast' && !G.paused && !G.inv && !G.treeOpen &&
+               POWERS.some(p => p.id === d.id)) castSpecific(d.id);
       else if (d.t === 'pause' && !G.over && !G.dialog) {
         G.paused = !G.paused; $('pause').classList.toggle('hidden', !G.paused);
       }
@@ -128,8 +126,9 @@ export function startControllerMode() {
     '#n-atk{right:24px;bottom:38px;width:92px;height:92px;font-size:30px;border-color:rgba(255,170,110,.6)}' +
     '#n-jmp{right:130px;bottom:118px;width:66px;height:66px;font-size:22px}' +
     '#n-act{right:36px;bottom:150px;width:54px;height:54px;font-size:19px}' +
-    '#n-dsh{right:152px;bottom:36px;width:56px;height:56px;font-size:19px}' +
-    '#n-spl{left:24px;top:14px;width:48px;height:48px;font-size:16px}' +
+    '.nspell{top:12px;width:44px;height:44px;font-size:17px}' +
+    '#ns-dash{right:70px}#ns-tk{right:122px}#ns-shield{right:174px}#ns-frost{right:226px}' +
+    '#ns-heal{right:278px}#ns-nova{right:330px}#ns-meteor{right:382px}' +
     '#n-pau{right:14px;top:14px;width:44px;height:44px;font-size:14px}' +
     '#nstatus{position:fixed;top:70px;left:0;right:0;text-align:center;color:#ffd97a;font-size:13px;' +
       'font-family:Verdana,sans-serif;pointer-events:none;text-shadow:0 1px 3px #000;padding:0 20px}' +
@@ -141,8 +140,13 @@ export function startControllerMode() {
     '<div class="nbtn" id="n-atk">✦</div>' +
     '<div class="nbtn" id="n-jmp">▲</div>' +
     '<div class="nbtn" id="n-act">E</div>' +
-    '<div class="nbtn" id="n-dsh">⟫</div>' +
-    '<div class="nbtn" id="n-spl">⟳</div>' +
+    '<div class="nbtn nspell" id="ns-dash">⟫</div>' +
+    '<div class="nbtn nspell" id="ns-tk">☄</div>' +
+    '<div class="nbtn nspell" id="ns-shield">◎</div>' +
+    '<div class="nbtn nspell" id="ns-frost">❄</div>' +
+    '<div class="nbtn nspell" id="ns-heal">✚</div>' +
+    '<div class="nbtn nspell" id="ns-nova">✹</div>' +
+    '<div class="nbtn nspell" id="ns-meteor">✵</div>' +
     '<div class="nbtn" id="n-pau">II</div>' +
     '<div id="nstatus">Connexion au jeu...</div>' +
     '</div>';
@@ -230,8 +234,16 @@ export function startControllerMode() {
     bind('n-atk', 'atkdown', 'atkup');
     bind('n-jmp', 'jumpdown', 'jumpup');
     bind('n-act', 'interact');
-    bind('n-dsh', 'dash');
-    bind('n-spl', 'spell');
+    /* Un bouton par sort, comme la manette Xbox et l'écran tactile du jeu
+       (l'hôte vérifie que le sort est appris avant de le lancer). */
+    for (const id of ['dash', 'tk', 'shield', 'frost', 'heal', 'nova', 'meteor']) {
+      const el = document.getElementById('ns-' + id);
+      el.addEventListener('pointerdown', e => {
+        e.preventDefault(); e.stopPropagation();
+        send({ t: 'cast', id });
+        if (navigator.vibrate) navigator.vibrate(12);
+      });
+    }
     bind('n-pau', 'pause');
   }
 }

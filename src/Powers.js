@@ -649,12 +649,3 @@ export function checkPlate() {
     }
   }
 }
-/* ---- Cycle du sort (tactile) ---- */
-export function cyclePower(dir) {
-  const owned = POWERS.filter(p => G.powers[p.id]);
-  if (owned.length < 2) return;
-  let i = owned.findIndex(p => p.id === G.sel);
-  i = (i + dir + owned.length) % owned.length;
-  G.sel = owned[i].id; refreshPowers();
-  showMsg(owned[i].name + ' préparé.', 1);
-}
