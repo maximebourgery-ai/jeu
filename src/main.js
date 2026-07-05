@@ -5,7 +5,7 @@
    mode dual jeu / manette smartphone (?controller=ID).
    ================================================================ */
 import './style.css';
-import { G, S, CTRL_ID, IS_TOUCH, PATHS, STORY, keys, player, p2, tut, pickups, enemies, applyPath, loadSettings } from './state.js';
+import { G, S, CTRL_ID, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, applyPath, loadSettings } from './state.js';
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
@@ -183,6 +183,12 @@ function wireMenus() {
 
 /* ---------------- INIT ---------------- */
 async function initGame() {
+  if (IS_TOUCH) {
+    document.body.classList.add('is-touch'); // bannière « paysage » (style.css)
+    /* iPhone/iPad dans Safari : pas d'API plein écran — on suggère dès
+       l'écran-titre l'installation « Sur l'écran d'accueil » (PWA). */
+    if (IS_IOS && !IS_STANDALONE) $('ioshint').classList.remove('hidden');
+  }
   loadSettings(); // réglages du joueur (sensibilités, luminosité) — localStorage
   const status = $('loading-status');
   await loadAssets(t => { if (status) status.textContent = t; });

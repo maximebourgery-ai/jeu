@@ -115,11 +115,23 @@ export function initScene() {
   S.beacon.position.y = 22; S.beacon.visible = false;
   S.scene.add(S.beacon);
 
-  addEventListener('resize', () => {
+  /* Redimensionnement robuste, pensé pour iOS Safari : la barre d'adresse
+     qui apparaît/disparaît ne déclenche que visualViewport.resize, et la
+     rotation rapporte d'abord des dimensions PÉRIMÉES (on re-mesure donc
+     en différé). Sans ça, le canvas reste à la mauvaise taille sur iPhone. */
+  const onResize = () => {
     setCamAspects();
     S.renderer.setSize(innerWidth, innerHeight);
     S.composer.setSize(innerWidth, innerHeight);
+  };
+  addEventListener('resize', onResize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+  addEventListener('orientationchange', () => {
+    onResize();
+    setTimeout(onResize, 150);
+    setTimeout(onResize, 500);
   });
+  setTimeout(onResize, 300); // le viewport iOS se stabilise après le chargement
 }
 export function setCamAspects() {
   S.camera.aspect = (S.COOP ? innerWidth / 2 : innerWidth) / innerHeight;

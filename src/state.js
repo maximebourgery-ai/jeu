@@ -9,6 +9,14 @@
 export const CTRL_ID = new URLSearchParams(location.search).get('controller');
 /* Mode tactile : détecté si l'appareil a un écran tactile "grossier" (téléphone/tablette). */
 export const IS_TOUCH = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
+/* iOS (iPhone/iPod + iPadOS qui se déguise en Mac) : pas d'API plein écran,
+   user-scalable=no ignoré, vibrations absentes — traité à part dans Controls. */
+export const IS_IOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+/* Déjà « installé » (PWA écran d'accueil ou plein écran natif) ? */
+export const IS_STANDALONE = navigator.standalone === true ||
+  (typeof matchMedia === 'function' &&
+   (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
 
 export const G = {
   started: false, paused: false, over: false, inv: false, dialog: false,
