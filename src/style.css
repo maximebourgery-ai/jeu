@@ -206,7 +206,12 @@ canvas{display:block;touch-action:none}
    d'attaque (maintenir = enchaîner, glisser = viser en tirant) entouré
    d'un arc de sorts à lancement direct, recharge visible sur chaque
    bouton. Toucher un ennemi à l'écran le verrouille (marqueur ◈). */
-#touch{position:fixed;inset:0;z-index:6;pointer-events:none}
+#touch{position:fixed;inset:0;z-index:6;pointer-events:none;transition:opacity .35s}
+/* Manette physique (Bluetooth/USB) active : elle devient le contrôleur
+   principal — les contrôles tactiles s'effacent, puis reviennent seuls
+   après quelques secondes sans entrée manette (voir Controls.js). */
+body.gp-play #touch{opacity:0}
+body.gp-play #touch *{pointer-events:none!important}
 #lookzone{position:absolute;top:0;right:0;width:55%;height:100%;pointer-events:auto;touch-action:none}
 #joy{position:absolute;left:calc(26px + env(safe-area-inset-left,0px));bottom:calc(30px + env(safe-area-inset-bottom,0px));width:132px;height:132px;border-radius:50%;
   background:rgba(20,26,52,.35);border:2px solid rgba(150,180,255,.35);pointer-events:auto;touch-action:none}

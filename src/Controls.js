@@ -126,15 +126,19 @@ export function initControls() {
     }
   });
 
-  addEventListener('gamepadconnected', e => {
-    showMsg('🎮 Manette détectée : ' + e.gamepad.id.slice(0, 40), 3);
+  addEventListener('gamepadconnected', e => announcePad(e.gamepad));
+  addEventListener('gamepaddisconnected', e => {
+    padMaps.delete(padKey(e.gamepad));
+    padSeen.delete(padKey(e.gamepad)); // reconnexion = nouvelle annonce (et recalibrage)
+    if (gpPrimary === e.gamepad.index) gpPrimary = -1;
+    showMsg('🎮 Manette déconnectée : ' + (e.gamepad.id || '').slice(0, 40), 3);
   });
   $('btn-travelclose').addEventListener('click', closeTravel);
   $('btn-invclose').addEventListener('click', () => { if (G.inv) toggleInv(); });
 }
 
 /* ================================================================
-   MANETTE (Gamepad API — Xbox / PlayStation)
+   MANETTE (Gamepad API — Xbox / PlayStation / Bluetooth génériques)
    Stick gauche : déplacement · Stick droit : caméra · Stick G. enfoncé : sprint
    A/Croix : saut · B/Rond : interagir · Start : pause
    X/Carré : TOUJOURS l'attaque de base (tenir pour l'attaque continue),
@@ -142,7 +146,89 @@ export function initControls() {
    Y/LB/RB/LT/RT : 5 emplacements de sort assignables dans ⚙ Réglages
    (par défaut : Pas du vent, Main céleste, Égide, Souffle glacé, Bénédiction).
    Croix haut/bas : Nova d'Aurore / Astre d'Aube (arts de l'Outre-Ciel).
+
+   Beaucoup de manettes Bluetooth s'annoncent avec mapping ≠ "standard" :
+   axes du stick droit décalés, gâchettes exposées en axes (repos à -1),
+   croix directionnelle en « chapeau » (un seul axe, repos hors [-1,1]).
+   On APPREND donc la disposition à la connexion, à partir de la position
+   de repos de chaque axe (auto-mapping), au lieu de supposer les index
+   du mapping standard. Et si plusieurs périphériques sont exposés (faux
+   pads, télécommandes…), la manette qui ENVOIE réellement des entrées
+   devient la manette principale — pas bêtement pads[0].
+   Sur écran tactile, les contrôles à l'écran s'effacent tant que la
+   manette est utilisée, et reviennent après quelques secondes de repos.
    ================================================================ */
+let gpPrimary = -1;        // index de la manette principale
+let gpUiT = 0;             // temps restant d'effacement des contrôles tactiles
+let gpUiHidden = false;
+const padMaps = new Map(); // clé index|id → disposition apprise
+const padSeen = new Set(); // annonces de connexion déjà faites
+
+function padKey(gp) { return gp.index + '|' + gp.id; }
+
+/* Apprend la disposition d'une manette à partir de ses axes AU REPOS :
+   stick ≈ 0 · gâchette analogique ≈ -1 · chapeau (croix) hors [-1,1]. */
+function getMap(gp) {
+  let m = padMaps.get(padKey(gp));
+  if (m) return m;
+  m = { std: gp.mapping === 'standard', base: Array.from(gp.axes), camX: 2, camY: 3, hat: -1, trig: [] };
+  if (!m.std) {
+    const sticks = [];
+    for (let i = 2; i < m.base.length; i++) {
+      const v = m.base[i];
+      if (Math.abs(v) > 1.05) m.hat = i;
+      else if (Math.abs(v + 1) < 0.12) m.trig.push(i);
+      else if (Math.abs(v) < 0.4) sticks.push(i);
+    }
+    if (sticks.length >= 2) { m.camX = sticks[0]; m.camY = sticks[1]; }
+  }
+  padMaps.set(padKey(gp), m);
+  return m;
+}
+
+function announcePad(gp) {
+  if (!gp) return;
+  getMap(gp); // calibre dès l'apparition, sticks au repos
+  const key = padKey(gp);
+  if (padSeen.has(key)) return;
+  padSeen.add(key);
+  showMsg('🎮 Manette détectée : ' + (gp.id || 'manette').slice(0, 40)
+    + (gp.mapping === 'standard' ? '' : ' (mapping auto)'), 3.5);
+}
+
+/* Activité réelle = écart par rapport à la position de repos (une gâchette
+   au repos à -1 ou un chapeau à 3.29 ne comptent pas comme « activité »). */
+function padActive(gp, m, dzv) {
+  for (const x of gp.buttons) if (x && x.pressed) return true;
+  for (let i = 0; i < gp.axes.length; i++) {
+    if (i === m.hat) continue;
+    if (Math.abs(gp.axes[i] - (m.base[i] || 0)) > dzv) return true;
+  }
+  if (m.hat >= 0) {
+    const v = gp.axes[m.hat];
+    if (v >= -1.01 && v <= 1.01) return true; // une direction de croix est pressée
+  }
+  return false;
+}
+
+/* Croix « chapeau » : 8 directions réparties sur [-1,1], repos hors plage. */
+function hatDirs(gp, m) {
+  if (m.hat < 0) return { up: false, down: false };
+  const v = gp.axes[m.hat];
+  if (!(v >= -1.01 && v <= 1.01)) return { up: false, down: false };
+  const d = Math.round((v + 1) * 3.5); // 0=haut,1=h-d,2=droite,3=b-d,4=bas,5=b-g,6=gauche,7=h-g
+  return { up: d === 0 || d === 1 || d === 7, down: d >= 3 && d <= 5 };
+}
+
+/* Efface / réaffiche les contrôles tactiles selon l'activité manette. */
+function syncTouchUi() {
+  if (!IS_TOUCH) return;
+  const hide = gpUiT > 0;
+  if (hide !== gpUiHidden) {
+    gpUiHidden = hide;
+    document.body.classList.toggle('gp-play', hide);
+  }
+}
 /* Zone morte à rééchelonnage linéaire : au-delà du seuil, la valeur repart
    de 0 (pas de saut brusque façon |v|>seuil, qui donne cette sensation de
    viseur qui "accroche" dès qu'on touche le stick). */
@@ -167,9 +253,10 @@ function castSlot(i, pl) {
 export function updateGamepad(dt) {
   if (S.gpDisabled) return;
   S.gpActiveT = Math.max(0, S.gpActiveT - dt); // la visée assistée suit l'activité manette
+  gpUiT = Math.max(0, gpUiT - dt);
   let pads = [];
   try {
-    pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : [];
   } catch (e) {
     /* Certains environnements (iframes, aperçus d'applications) interdisent
        l'API Gamepad par politique de permissions : on la coupe proprement
@@ -177,13 +264,46 @@ export function updateGamepad(dt) {
     S.gpDisabled = true;
     return;
   }
-  const gp = pads[0] || pads[1] || pads[2] || pads[3];
   gpMove.x = 0; gpMove.z = 0; S.gpSprint = false; S.gpJumpHeld = false;
   p2.input.mx = 0; p2.input.mz = 0; p2.input.sprint = false; p2.input.jumpHeld = false;
-  if (!gp) return;
+  /* Filet de sécurité : certains navigateurs n'exposent une manette
+     Bluetooth qu'après un premier appui, parfois SANS émettre
+     gamepadconnected — l'annonce/calibrage se fait alors ici. */
+  for (const p of pads) announcePad(p);
+  /* Choix de la manette principale : celle déjà élue si toujours là,
+     sinon (ou si elle est muette pendant qu'une autre parle) la manette
+     qui montre une activité réelle prend la main. */
+  let gp = pads.find(p => p.index === gpPrimary) || null;
+  const actThr = Math.max(0.25, settings.deadzone);
+  for (const p of pads) {
+    if (gp && p.index === gp.index) continue;
+    if (!padActive(p, getMap(p), actThr)) continue;
+    if (gp && padActive(gp, getMap(gp), actThr)) continue; // la principale parle encore : elle garde la main
+    if (gp && G.started) showMsg('🎮 ' + (p.id || 'Manette').slice(0, 32) + ' devient la manette principale.', 2.5);
+    gp = p;
+    break;
+  }
+  if (!gp) gp = pads[0] || null;
+  syncTouchUi();
+  if (!gp) { gpPrimary = -1; return; }
+  gpPrimary = gp.index;
+  const m = getMap(gp);
   const dz = v => deadzone(v, settings.deadzone);
-  const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
-  if (gp.buttons.some(x => x && x.pressed) || gp.axes.some(a => Math.abs(a) > settings.deadzone)) S.gpActiveT = 2;
+  /* Boutons : index standards + replis non standard appris (gâchettes en
+     axes → LT/RT, Start parfois à l'index 11). */
+  const b = i => {
+    if (gp.buttons[i] && gp.buttons[i].pressed) return true;
+    if (!m.std) {
+      if (i === 6 && m.trig.length > 0) return gp.axes[m.trig[0]] > 0;
+      if (i === 7 && m.trig.length > 1) return gp.axes[m.trig[1]] > 0;
+      if (i === 9 && gp.buttons[11]) return gp.buttons[11].pressed;
+    }
+    return false;
+  };
+  const hat = hatDirs(gp, m);
+  const padUp = () => b(12) || hat.up, padDown = () => b(13) || hat.down;
+  const camX = dz(gp.axes[m.camX] || 0), camY = dz(gp.axes[m.camY] || 0);
+  if (padActive(gp, m, settings.deadzone)) { S.gpActiveT = 2; gpUiT = 6; syncTouchUi(); }
   // Pause (Start)
   if (b(9) && !S.gpPrev[9] && G.started && !G.over && !G.dialog) {
     G.paused = !G.paused;
@@ -197,8 +317,8 @@ export function updateGamepad(dt) {
         /* --- La manette contrôle le JOUEUR 2 --- */
         p2.input.mx = dz(gp.axes[0]);
         p2.input.mz = -dz(gp.axes[1]);
-        p2.yaw -= aimCurve(dz(gp.axes[2] || 0)) * 2.6 * settings.padSens * dt;
-        p2.pitch -= aimCurve(dz(gp.axes[3] || 0)) * 1.8 * settings.padSens * dt * (settings.invertY ? -1 : 1);
+        p2.yaw -= aimCurve(camX) * 2.6 * settings.padSens * dt;
+        p2.pitch -= aimCurve(camY) * 1.8 * settings.padSens * dt * (settings.invertY ? -1 : 1);
         p2.pitch = Math.max(-1.22, Math.min(0.85, p2.pitch));
         p2.input.sprint = b(10);
         p2.input.jumpHeld = b(0);
@@ -210,17 +330,17 @@ export function updateGamepad(dt) {
         if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2, p2);             // RB : emplacement 3 J2
         if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3, p2);             // LT : emplacement 4 J2
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4, p2);             // RT : emplacement 5 J2
-        if (b(12) && !S.gpPrev[12] && !G.inv) castSpecific('nova', p2);  // Croix haut : Nova d'Aurore J2
-        if (b(13) && !S.gpPrev[13] && !G.inv) castSpecific('meteor', p2);// Croix bas : Astre d'Aube J2
+        if (padUp() && !S.gpPrev[12] && !G.inv) castSpecific('nova', p2);   // Croix haut : Nova d'Aurore J2
+        if (padDown() && !S.gpPrev[13] && !G.inv) castSpecific('meteor', p2);// Croix bas : Astre d'Aube J2
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
         gpMove.z = -dz(gp.axes[1]);
-        S.yaw -= aimCurve(dz(gp.axes[2] || 0)) * 2.6 * settings.padSens * dt;
-        S.pitch -= aimCurve(dz(gp.axes[3] || 0)) * 1.8 * settings.padSens * dt * (settings.invertY ? -1 : 1);
+        S.yaw -= aimCurve(camX) * 2.6 * settings.padSens * dt;
+        S.pitch -= aimCurve(camY) * 1.8 * settings.padSens * dt * (settings.invertY ? -1 : 1);
         S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
         if (Math.abs(gpMove.x) + Math.abs(gpMove.z) > 0.1) tut.moved += 0.08;
-        if (Math.abs(dz(gp.axes[2] || 0)) + Math.abs(dz(gp.axes[3] || 0)) > 0.1) tut.looked += 0.04;
+        if (Math.abs(camX) + Math.abs(camY) > 0.1) tut.looked += 0.04;
         S.gpSprint = b(10); // stick gauche enfoncé
         S.gpJumpHeld = b(0);
         if (b(0) && !S.gpPrev[0]) S.jumpQueued = 0.14;                  // A / Croix : saut
@@ -231,12 +351,12 @@ export function updateGamepad(dt) {
         if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2);                // RB / R1 : emplacement 3
         if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3);                // LT / L2 : emplacement 4
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4);                // RT / R2 : emplacement 5
-        if (b(12) && !S.gpPrev[12] && !G.inv) castSpecific('nova');     // Croix haut : Nova d'Aurore
-        if (b(13) && !S.gpPrev[13] && !G.inv) castSpecific('meteor');   // Croix bas : Astre d'Aube
+        if (padUp() && !S.gpPrev[12] && !G.inv) castSpecific('nova');    // Croix haut : Nova d'Aurore
+        if (padDown() && !S.gpPrev[13] && !G.inv) castSpecific('meteor');// Croix bas : Astre d'Aube
       }
     }
   }
-  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9), 12: b(12), 13: b(13) };
+  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9), 12: padUp(), 13: padDown() };
 }
 
 /* ================================================================
