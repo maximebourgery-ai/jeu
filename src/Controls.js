@@ -7,12 +7,12 @@ import * as THREE from 'three';
 import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, refreshInv, closeTravel } from './UI.js';
+import { $, showMsg, refreshPowers, refreshInv, closeTravel, updateTouchSlots } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
 import { tryInteract, tryInteractP2 } from './World.js';
-import { castPower, castPowerP2, castSpecific } from './Powers.js';
+import { castPower, castSpecific } from './Powers.js';
 
 /* ---------------- ENTRÉES (verrouillage souris + repli glisser) ---------------- */
 export function lockPointer() {
@@ -106,13 +106,10 @@ export function initControls() {
    MANETTE (Gamepad API — Xbox / PlayStation)
    Stick gauche : déplacement · Stick droit : caméra · Stick G. enfoncé : sprint
    A/Croix : saut · B/Rond : interagir · Start : pause
-   Un bouton dédié par sort (plus besoin de cycler avant de lancer) :
-     X/Carré      : sort 1 — Trait astral (tenir pour l'attaque continue)
-     Y/Triangle   : sort 2 — Pas du vent
-     LB/L1        : sort 3 — Main céleste
-     RB/R1        : sort 4 — Égide
-     LT/L2        : sort 5 — Souffle glacé
-     RT/R2        : sort 6 — Bénédiction
+   X/Carré : TOUJOURS l'attaque de base (tenir pour l'attaque continue),
+   même si un nouveau sort vient d'être débloqué/sélectionné.
+   Y/LB/RB/LT/RT : 5 emplacements de sort assignables dans ⚙ Réglages
+   (par défaut : Pas du vent, Main céleste, Égide, Souffle glacé, Bénédiction).
    ================================================================ */
 /* Zone morte à rééchelonnage linéaire : au-delà du seuil, la valeur repart
    de 0 (pas de saut brusque façon |v|>seuil, qui donne cette sensation de
@@ -127,6 +124,13 @@ function deadzone(v, z) {
    de rotation ne change pas (courbe(1) = 1). */
 function aimCurve(v) {
   return Math.sign(v) * Math.pow(Math.abs(v), 1.6);
+}
+/* Lance le sort assigné à l'emplacement manette i — Y/LB/RB/LT/RT,
+   réglable dans ⚙ Réglages (les boutons tactiles, eux, portent chacun
+   leur sort et suivent la même assignation via updateTouchSlots). */
+function castSlot(i, pl) {
+  const id = settings.slots[i];
+  if (id && POWERS.some(p => p.id === id)) castSpecific(id, pl);
 }
 export function updateGamepad(dt) {
   if (S.gpDisabled) return;
@@ -167,13 +171,13 @@ export function updateGamepad(dt) {
         p2.input.sprint = b(10);
         p2.input.jumpHeld = b(0);
         if (b(0) && !S.gpPrev[0]) p2.jumpQ = 0.14;                       // A : saut J2
-        if (b(2) && !G.inv) castPowerP2();                               // X : sort 1 (attaque) J2
+        if (b(2) && !G.inv) castSpecific('bolt', p2);                    // X : attaque de base J2 (jamais un autre sort)
         if (b(1) && !S.gpPrev[1]) tryInteractP2();                       // B : interagir J2
-        if (b(3) && !S.gpPrev[3] && !G.inv) castSpecific('dash', p2);    // Y : sort 2 J2
-        if (b(4) && !S.gpPrev[4] && !G.inv) castSpecific('tk', p2);      // LB : sort 3 J2
-        if (b(5) && !S.gpPrev[5] && !G.inv) castSpecific('shield', p2);  // RB : sort 4 J2
-        if (b(6) && !S.gpPrev[6] && !G.inv) castSpecific('frost', p2);   // LT : sort 5 J2
-        if (b(7) && !S.gpPrev[7] && !G.inv) castSpecific('heal', p2);    // RT : sort 6 J2
+        if (b(3) && !S.gpPrev[3] && !G.inv) castSlot(0, p2);             // Y : emplacement 1 J2
+        if (b(4) && !S.gpPrev[4] && !G.inv) castSlot(1, p2);             // LB : emplacement 2 J2
+        if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2, p2);             // RB : emplacement 3 J2
+        if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3, p2);             // LT : emplacement 4 J2
+        if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4, p2);             // RT : emplacement 5 J2
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
@@ -186,13 +190,13 @@ export function updateGamepad(dt) {
         S.gpSprint = b(10); // stick gauche enfoncé
         S.gpJumpHeld = b(0);
         if (b(0) && !S.gpPrev[0]) S.jumpQueued = 0.14;                  // A / Croix : saut
-        if (b(2) && !G.inv) castPower();                                // X / Carré : sort 1 (attaque, tenir pour enchaîner)
+        if (b(2) && !G.inv) castSpecific('bolt');                       // X / Carré : attaque de base (tenir pour enchaîner) — jamais un autre sort
         if (b(1) && !S.gpPrev[1]) tryInteract();                        // B / Rond : interagir
-        if (b(3) && !S.gpPrev[3] && !G.inv) castSpecific('dash');       // Y / Triangle : sort 2
-        if (b(4) && !S.gpPrev[4] && !G.inv) castSpecific('tk');         // LB / L1 : sort 3
-        if (b(5) && !S.gpPrev[5] && !G.inv) castSpecific('shield');     // RB / R1 : sort 4
-        if (b(6) && !S.gpPrev[6] && !G.inv) castSpecific('frost');      // LT / L2 : sort 5
-        if (b(7) && !S.gpPrev[7] && !G.inv) castSpecific('heal');       // RT / R2 : sort 6
+        if (b(3) && !S.gpPrev[3] && !G.inv) castSlot(0);                // Y / Triangle : emplacement 1
+        if (b(4) && !S.gpPrev[4] && !G.inv) castSlot(1);                // LB / L1 : emplacement 2
+        if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2);                // RB / R1 : emplacement 3
+        if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3);                // LT / L2 : emplacement 4
+        if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4);                // RT / R2 : emplacement 5
       }
     }
   }
@@ -203,9 +207,9 @@ export function updateGamepad(dt) {
    CONTRÔLES TACTILES (téléphone / tablette) — refonte gameplay :
    · Joystick virtuel à gauche (poussé à fond = sprint)
    · Glisser à droite = caméra · TOUCHER UN ENNEMI = le verrouiller
-   · Bouton d'attaque : maintenir pour enchaîner, GLISSER SANS LÂCHER
-     pour affiner la visée pendant le tir (double-stick)
-   · Un bouton dédié par sort (plus de cycle ⟳) avec recharge visible
+   · Bouton d'attaque : TOUJOURS l'attaque de base — maintenir pour
+     enchaîner, GLISSER SANS LÂCHER pour affiner la visée (double-stick)
+   · Un bouton dédié par sort appris ET assigné (⚙ Réglages), recharge visible
    · ▲ saut (maintenir = planer avec les ailes) · E agir · ⚒ artisanat
    ================================================================ */
 
@@ -301,10 +305,10 @@ export function setupTouch() {
     if (G.dialog) { dlgNext(); return; }
     atkId = e.pointerId; ax = e.clientX; ay = e.clientY;
     try { atk.setPointerCapture(e.pointerId); } catch (err) {}
-    S.tmAttackHeld = true;
+    S.tmBoltHeld = true; // toujours l'attaque de base, jamais le dernier sort débloqué
     /* le coup part dès l'appui : un tap bref frappe aussi (le maintien,
        lui, enchaîne via la boucle principale — la recharge fait le tri) */
-    if (G.started && !G.paused && !G.over && !G.inv && !G.treeOpen && !G.travelOpen) castPower();
+    if (G.started && !G.paused && !G.over && !G.inv && !G.treeOpen && !G.travelOpen) castSpecific('bolt');
   });
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== atkId) return;
@@ -317,7 +321,7 @@ export function setupTouch() {
       S.pitch = Math.max(-1.22, Math.min(0.85, S.pitch));
     }
   });
-  const atkEnd = e => { if (e.pointerId === atkId) { atkId = null; S.tmAttackHeld = false; } };
+  const atkEnd = e => { if (e.pointerId === atkId) { atkId = null; S.tmBoltHeld = false; } };
   atk.addEventListener('pointerup', atkEnd);
   atk.addEventListener('pointercancel', atkEnd);
   /* --- Boutons --- */
@@ -339,7 +343,8 @@ export function setupTouch() {
     tryInteract();
   });
   /* Un bouton par sort : lancement direct, sans cycle — le pouce droit a
-     toute la panoplie sous lui, comme sur manette. */
+     toute la panoplie sous lui, comme sur manette. N'apparaissent que les
+     sorts appris ET assignés dans ⚙ Réglages (voir updateTouchSlots, UI.js). */
   document.querySelectorAll('#spellbar .sbtn').forEach(btn => {
     btn.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
@@ -387,6 +392,26 @@ export function initSettingsUI() {
   const inv = $('set-invert');
   inv.checked = settings.invertY;
   inv.addEventListener('change', () => { settings.invertY = inv.checked; saveSettings(); });
+  /* Assignation des 5 emplacements de sort (manette Y/LB/RB/LT/RT et
+     colonne tactile). L'attaque de base reste sur X/✦, non assignable. */
+  const assignable = POWERS.filter(p => p.id !== 'bolt');
+  for (let i = 0; i < 5; i++) {
+    const sel = $('slot-' + i);
+    const none = document.createElement('option');
+    none.value = ''; none.textContent = '— (vide)';
+    sel.appendChild(none);
+    for (const p of assignable) {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.icon + ' ' + p.name;
+      sel.appendChild(o);
+    }
+    sel.value = settings.slots[i] || '';
+    sel.addEventListener('change', () => {
+      settings.slots[i] = sel.value || null;
+      saveSettings();
+      updateTouchSlots();
+    });
+  }
   $('btn-settings').addEventListener('click', () => {
     $('pause').classList.add('hidden');
     $('settings').classList.remove('hidden');

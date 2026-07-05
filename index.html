@@ -41,6 +41,7 @@
   <button class="tbtn" id="t-attack"><span class="aico">✦</span><div class="scd"></div></button>
   <button class="tbtn" id="t-jump">▲</button>
   <button class="tbtn" id="t-act">E</button>
+  <!-- Un bouton par sort appris ET assigné dans ⚙ Réglages (voir updateTouchSlots, UI.js) -->
   <div id="spellbar">
     <button class="sbtn" id="ts-dash"   data-power="dash">⟫<div class="scd"></div></button>
     <button class="sbtn" id="ts-tk"     data-power="tk">☄<div class="scd"></div></button>
@@ -99,9 +100,9 @@
     <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic gauche</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
     <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion (2 herbes) · <b>O</b> forger un orbe (3 ombres) · <b>C</b> transcender (orbes) · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
     ⚔ <b>Combat :</b> les projectiles <b>retombent avec la distance</b> (visez plus haut de loin !) · coups critiques <b>en pleine tête</b> ou <b>dans le dos</b> · enchaînez les coups sans en subir pour monter votre <b>COMBO</b> (+5 % de dégâts par coup)<br/>
-    🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>un bouton par sort</b> (X/Y/LB/RB/LT/RT) · 📱 Manette smartphone via le menu pause<br/>
+    🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>X attaque</b>, sorts assignables sur Y/LB/RB/LT/RT · 📱 Manette smartphone via le menu pause<br/>
     📱 <b>Mobile :</b> un bouton par sort sous le pouce droit · glissez le bouton d'attaque pour viser en tirant · <b>touchez un ennemi</b> pour le verrouiller (visée aimantée)<br/>
-    Sensibilité de visée, zone morte et luminosité nocturne réglables dans <b>⚙ Réglages</b> (menu pause)
+    Sensibilité de visée, zone morte, luminosité nocturne et <b>assignation des sorts</b> dans <b>⚙ Réglages</b> (menu pause)
   </div>
 </div>
 
@@ -120,7 +121,7 @@
   <div class="controls">
     <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
     <b>1-6</b> sorts · <b>Tab</b> inventaire · <b>H</b> potion · <b>O</b> orbe · <b>C</b> transcender · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
-    <b>Coop :</b> J1 = clavier/souris · J2 = manette (stick G. bouger, stick D. caméra, A saut, B agir, X/Y/LB/RB/LT/RT = les 6 sorts)
+    <b>Coop :</b> J1 = clavier/souris · J2 = manette (stick G. bouger, stick D. caméra, A saut, B agir, X attaque, Y/LB/RB/LT/RT = sorts assignables)
   </div>
 </div>
 
@@ -148,6 +149,27 @@
   </div>
   <div class="setrow setcheck">
     <label><input type="checkbox" id="set-invert"/> Inverser l'axe Y (caméra)</label>
+  </div>
+  <div class="setsep">Sorts sur la manette &amp; boutons tactiles — X/✦ reste l'attaque · un sort retiré disparaît aussi de l'écran tactile</div>
+  <div class="setrow setslot">
+    <label for="slot-0">Y / Triangle</label>
+    <select id="slot-0"></select>
+  </div>
+  <div class="setrow setslot">
+    <label for="slot-1">LB / L1</label>
+    <select id="slot-1"></select>
+  </div>
+  <div class="setrow setslot">
+    <label for="slot-2">RB / R1</label>
+    <select id="slot-2"></select>
+  </div>
+  <div class="setrow setslot">
+    <label for="slot-3">LT / L2</label>
+    <select id="slot-3"></select>
+  </div>
+  <div class="setrow setslot">
+    <label for="slot-4">RT / R2</label>
+    <select id="slot-4"></select>
   </div>
   <button id="btn-settings-close">Fermer</button>
 </div>
