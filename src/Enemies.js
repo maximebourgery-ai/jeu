@@ -439,6 +439,9 @@ export function lightningFX(a, b) {
 /* ---- Directeur de renforts : les ombres affluent zone par zone ---- */
 export function zoneAt(pos) {
   for (const z of ZONES) {
+    /* une zone de salle instanciée n'existe que si SA salle est chargée ;
+       une zone du monde ouvert exige de ne pas être dans une salle */
+    if ((z.room || null) !== (S.roomId || null)) continue;
     if (Math.abs(pos.y - z.y) < 4.5 && Math.hypot(pos.x - z.x, pos.z - z.z) < z.r) return z;
   }
   return null;
@@ -468,10 +471,10 @@ export function updateDirector(dt) {
      longue partie accumulerait des centaines d'entrées mortes, ralentissant
      peu à peu chaque boucle qui parcourt `enemies`). On ne touche jamais aux
      ombres « statiques » du monde (index < S.STATIC_ENEMIES — la sauvegarde
-     en dépend) ni à rien pendant une instance de la Tour, dont le level
-     streaming (voir Tower.js) suppose que rien d'autre ne modifie ce
-     tableau entre beginBuild() et unloadPalier(). */
-  if (!S.inTower) {
+     en dépend) ni à rien pendant une instance (Tour OU salle du château) :
+     leur level streaming (Tower.js / Rooms.js) suppose que rien d'autre ne
+     modifie ce tableau entre beginBuild() et le déchargement. */
+  if (!S.inTower && !S.roomId) {
     for (let i = enemies.length - 1; i >= S.STATIC_ENEMIES; i--) {
       if (enemies[i].dead) enemies.splice(i, 1);
     }

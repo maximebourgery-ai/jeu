@@ -17,8 +17,9 @@ import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, openTravel } from './UI.js';
 import { questReach, openDialog, guide, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
-import { hurt } from './Player.js'; // rideau de flammes (import cyclique sûr : usage différé)
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
+/* Seuils des salles instanciées (cycle sûr : appels différés, voir Rooms.js) */
+import { enterCastleHall, enterThroneFromLostLands, beyondOpened } from './Rooms.js';
 
 /* ---------------- SCÈNE ---------------- */
 export function initScene() {
@@ -548,12 +549,12 @@ export function nearInter() {
   return nearInterP(player);
 }
 export function tryInteractP2() {
-  if (!G.started || G.paused || G.inv || G.over || G.dialog) return;
+  if (!G.started || G.paused || G.inv || G.over || G.dialog || S.transitioning) return;
   const it = nearInterP(p2);
   if (it) it.fn(it);
 }
 export function tryInteract() {
-  if (!G.started || G.paused || G.inv || G.over || G.dialog) return;
+  if (!G.started || G.paused || G.inv || G.over || G.dialog || S.transitioning) return;
   const it = nearInter();
   if (it) it.fn(it);
 }
@@ -679,8 +680,9 @@ function towerLumenHint() {
    ================================================================ */
 
 /* Murs de labyrinthe depuis une carte ASCII ('#' = mur, autre = libre).
-   Les '#' consécutifs d'une ligne sont fusionnés en une seule boîte. */
-function asciiWalls(rows, ox, oz, cell, h, y, kind) {
+   Les '#' consécutifs d'une ligne sont fusionnés en une seule boîte.
+   (Exporté : l'Ossuaire instancié des catacombes s'en sert — Rooms.js.) */
+export function asciiWalls(rows, ox, oz, cell, h, y, kind) {
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r];
     let c = 0;
@@ -758,8 +760,9 @@ export function bivouac(x, y, z, label, id, travel) {
   });
 }
 
-/* Rideau de flammes accroché à une porte : les cônes montent avec elle. */
-function doorFlames(dr, offsets, color) {
+/* Rideau de flammes accroché à une porte : les cônes montent avec elle.
+   (Exporté : la chambre de la Première Larme, instanciée, s'en sert.) */
+export function doorFlames(dr, offsets, color) {
   for (const [lx, ly, lz] of offsets) {
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.1, 6),
       new THREE.MeshBasicMaterial({ color: color || 0xff7a3a }));
@@ -775,11 +778,8 @@ function doorFlames(dr, offsets, color) {
 }
 
 export function buildWorld() {
-  /* ---- SOL (trou ménagé pour l'escalier des catacombes x 58..72, z 6..12) ---- */
-  mkBox(220, 1, 106, 0, -1, -47, 'grass');          // z -100..6
-  mkBox(220, 1, 88, 0, -1, 56, 'grass');            // z 12..100
-  mkBox(167.5, 1, 6, -26.25, -1, 9, 'grass');       // bande z 6..12, x -110..57.5
-  mkBox(38, 1, 6, 91, -1, 9, 'grass');              // bande z 6..12, x 72..110
+  /* ---- SOL (les catacombes sont une salle instanciée : plus de puits) ---- */
+  mkBox(220, 1, 180, 0, -1, -10, 'grass');          // z -100..80 d'un seul tenant
 
   /* ---- ENCEINTE DU MONDE (infranchissable, 14 m) ---- */
   mkBox(1, 14, 180, -62, 0, -10, 'stoneD');
@@ -968,452 +968,49 @@ export function buildWorld() {
   mkEnemy(62, 64, 0, [[62, 64], [68, 44]], { type: 'wraith', lvl: 3 });
 
   /* ================================================================
-     GRAND HALL (niveau 2) — x -18..18, z 0..31, PLAFOND à 9 m
+     LE CHÂTEAU SCELLÉ — v8
+     Les intérieurs (grand hall, bibliothèque, aile est, salle du trône,
+     catacombes) sont devenus des SALLES INSTANCIÉES (Rooms.js) : plus
+     grandes, chargées UNE À LA FOIS derrière un écran de chargement —
+     tout le budget de calcul se concentre sur l'espace courant. Le
+     monde ouvert ne garde que la masse extérieure du château et ses
+     deux seuils : la herse (sud) et le passage scellé (nord).
      ================================================================ */
-  mkBox(1, 9, 14, -17.5, 0, 7, 'stone');
-  mkBox(1, 9, 13, -17.5, 0, 24.5, 'stone');
-  mkBox(1, 5, 4, -17.5, 4, 16, 'stone');       // linteau porte bibliothèque
-  mkBox(1, 9, 6, 17.5, 0, 3, 'stone');
-  mkBox(1, 9, 19, 17.5, 0, 21.5, 'stone');
-  mkBox(1, 4.5, 6, 17.5, 4.5, 9, 'stone');     // arche vers l'aile est (z 6..12)
-  mkBox(16, 9, 1, -10, 0, 0, 'stone');
-  mkBox(16, 9, 1, 10, 0, 0, 'stone');
-  mkBox(4, 5, 1, 0, 4, 0, 'stone');            // au-dessus de la porte du trône
-  mkBox(37, 0.6, 33, 0, 9, 15.5, 'stoneD');    // PLAFOND
-  mkBox(35, 0.07, 30, 0, 0.01, 15.5, 'slab', false);
-  mkBox(3.4, 0.05, 26, 0, 0.09, 17, 'cloth', false);
-  [[-10, 8], [10, 8], [-10, 23], [10, 23]].forEach(([cx, cz]) => {
-    mkCyl(0.8, 0.95, 9, cx, 0, cz, 'stoneR', true, 9);
-    const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.4, 0.06), matFor('cloth', 1, 1));
-    b.position.set(cx, 6, cz + 1);
-    b.castShadow = true; S.scene.add(b);
-  });
-  torch(-17, 2, 10); torch(17, 2, 16); torch(-6, 2, 30.6); torch(6, 2, 30.6);
-  addPickup('mana', -14, 0, 4);
-
-  /* ---- ÉNIGME DES TROIS FLAMMES → bibliothèque ----
-     Trois leviers ceignent le hall (Levant à l'est, Midi au sud, Couchant à
-     l'ouest). Il faut les actionner dans l'ordre de la course du soleil :
-     Levant → Midi → Couchant. Une erreur réarme tout. L'indice est gravé
-     sur une plaque près de l'entrée (et Lumen le répète — HINTS.lever). */
-  const LEVER_ORDER = ['levant', 'midi', 'couchant'];
-  const leverSeq = [];
-  const LEVERS = [
-    { id: 'levant',   label: 'du Levant',   x: 16,  z: 20 },
-    { id: 'midi',     label: 'de Midi',     x: 8,   z: 29.5 },
-    { id: 'couchant', label: 'du Couchant', x: -16, z: 20 }
-  ];
-  for (const L of LEVERS) {
-    mkBox(0.8, 1, 0.8, L.x, 0, L.z, 'iron');
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 6), matFor('wood', 1, 1));
-    handle.position.set(L.x, 1.45, L.z);
-    handle.rotation.x = -0.8;
-    handle.castShadow = true;
-    S.scene.add(handle);
-    L.handle = handle;
-    /* flamme-témoin au-dessus du levier : éteinte (bleu nuit) → dorée */
-    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
-      new THREE.MeshBasicMaterial({ color: 0x2a3454 }));
-    gem.position.set(L.x, 2.15, L.z);
-    S.scene.add(gem);
-    L.gem = gem;
-    addInter(L.x, 0, L.z, 2.3, 'Actionner le levier ' + L.label, () => {
-      if (S.libDoor.open) { showMsg('Le mécanisme est retombé au repos : la bibliothèque est ouverte.', 2.5); return; }
-      if (leverSeq.includes(L.id)) { showMsg('Ce levier est déjà abaissé. Sa flamme-témoin brûle.', 2); return; }
-      A.lever();
-      if (LEVER_ORDER[leverSeq.length] === L.id) {
-        leverSeq.push(L.id);
-        L.handle.rotation.x = 0.8;
-        L.gem.material.color.setHex(0xffd97a);
-        spawnBurst(L.x, 2.2, L.z, 0xffd97a, 12);
-        if (leverSeq.length === LEVER_ORDER.length) {
-          openDoor(S.libDoor);
-          showMsg('La troisième flamme s\'éveille — un grondement traverse les murs : la porte de la bibliothèque s\'ouvre à l\'ouest.', 4.5);
-          questReach('lever');
-        } else {
-          showMsg('La flamme ' + L.label + ' s\'éveille (' + leverSeq.length + ' / 3). Le soleil poursuit sa course...', 3);
-        }
-      } else {
-        leverSeq.length = 0;
-        for (const K of LEVERS) { K.handle.rotation.x = -0.8; K.gem.material.color.setHex(0x2a3454); }
-        A.burst(0.16, 300, 'lowpass', 0.14);
-        showMsg('Un claquement sec : les mécanismes se réarment tous. Ce n\'était pas l\'ordre du soleil...', 3.5);
-      }
-    });
-  }
-  /* plaque-indice, près de l'entrée du hall */
-  mkBox(1.2, 1.6, 0.3, -4, 0, 29.8, 'stoneR');
-  addInter(-4, 0, 28.5, 2.6, 'Lire la plaque des trois flammes', () => {
-    showMsg('« Trois flammes gardent le savoir. Le Levant l\'éveille, Midi la porte, le Couchant l\'endort. Suis la course du soleil, et le savoir s\'ouvrira. »', 5);
+  /* corps principal (hall + bibliothèque + aile est) — x -58..57.5, z 0..31 */
+  mkBox(1, 10, 31, -58, 0, 15.5, 'stone');
+  mkBox(1, 10, 31, 57.5, 0, 15.5, 'stone');
+  mkBox(116.5, 10, 1, -0.25, 0, 0, 'stone');
+  mkBox(117, 0.6, 32.5, -0.25, 10, 15.9, 'stoneD'); // toiture : nul ne saute dedans
+  /* sas d'entrée derrière la herse : l'alcôve du seuil du grand hall */
+  mkBox(1, 10, 2.4, -3, 0, 30.55, 'stone');
+  mkBox(1, 10, 2.4, 3, 0, 30.55, 'stone');
+  mkBox(8, 10, 1, 0, 0, 29.35, 'stone');
+  torch(-2.2, 0, 30.3); torch(2.2, 0, 30.3);
+  addInter(0, 0, 30.3, 2.5, 'Entrer dans le grand hall', () => {
+    if (!S.gateDoor.open) { showMsg('La herse est close.', 2.5); return; }
+    enterCastleHall();
   });
 
-  // porte du trône (verrouillée — Clef d'or)
-  S.throneDoor = mkDoor(4, 4, 1.2, 0, 0, 0, 'gold');
-  addInter(0, 0, 1.6, 2.6, 'Ouvrir la porte scellée', it => {
-    if (G.goldKey) {
-      it.on = false; openDoor(S.throneDoor);
-      showMsg('La Clef d\'or tourne dans la serrure... La salle du trône vous est ouverte.', 4);
-      questReach('throne');
-    } else {
-      showMsg('Une serrure d\'or scelle cette porte. La clef dort quelque part sous le château...', 2.6);
-    }
-  });
-
-  // porte de la bibliothèque (ouverte par le levier)
-  S.libDoor = mkDoor(1, 4, 4, -17.5, 0, 16, 'woodD');
-
-  /* 3 ombres seulement : le premier Tisseur attend en bibliothèque
-     (les archétypes se découvrent un à un : Ombre → Traqueur → Tisseur → Colosse) */
-  mkEnemy(0, 15, 0, [[-9, 9], [9, 9], [9, 23], [-9, 23]], { type: 'sentinel', lvl: 2 });
-  mkEnemy(-10, 25, 0, [[-10, 25], [10, 25]], { type: 'sentinel', lvl: 2 });
-  mkEnemy(5, 8, 0, [[5, 8], [-3, 12], [7, 14]], { type: 'wraith', lvl: 2 });
-
-  /* ================================================================
-     BIBLIOTHÈQUE (niveau 2) — x -58..-18, z 0..31, PLAFOND à 9 m
-     Rayonnages-labyrinthe au sol (3,4 m, infranchissables d'un saut),
-     escalier d'étagères au sud-ouest → passerelle → Pas du vent.
-     ================================================================ */
-  mkBox(1, 9, 31, -58, 0, 15.5, 'stone');
-  mkBox(26, 9, 1, -45, 0, 0, 'stone');
-  mkBox(8, 9, 1, -22, 0, 0, 'stone');
-  mkBox(6, 5.6, 1, -29, 3.4, 0, 'stone');      // linteau de l'alcôve secrète
-  mkBox(41, 0.6, 33, -38, 9, 15.5, 'stoneD');  // PLAFOND
-  mkBox(39, 0.07, 30, -38, 0.01, 15.5, 'slabW', false);
-  /* alcôve secrète (derrière la fausse étagère du mur nord) */
-  mkBox(9, 6, 1, -29, 0, -5, 'stone');
-  mkBox(1, 6, 5, -33.5, 0, -2.5, 'stone');
-  mkBox(1, 6, 5, -24.5, 0, -2.5, 'stone');
-  mkBox(9, 0.6, 5, -29, 6, -2.5, 'stoneD');
-  mkBox(5.8, 3.3, 0.7, -29, 0, 0.3, 'woodF', false); // FAUSSE étagère
-  addPickup('maxhp', -29, 0.2, -3);
-  addInter(-29, 0, 1.6, 2.2, 'Inspecter l\'étagère', () => {
-    showMsg('Cette étagère ne porte aucune poussière... comme si on la déplaçait souvent.', 3);
-  });
-  /* rayonnages-labyrinthe */
-  mkBox(14, 3.4, 1.2, -47, 0, 6, 'wood');
-  mkBox(8, 3.4, 1.2, -28, 0, 6, 'wood');
-  mkBox(12, 3.4, 1.2, -34, 0, 12, 'wood');
-  mkBox(6, 3.4, 1.2, -52, 0, 12, 'wood');
-  mkBox(14, 3.4, 1.2, -45, 0, 18, 'wood');
-  mkBox(6, 3.4, 1.2, -24, 0, 18, 'wood');
-  mkBox(10, 3.4, 1.2, -50, 0, 24, 'wood');
-  mkBox(10, 3.4, 1.2, -30, 0, 24, 'wood');
-  mkBox(3, 1.1, 1.6, -38, 0, 15.5, 'woodD');
-  mkBox(3, 1.1, 1.6, -26, 0, 9, 'woodD');
-  /* escalier d'étagères (sud-ouest) → passerelle du mur ouest */
-  mkBox(3, 1.6, 3, -55, 0, 28, 'wood');
-  mkBox(3, 3.1, 3, -55, 0, 24, 'wood');
-  mkBox(3, 4.6, 3, -55, 0, 20, 'wood');
-  mkBox(3, 6.1, 3, -55, 0, 16, 'wood');
-  mkBox(3, 0.4, 14, -55, 6.3, 7, 'woodD');     // passerelle (plancher à 6,7 m)
-  pedestal(-55, 5, 6.7, 'dash', 0x9fe8ff,
-    'Pas du vent appris ! (touche 2, puis clic) Un élan fulgurant qui franchit les gouffres.', 'dash');
-  addPickup('mana', -55, 6.7, 11);
-  addPickup('mana', -40, 0, 9);
-  addPickup('heart', -52, 0, 27);
-  torch(-45, 2, 1); torch(-38, 2, 30.4);
-  mkEnemy(-38, 21, 0, [[-44, 21], [-30, 21]], { type: 'sentinel', lvl: 2 });
-  mkEnemy(-46, 9, 0, [[-52, 9], [-36, 9]], { type: 'wraith', lvl: 2 });
-  mkEnemy(-24, 26, 0, [[-24, 26], [-24, 10]], { type: 'caster', lvl: 2 });
-
-  /* ================================================================
-     AILE EST (niveau 3) — x 18..58, z 0..31, PLAFOND à 9 m
-     Armurerie (bloc runique) + salle de la plaque → catacombes.
-     ================================================================ */
-  mkBox(40, 9, 1, 38, 0, 0, 'stone');
-  mkBox(1, 9, 7, 57.5, 0, 3.5, 'stone');
-  mkBox(1, 9, 20, 57.5, 0, 21, 'stone');
-  mkBox(1, 5, 4, 57.5, 4, 9, 'stone');         // linteau porte des catacombes
-  mkBox(1, 9, 12, 38, 0, 6, 'stone');          // cloison armurerie / plaque
-  mkBox(1, 9, 11, 38, 0, 25.5, 'stone');
-  mkBox(1, 4.5, 8, 38, 4.5, 16, 'stone');      // arche (z 12..20)
-  mkBox(41, 0.6, 33, 38, 9, 15.5, 'stoneD');   // PLAFOND
-  mkBox(38, 0.07, 30, 38, 0.01, 15.5, 'slab', false);
-  /* armurerie */
-  mkBox(6, 2.4, 0.8, 24, 0, 1, 'woodF');
-  mkBox(6, 2.4, 0.8, 32, 0, 1, 'woodF');
-  mkCyl(0.7, 0.7, 1.4, 20, 0, 28, 'wood', true, 9);
-  mkCyl(0.7, 0.7, 1.4, 22.4, 0, 29, 'wood', true, 9);
-  mkBox(1.4, 1, 0.7, 27, 0, 26, 'iron');
-  mkBox(1.2, 1.2, 1.2, 34, 0, 28, 'wood');
-  mkBox(1.2, 1.2, 1.2, 35.3, 0, 28.4, 'wood');
-  mkBox(1.2, 1.2, 1.2, 34.6, 1.2, 28.2, 'wood');
-  mkTkCube(24, 0, 8);
-  /* second bloc runique, oublié TOUT EN HAUT des caisses de l'armurerie :
-     il faut lever les yeux (ou grimper) pour le repérer — voir HINTS.plate */
-  mkTkCube(34.6, 2.4, 28.2);
-  addInter(24, 0, 8, 2.2, 'Examiner le bloc runique', () => {
-    if (G.powers.tk) showMsg('Le bloc vibre doucement. La Main céleste peut le porter (touche 3, puis clic).', 3.5);
-    else showMsg('Un bloc gravé de runes, bien trop lourd pour vos bras. Seule une force céleste pourrait le soulever...', 4);
-  });
-  addInter(34.6, 0, 28.2, 2.4, 'Inspecter la pile de caisses', () => {
-    showMsg('Des caisses entassées à la hâte... Tout en haut, sous la poussière, une lueur de runes affleure.', 3.5);
-  });
-  /* ---- salle des PLAQUES JUMELLES : les deux doivent être chargées EN
-     MÊME TEMPS (deux blocs runiques — ou, en coop, un bloc + les deux
-     porteurs de flamme réunis sur l'autre plaque). Voir checkPlate(). ---- */
-  S.basementDoor = mkDoor(1, 4, 4, 57.5, 0, 9, 'stoneD');
-  for (const [px, pz] of [[48, 16], [44, 24]]) {
-    mkBox(2.6, 0.12, 2.6, px, 0.02, pz, 'stoneD', false);
-    const plateGlow = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 2.2),
-      new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
-    plateGlow.position.set(px, 0.14, pz);
-    S.scene.add(plateGlow);
-    PLATES.push({ x: px, z: pz, y: 0, glow: plateGlow, door: S.basementDoor, questId: 'plate',
-      msg: 'Les plaques jumelles s\'enfoncent d\'un même souffle : la porte des catacombes coulisse dans la pierre.' });
-  }
-  addInter(46, 0, 20, 2.8, 'Examiner les plaques gravées', () => {
-    showMsg('« Que le poids des runes, deux fois pesé d\'un même souffle, ouvre la voie des morts. » Les deux plaques attendent leur charge ensemble.', 4.5);
-  });
-  torch(28, 2, 30.4); torch(48, 2, 1.2);
-  addPickup('heart', 34, 0, 26);
-  addPickup('mana', 54, 0, 26);
-  mkEnemy(28, 20, 0, [[28, 20], [34, 6]], { type: 'sentinel', lvl: 3 });
-  /* premier Colosse : lent et télégraphié, dégâts plafonnés pour la leçon d'esquive */
-  mkEnemy(48, 24, 0, [[48, 24], [44, 8]], { type: 'brute', lvl: 3, dmg: 28 });
-
-  /* ================================================================
-     CATACOMBES (niveaux 4-5) — sous-sol à -8 m, plafonds à -3 m
-     Escalier scellé par la plaque runique ; grille de fer au-dessus du
-     puits (impossible d'y sauter depuis la surface).
-     ================================================================ */
-  /* Escalier x 58..72, z 6..12 */
-  mkBox(14, 10, 1, 65, -8, 5.5, 'stoneD');
-  mkBox(14, 10, 1, 65, -8, 12.5, 'stoneD');
-  mkBox(1, 6, 8, 72.5, -4, 9, 'stoneD');       // en-tête côté salle des gardes
-  mkBox(14, 0.35, 6, 65, 2, 9, 'iron');        // grille scellant le puits
-  mkBox(2.1, 1, 5, 58.45, -1, 9, 'stoneD');    // palier du seuil
-  for (let i = 0; i < 14; i++)
-    mkBox(0.86, 0.5, 5, 59.93 + 0.857 * i, -0.55 * (i + 1) - 0.5, 9, 'stoneD');
-  mkBox(1.6, 1, 5, 71.9, -9, 9, 'stoneD');     // dernière marche → salle
-  torch(62, -2.5, 6.9, 0x66a8ff, 1.1, 15);
-
-  /* ----- SALLE DES GARDES — x 72..92, z 0..20 ----- */
-  mkBox(20, 1, 20, 82, -9, 10, 'slab');
-  mkBox(20, 5, 1, 82, -8, 20, 'stoneD');
-  mkBox(8, 5, 1, 76, -8, 0, 'stoneD');
-  mkBox(8, 5, 1, 88, -8, 0, 'stoneD');
-  mkBox(4, 1, 1, 82, -4, 0, 'stoneD');         // linteau → Ossuaire (x 80..84)
-  mkBox(1, 5, 6, 72, -8, 3, 'stoneD');
-  mkBox(1, 5, 8, 72, -8, 16, 'stoneD');
-  mkBox(1, 5, 6, 92, -8, 3, 'stoneD');
-  mkBox(1, 5, 6, 92, -8, 17, 'stoneD');
-  mkBox(1, 1, 8, 92, -4, 10, 'stoneD');        // linteau → Gouffre (z 6..14)
-  mkBox(56, 0.6, 21, 100, -3, 10, 'stoneD');   // PLAFOND (gardes + gouffre + chambre)
-  [[76, 4], [88, 4], [76, 16], [88, 16]].forEach(([px, pz]) => {
-    mkCyl(0.6, 0.75, 5, px, -8, pz, 'stoneR', true, 8);
-  });
-  torch(73, -6.5, 10, 0x66a8ff, 1.25, 18);
-  torch(91, -6.5, 18, 0x66a8ff, 1.25, 18);
-  bivouac(75, -8, 17.5, 'les catacombes', 'catacombes');
-  addPickup('heart', 74, -8, 3);
-  addPickup('mana', 90, -8, 2);
-  addInter(82, -8, 1.6, 2.6, 'Lire le fronton de l\'Ossuaire', () => {
-    showMsg('« Ici dorment les gardiens d\'Ombreciel. Que celui qui cherche la Clef longe le couchant... et que s\'éteignent les trois feux des morts : alors la châsse s\'ouvrira. »', 5);
-  });
-  mkEnemy(78, 6, -8, [[76, 4], [88, 6]], { type: 'sentinel', lvl: 4 });
-  mkEnemy(86, 14, -8, [[86, 14], [76, 14]], { type: 'sentinel', lvl: 4 });
-  mkEnemy(82, 10, -8, [[82, 10], [88, 16]], { type: 'brute', lvl: 4 });
-  mkEnemy(88, 4, -8, [[88, 4], [88, 16]], { type: 'caster', lvl: 4 });
-
-  /* ----- OSSUAIRE-LABYRINTHE — x 64..104, z -36..0 -----
-     Murs de 5 m sous plafond : aucun saut ne les franchit. La Bénédiction
-     (r3c1) est sur le SEUL chemin qui mène à la Clef d'or (r7c5). */
-  mkBox(40, 1, 36, 84, -9, -18, 'slab');
-  mkBox(40, 0.6, 37, 84, -3, -18.5, 'stoneD'); // PLAFOND
-  asciiWalls([
-    '####.#####',
-    '#....#...#',
-    '#.##.#.#.#',
-    '#.#..#.#.#',
-    '#.#.##.#.#',
-    '#.#....#.#',
-    '#.####.#.#',
-    '#.....#..#',
-    '##########'
-  ], 64, 0, 4, 5, -8, 'stoneD');
-  pedestal(70, -14, -8, 'heal', 0x9fffc0,
-    'Bénédiction apprise ! (touche 6, puis clic) Une lumière chaude qui referme vos blessures — et ranime ce qui fut vivant.');
-  addPickup('heart', 82, -8, -14);
-  addPickup('mana', 86, -8, -22);
-  addPickup('maxhp', 98, -8, -30);
-  addPickup('shadow', 98, -8, -10);
-  addPickup('shadow', 74, -8, -30);
-  /* ---- ÉNIGME DES FEUX DES MORTS → la Clef d'or ----
-     La Clef n'est plus posée au détour d'un couloir : elle dort dans une
-     châsse de pierre scellée. Trois braseros violets brûlent dans le
-     labyrinthe — les étouffer tous les trois (E) ouvre la châsse (le
-     fronton de l'Ossuaire et Lumen donnent l'indice). */
-  mkBox(1.7, 1, 1, 86, -8, -31.2, 'stoneR'); // la châsse (coffre de pierre)
-  const keyPickup = addPickup('key', 86, -8, -30, true);
-  const chestInter = addInter(86, -8, -30, 2.4, 'Examiner la châsse de pierre', () => {
-    showMsg('Une châsse scellée, sans serrure ni gond. Sur le couvercle : « Tant que veillent les feux des morts, je garde. »', 4);
-  });
-  let firesOut = 0;
-  const fireDone = () => {
-    firesOut++;
-    if (firesOut >= 3) {
-      chestInter.on = false;
-      revealPickup(keyPickup);
-      A.door();
-      showMsg('Le dernier feu meurt... Au fond de l\'Ossuaire, la châsse de pierre s\'ouvre dans un grincement : la Clef d\'or luit dans son écrin.', 5);
-    } else {
-      showMsg('Le feu des morts s\'étouffe sous votre paume (' + firesOut + ' / 3). L\'Ossuaire s\'assombrit...', 3);
-    }
-  };
-  const mkDeadFire = (x, z) => {
-    mkCyl(0.35, 0.45, 0.8, x, -8, z, 'stoneR', false, 7);
-    const fl = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.62, 6),
-      new THREE.MeshBasicMaterial({ color: 0xb08cff }));
-    fl.position.set(x, -6.85, z); S.scene.add(fl);
-    const h = glow(0x9a6cff, 2.6, 0.5);
-    h.position.set(x, -6.75, z); S.scene.add(h);
-    const light = new THREE.PointLight(0x9a6cff, 1.1 * LIGHT_SCALE, 16, 2);
-    light.position.set(x, -6.5, z); S.scene.add(light);
-    const rec = { flame: fl, light, halo: h, base: 1.1 * LIGHT_SCALE, seed: Math.random() * 10 };
-    flames.push(rec);
-    const snuff = () => { fl.visible = false; h.visible = false; light.intensity = 0; rec.light = null; rec.base = 0; };
-    const it = addInter(x, -8, z, 2.3, 'Étouffer le feu des morts', () => {
-      it.on = false;
-      snuff();
-      A.burst(0.14, 500, 'lowpass', 0.1);
-      fireDone();
-    });
-    /* au chargement : feux déjà éteints re-snuffés, châsse rouverte si besoin */
-    RESTORES.push(() => {
-      if (!it.on) {
-        snuff();
-        firesOut++;
-        if (firesOut >= 3) { chestInter.on = false; revealPickup(keyPickup); }
-      }
-    });
-  };
-  mkDeadFire(70, -6); mkDeadFire(90, -22); mkDeadFire(78, -30);
-  /* ossements épars (décor) */
-  for (let i = 0; i < 10; i++) {
-    const bx = 66 + ((i * 53) % 36), bz = -4 - ((i * 31) % 30);
-    const b = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16 + (i % 3) * 0.05, 0), matFor('slabW', 1, 1));
-    b.position.set(bx, -7.85, bz);
-    b.rotation.set(i, i * 2, 0);
-    S.scene.add(b);
-  }
-  mkEnemy(94, -6, -8, [[90, -6], [98, -6]], { type: 'wraith', lvl: 5 });
-  mkEnemy(82, -22, -8, [[78, -22], [90, -22]], { type: 'sentinel', lvl: 5 });
-  mkEnemy(74, -30, -8, [[70, -30], [84, -30]], { type: 'wraith', lvl: 5 });
-  mkEnemy(98, -26, -8, [[98, -22], [98, -30]], { type: 'caster', lvl: 5 });
-
-  /* ----- GOUFFRE DES MORTS — x 92..118, z 0..20 -----
-     Brèche de 11,5 m au-dessus d'une fosse : Pas du vent obligatoire
-     (dans les deux sens). Tomber n'est pas mortel : un escalier remonte
-     du fond vers la rive ouest. */
-  mkBox(5, 8, 20, 94.5, -16, 10, 'stoneD');      // rive ouest (parois lisses)
-  mkBox(11.5, 1, 20, 102.75, -15.5, 10, 'slab'); // fond de la fosse (-14,5 m)
-  mkBox(9.5, 8, 20, 113.25, -16, 10, 'stoneD');  // rive est
-  mkBox(26, 14, 1, 105, -17, 0, 'stoneD');
-  mkBox(26, 14, 1, 105, -17, 20, 'stoneD');
-  mkBox(1, 5, 8, 118, -8, 4, 'stoneD');
-  mkBox(1, 5, 8, 118, -8, 16, 'stoneD');
-  mkBox(1, 1, 4, 118, -4, 10, 'stoneD');         // linteau du rideau de flammes
-  /* escalier de la fosse (remonte du fond vers la rive ouest) */
-  for (let i = 0; i < 12; i++)
-    mkBox(0.9, 0.55 * (i + 1), 3, 108.1 - 0.9 * i, -14.5, 2.5, 'stoneD');
-  /* débris de l'ancien pont, au fond */
-  mkBox(3.5, 0.4, 2.2, 101, -14.5, 11, 'stoneR');
-  mkBox(2.6, 0.4, 1.8, 104.5, -14.5, 8.5, 'stoneR');
-  /* SECRET — sous les décombres, un 2ᵉ Éclat d'Aube étoilée : il faut oser
-     descendre dans la fosse (gardée par un Colosse) ET fouiller les dalles. */
-  const gouffreStar = addPickup('star', 102.8, -14.5, 10, true);
-  const gouffreInter = addInter(102.8, -14.5, 10, 2.3, 'Fouiller les décombres du pont', it => {
-    it.on = false;
-    revealPickup(gouffreStar);
-    showMsg('Sous une dalle brisée, vos doigts frôlent quelque chose de froid : un Éclat tombé du ciel avec le pont, il y a des lustres.', 4.5);
-  });
-  RESTORES.push(() => { if (!gouffreInter.on) revealPickup(gouffreStar); });
-  addInter(95.5, -8, 10, 2.6, 'Scruter le gouffre', () => {
-    showMsg('Le pont s\'est effondré. Onze mètres de vide... Un saut sprinté, puis le Pas du vent en plein vol.', 4);
-  });
-  torch(93, -6.5, 3, 0x66a8ff, 1.1, 16);
-  torch(110, -6.5, 18, 0x66a8ff, 1.1, 16);
-  pedestal(113, 10, -8, 'shield', 0x9fc8ff,
-    'Égide apprise ! (touche 4, puis clic) Un voile de lumière qui absorbe les coups — et que les flammes n\'osent pas mordre.', 'gouffre');
-  addPickup('mana', 94, -8, 17);
-  addPickup('heart', 116, -8, 3);
-  addPickup('maxhp', 102, -14.5, 16);
-  addPickup('shadow', 106, -14.5, 5);
-  addPickup('shadow', 99, -14.5, 12);
-  mkEnemy(103, 8, -14.5, [[100, 6], [106, 12]], { type: 'brute', lvl: 5 });
-  mkEnemy(112, 16, -8, [[110, 16], [114, 4]], { type: 'sentinel', lvl: 5 });
-
-  /* ----- RIDEAU DE FLAMMES & CHAMBRE DE LA PREMIÈRE LARME ----- */
-  const flameDoor = mkDoor(1, 4, 4, 118, -8, 10, 'iron');
-  doorFlames(flameDoor, [[-0.65, -0.9, -1.2], [-0.65, -0.9, 0], [-0.65, -0.9, 1.2]]);
-  addInter(116.6, -8, 10, 2.7, 'Traverser le rideau de flammes', it => {
-    if (flameDoor.open) { it.on = false; return; }
-    if (G.shieldT > 0) {
-      it.on = false;
-      openDoor(flameDoor);
-      spawnBurst(118, -6.5, 10, 0x9fc8ff, 24);
-      showMsg('L\'Égide écarte les flammes : le rideau se lève dans un souffle de vapeur.', 4);
-      questReach('flamme');
-    } else if (G.powers.shield) {
-      hurt(12, { x: 119, z: 10 });
-      showMsg('Les flammes vous repoussent ! Activez l\'Égide (touche 4) JUSTE AVANT de traverser.', 3);
-    } else {
-      showMsg('Un rideau de feu scelle la chambre. Seul un voile de lumière pourrait l\'écarter...', 3);
-    }
-  });
-  mkBox(10, 1, 12, 123, -9, 10, 'slab');
-  mkBox(1, 5, 12, 128, -8, 10, 'stoneD');
-  mkBox(10, 5, 1, 123, -8, 16, 'stoneD');
-  mkBox(10, 5, 1, 123, -8, 4, 'stoneD');
-  addPickup('crystal', 123, -8, 10);
-  addPickup('heart', 120, -8, 6);
-  addPickup('mana', 126, -8, 14);
-  torch(126, -6.5, 5, 0xff8c3a, 1.2, 14);
-  addInter(123, -8, 13, 2.6, 'Lire l\'épitaphe', () => {
-    showMsg('« On l\'a traînée ici pour qu\'aucune aube ne la retrouve. » La Larme luit doucement, intacte.', 4);
-  });
-
-  /* ================================================================
-     SALLE DU TRÔNE (niveau 6) — x -16..16, z -28..0, PLAFOND à 12 m
-     ================================================================ */
+  /* donjon du trône — x -16.5..16.5, z -28..0 */
   mkBox(1, 12, 28, -16.5, 0, -14, 'stone');
   mkBox(1, 12, 28, 16.5, 0, -14, 'stone');
   mkBox(14.5, 12, 1, -8.75, 0, -27.5, 'stone');
   mkBox(14.5, 12, 1, 8.75, 0, -27.5, 'stone');
-  mkBox(3, 7, 1, 0, 5, -27.5, 'stone');          // au-dessus du passage scellé
-  mkBox(35, 0.6, 29, 0, 12, -14, 'stoneD');      // PLAFOND
-  mkBox(32, 0.07, 27, 0, 0.01, -14, 'slabR', false);
-  mkBox(3.4, 0.05, 22, 0, 0.09, -12, 'cloth', false);
-  [[-11, -7], [11, -7], [-11, -19], [11, -19]].forEach(([px, pz]) => {
-    mkCyl(0.8, 0.95, 12, px, 0, pz, 'stoneR', true, 9);
-  });
-  /* estrade + trône + deuxième Larme */
-  mkBox(11, 0.6, 6, 0, 0, -24, 'stoneR');
-  mkBox(8, 0.6, 4, 0, 0.6, -25, 'stoneR');
-  mkBox(2.2, 3.2, 0.9, 0, 1.2, -26.3, 'stoneR');
-  mkBox(0.5, 1.6, 0.9, -1.35, 1.2, -26, 'stoneR');
-  mkBox(0.5, 1.6, 0.9, 1.35, 1.2, -26, 'stoneR');
-  addPickup('crystal', 0, 1.5, -25);
-  addPickup('heart', -13, 0, -24);
-  addPickup('mana', 13, 0, -24);
-  torch(-15.5, 2, -4); torch(15.5, 2, -4);
-  torch(-5, 1.4, -26.6, 0xff6a3a, 1.3, 18); torch(5, 1.4, -26.6, 0xff6a3a, 1.3, 18);
-  mkEnemy(-6, -10, 0, [[-6, -6], [-6, -20]], { type: 'brute', lvl: 6 });
-  mkEnemy(6, -10, 0, [[6, -20], [6, -6]], { type: 'brute', lvl: 6 });
-  mkEnemy(0, -18, 0, [[0, -18], [4, -10], [-4, -10]], { type: 'caster', lvl: 6 });
-  mkEnemy(0, -5, 0, [[-8, -5], [8, -5]], { type: 'sentinel', lvl: 6 });
-
-  /* passage scellé vers les Terres Perdues : exige DEUX Larmes */
+  mkBox(3, 7, 1, 0, 5, -27.5, 'stone');
+  mkBox(35, 0.6, 29, 0, 12, -14, 'stoneD');
+  /* le passage scellé, côté Terres Perdues : il ne s'ouvre que de
+     l'intérieur (deux Larmes), puis reste un seuil à double sens.
+     Fond de sas sombre juste derrière : porte levée, on voit un passage
+     obscur — on ne peut pas errer dans la masse creuse du donjon. */
+  mkBox(5, 12, 1, 0, 0, -26.2, new THREE.MeshStandardMaterial({ color: 0x07080f, roughness: 1 }));
   S.beyondDoor = mkDoor(3, 5, 1, 0, 0, -27.5, 'rune');
-  addInter(0, 0, -26, 2.7, 'Franchir le passage scellé', it => {
-    if (G.crystals >= 2) {
-      it.on = false; openDoor(S.beyondDoor);
-      showMsg('Les deux Larmes réunies font vibrer la pierre... le passage s\'ouvre vers les Terres Perdues.', 4.5);
-      questReach('lost');
-    } else {
-      showMsg('Ce passage ne cédera qu\'aux porteurs de deux Larmes d\'Aube (' + G.crystals + ' / 2).', 3);
+  addInter(0, 0, -29.3, 2.7, 'Franchir le passage scellé', () => {
+    if (!beyondOpened()) {
+      showMsg('Le passage est scellé de l\'intérieur. Sa rune attend deux Larmes d\'Aube, de l\'autre côté de la pierre...', 3.5);
+      return;
     }
+    if (!S.beyondDoor.open) openDoor(S.beyondDoor);
+    enterThroneFromLostLands();
   });
 
   buildOpenWorld();

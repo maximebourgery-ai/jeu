@@ -672,6 +672,7 @@ export function checkPlate() {
         openDoor(P.door);
         showMsg(P.msg || 'La plaque s\'enfonce sous le bloc : une porte coulisse dans la pierre.', 4);
         if (P.questId) questReach(P.questId);
+        if (P.onOpen) P.onOpen(); // salles instanciées : persiste le flag (Rooms.js)
       } else {
         showMsg('Une plaque s\'enfonce... mais sa jumelle attend toujours sa charge, en même temps.', 3);
       }
