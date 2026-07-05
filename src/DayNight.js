@@ -19,7 +19,7 @@ import { $, showMsg } from './UI.js';
 const HOURS_PER_SEC = 24 / (16 * 60); // journée complète en 16 minutes réelles
 
 /* 0 = nuit noire, 1 = plein jour, transitions douces à l'aube et au crépuscule */
-function dayFactor(h) {
+export function dayFactor(h) {
   if (h >= 8 && h < 20) return 1;
   if (h >= 6 && h < 8) return (h - 6) / 2;        // aube
   if (h >= 20 && h < 22) return 1 - (h - 20) / 2; // crépuscule
@@ -92,6 +92,31 @@ export function updateDayNight(dt) {
     S.dirLight.intensity = nDirI + (DAY.dirI - nDirI) * fv;
   }
   if (S.renderer) S.renderer.toneMappingExposure = nExpo + (DAY.expo - nExpo) * fv;
+  /* ---- ÉCLAIRAGE INTÉRIEUR DÉDIÉ (salles instanciées & paliers de la Tour).
+     Dedans, le soleil n'a rien à faire : les instances sont hors du champ des
+     ombres portées, un mur face au soleil ressortait BLANC CRAMÉ et le mur
+     opposé NOIR. On coupe presque toute la directionnelle et on éclaire à la
+     « lanterne » : hémisphérique + ambiante fortes et homogènes, brouillard
+     réduit, exposition stable — on y voit clair de jour COMME de nuit, le
+     curseur « Luminosité nocturne » affine encore par-dessus. */
+  if (S.inTower || S.roomId) {
+    const ib = 0.8 + 0.25 * b; // le réglage joueur module doucement l'intérieur
+    if (S.hemi) {
+      S.hemi.color.setHex(0xb4bcd8);
+      S.hemi.groundColor.setHex(0x565c74);
+      S.hemi.intensity = 2.15 * ib;
+    }
+    if (S.amb) {
+      S.amb.color.setHex(0x707a98);
+      S.amb.intensity = 1.6 * ib;
+    }
+    if (S.dirLight) S.dirLight.intensity *= 0.18; // simple modelé, plus de cramé
+    if (S.scene && S.scene.fog) {
+      S.scene.fog.color.setHex(0x161a2a);
+      S.scene.fog.density = 0.0038;
+    }
+    if (S.renderer) S.renderer.toneMappingExposure = 1.28;
+  }
   if (S.skyDay) S.skyDay.material.opacity = f;
   if (S.stars) S.stars.material.opacity = 0.9 * (1 - f);
   if (S.moon) S.moon.visible = f < 0.85;

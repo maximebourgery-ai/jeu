@@ -8,6 +8,7 @@ import { lockPointer } from './Controls.js';          // cycle sûr : appel diff
 import { leaveTower, enterPalier } from './Tower.js'; // cycle sûr : appel différé
 import { loadRoom, unloadRoom } from './Rooms.js';    // cycle sûr : appel différé
 import { closeMap } from './WorldMap.js';             // cycle sûr : appel différé
+import { dayFactor } from './DayNight.js';            // cycle sûr : appel différé
 
 export const $ = id => document.getElementById(id);
 export function showMsg(t, dur) { $('msg').textContent = t; $('msg').style.opacity = 1; G.msgT = dur || 3; }
@@ -40,6 +41,9 @@ export function withLoading(title, fn) {
   ov.classList.add('on');
   setTimeout(() => {
     try { fn(); } catch (e) { console.error('Transition de salle :', e); }
+    /* période de grâce : personne ne se fait sauter dessus en sortant d'un
+       écran de chargement — le temps de se repérer (voir Enemies.js) */
+    S.graceT = 4.5;
     setTimeout(() => {
       ov.classList.remove('on');
       setTimeout(() => {
@@ -55,17 +59,39 @@ export function withLoading(title, fn) {
    est en combat (isPlayerInCombat ⇔ S.combatT > 0, voir Enemies.js). */
 export function openTravel(fromCamp) {
   const dests = CAMPS.filter(c => c.travel && G.camps[c.id] && (!fromCamp || c.id !== fromCamp.id));
-  if (!dests.length) return; // premier feu découvert : rien où voyager encore
+  /* sans destination ET sans feu de repos, rien à afficher ; au repos, le
+     panneau s'ouvre toujours (choix du réveil ci-dessous) */
+  if (!dests.length && !fromCamp) return;
   if (S.combatT > 0) { showMsg('Les ombres vous traquent : impossible de voyager en plein combat.', 3); return; }
   G.travelOpen = true;
   const ul = $('travellist'); ul.innerHTML = '';
-  for (const c of dests) {
+  const mkRow = (txt, fn, cls) => {
     const li = document.createElement('li');
     const b = document.createElement('button');
-    b.textContent = '🔥 ' + c.label;
-    b.addEventListener('click', () => travelTo(c));
+    if (cls) b.className = cls;
+    b.textContent = txt;
+    b.addEventListener('click', fn);
     li.appendChild(b); ul.appendChild(li);
+  };
+  /* ---- CHOIX DU RÉVEIL : on dort près du feu jusqu'à l'heure qu'on préfère.
+     La nuit trop longue n'est plus une punition — et les chasseurs d'ombres
+     peuvent au contraire APPELER la nuit (XP +50 % au plus noir). */
+  if (fromCamp) {
+    const f = dayFactor(G.hour);
+    if (f < 1) mkRow('☀ Dormir jusqu\'à l\'aube (jour)', () => {
+      G.hour = 7.6;
+      closeTravel();
+      spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0xffd97a, 16);
+      showMsg('☀ Vous dormez près du feu... L\'aube se lève sur Ombreciel, les ombres se terrent.', 4);
+    }, 'resttime');
+    if (f > 0) mkRow('☾ Veiller jusqu\'au crépuscule (nuit)', () => {
+      G.hour = 20.6;
+      closeTravel();
+      spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0x8fa8ff, 16);
+      showMsg('☾ Vous veillez près des braises... La nuit tombe : ombres féroces, mais chute payée +50 % d\'XP.', 4);
+    }, 'resttime');
   }
+  for (const c of dests) mkRow('🔥 ' + c.label, () => travelTo(c));
   $('travel').classList.remove('hidden');
   if (document.exitPointerLock) document.exitPointerLock();
 }

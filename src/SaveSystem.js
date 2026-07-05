@@ -32,7 +32,7 @@ export function saveGame(silent) {
       /* v8 : butin par archétype, consommables du sac, boosts forgés, guide */
       feathers: G.feathers, bones: G.bones, threads: G.threads,
       nightHearts: G.nightHearts, potions: G.potions,
-      forgeHp: G.forgeHp, forgeMana: G.forgeMana, nightSeals: G.nightSeals,
+      forgeHp: G.forgeHp, forgeMana: G.forgeMana, nightSeals: G.nightSeals, orbAwaken: G.orbAwaken,
       seen: G.seen,
       hasWings: G.hasWings, upgrades: G.upgrades,
       checkpoint: inTw ? TER : G.checkpoint,
@@ -81,6 +81,7 @@ export function loadGame() {
   G.feathers = s.feathers || 0; G.bones = s.bones || 0; G.threads = s.threads || 0;
   G.nightHearts = s.nightHearts || 0; G.potions = s.potions || 0;
   G.forgeHp = s.forgeHp || 0; G.forgeMana = s.forgeMana || 0; G.nightSeals = s.nightSeals || 0;
+  G.orbAwaken = s.orbAwaken || 0;
   G.seen = s.seen || {};
   G.hasWings = !!s.hasWings; Object.assign(G.upgrades, s.upgrades || {});
   // v7.1 : Ascension de la Tour + bivouacs découverts (fusion tolérante)

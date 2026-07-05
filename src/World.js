@@ -184,8 +184,25 @@ export function slideP(pl, axis, delta) {
     const c = colliders[i];
     if (!overlapP(pl, c)) continue;
     if (axis === 'y') {
-      if (delta < 0) { p.y = c.max.y; pl.vel.y = 0; pl.grounded = true; }
-      else { p.y = c.min.y - h; pl.vel.y = Math.min(0, pl.vel.y); }
+      if (delta < 0) {
+        /* Atterrissage : on ne se pose sur le DESSUS que si les pieds
+           venaient bien d'au-dessus. Sinon (enfoncé LATÉRALEMENT dans la
+           boîte par un recul, une jointure de murs ou un spawn), l'ancien
+           code téléportait le joueur AU SOMMET du mur — c'était le fameux
+           « certains murs se franchissent » : on repousse désormais par le
+           côté le moins profond, jamais par le toit. */
+        if (p.y - delta >= c.max.y - 0.35) { p.y = c.max.y; pl.vel.y = 0; pl.grounded = true; }
+        else {
+          p.y -= delta; // on annule la descente, puis on expulse à l'horizontale
+          const pushW = (p.x + r) - c.min.x, pushE = c.max.x - (p.x - r);
+          const pushN = (p.z + r) - c.min.z, pushS = c.max.z - (p.z - r);
+          const m = Math.min(pushW, pushE, pushN, pushS);
+          if (m === pushW) p.x = c.min.x - r - 0.001;
+          else if (m === pushE) p.x = c.max.x + r + 0.001;
+          else if (m === pushN) p.z = c.min.z - r - 0.001;
+          else p.z = c.max.z + r + 0.001;
+        }
+      } else { p.y = c.min.y - h; pl.vel.y = Math.min(0, pl.vel.y); }
     } else {
       // Rattrapage de rebord : si le sommet de l'obstacle est à portée de pas
       // (à pied ou en plein saut) et qu'il y a de la place au-dessus, on grimpe dessus.
@@ -271,6 +288,10 @@ export function tree(x, z, s) {
   const c2 = new THREE.Mesh(new THREE.ConeGeometry(r2 * s, h2 * s, 8), matFor('leaf', 1, 1));
   c2.position.set(x, y2 * s, z); c2.rotation.y = rot; c2.castShadow = true; S.scene.add(c2);
 }
+/* Paliers de niveau des arts anciens (retour joueur : on récoltait les 6
+   sorts trop vite — désormais, chaque art exige un porteur assez aguerri,
+   il faut VRAIMENT monter en niveau entre deux pouvoirs). */
+export const POWER_LVL = { dash: 2, tk: 3, heal: 5, shield: 6, frost: 7, nova: 12, meteor: 14 };
 export function pedestal(x, z, y, powerId, color, lore, questId) {
   mkBox(1.3, 1.1, 1.3, x, y, z, 'stoneR');
   const cry = new THREE.Mesh(new THREE.OctahedronGeometry(0.34),
@@ -281,6 +302,12 @@ export function pedestal(x, z, y, powerId, color, lore, questId) {
   pedestals.push({ powerId, cry });
   const pw = POWERS.find(p => p.id === powerId);
   addInter(x, y, z, 2.5, 'Recueillir « ' + pw.name + ' »', it => {
+    const need = POWER_LVL[powerId] || 0;
+    if (G.level < need) {
+      showMsg('L\'art se dérobe : votre flamme est trop jeune. « ' + pw.name + ' » exige le NIVEAU ' + need +
+        ' (vous : ' + G.level + '). Terrassez des ombres et revenez.', 4.5);
+      return;
+    }
     it.on = false; S.scene.remove(cry);
     const idx = spinners.indexOf(cry); if (idx >= 0) spinners.splice(idx, 1);
     G.powers[powerId] = true; G.sel = powerId;
@@ -715,21 +742,25 @@ export function safeZoneAt(pos) {
    ménager le budget lumières — le halo additif suffit à le signaler).
    Chaque feu s'inscrit dans la matrice des Bivouacs (CAMPS) : se reposer le
    « découvre » et ouvre l'interface de voyage rapide (voir UI.openTravel). */
-export function bivouac(x, y, z, label, id, travel) {
-  const l1 = mkBox(1.1, 0.3, 0.3, x - 0.15, y, z - 0.1, 'woodF', false); l1.rotation.y = 0.6;
-  const l2 = mkBox(1.1, 0.3, 0.3, x + 0.15, y, z + 0.15, 'woodF', false); l2.rotation.y = -0.5;
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.85, 6),
+/* r (optionnel) : rayon du sanctuaire. En INTÉRIEUR (salles, paliers de la
+   Tour), passer un rayon réduit (4-5 m) — le grand cercle de 9 m débordait
+   à travers les murs et donnait des bivouacs « énormes » et bizarres. */
+export function bivouac(x, y, z, label, id, travel, r) {
+  const safeR = r || SAFE_R;
+  const l1 = mkBox(0.9, 0.26, 0.26, x - 0.12, y, z - 0.08, 'woodF', false); l1.rotation.y = 0.6;
+  const l2 = mkBox(0.9, 0.26, 0.26, x + 0.12, y, z + 0.12, 'woodF', false); l2.rotation.y = -0.5;
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.75, 6),
     new THREE.MeshBasicMaterial({ color: 0xffb05a }));
-  flame.position.set(x, y + 0.55, z);
+  flame.position.set(x, y + 0.5, z);
   S.scene.add(flame);
-  const halo = glow(0xff9c4a, 3.4, 0.55);
-  halo.position.set(x, y + 0.65, z);
+  const halo = glow(0xff9c4a, 3, 0.55);
+  halo.position.set(x, y + 0.6, z);
   S.scene.add(halo);
   flames.push({ flame, light: null, halo, base: 0, seed: Math.random() * 10 });
   /* cercle du sanctuaire : la frontière que les ombres ne franchissent pas,
      visible en permanence pour que le joueur SACHE où il est en sécurité */
-  const ring = new THREE.Mesh(new THREE.RingGeometry(SAFE_R - 0.35, SAFE_R, 44),
-    new THREE.MeshBasicMaterial({ color: 0xffc06a, transparent: true, opacity: 0.14,
+  const ring = new THREE.Mesh(new THREE.RingGeometry(safeR - 0.35, safeR, 44),
+    new THREE.MeshBasicMaterial({ color: 0xffc06a, transparent: true, opacity: 0.12,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(x, y + 0.07, z);
@@ -739,7 +770,7 @@ export function bivouac(x, y, z, label, id, travel) {
   const cid = id || ('camp' + CAMPS.length);
   let camp = CAMPS.find(c => c.id === cid);
   if (!camp) {
-    camp = { id: cid, label: label || 'bivouac', x: x + 1, y: y + 0.2, z, travel: travel !== false, safeR: SAFE_R };
+    camp = { id: cid, label: label || 'bivouac', x: x + 1, y: y + 0.2, z, travel: travel !== false, safeR };
     CAMPS.push(camp);
   }
   addInter(x, y, z, 2.6, 'Se reposer au bivouac', () => {

@@ -37,8 +37,10 @@ export const G = {
   feathers: 0, bones: 0, threads: 0, nightHearts: 0,
   /* Consommables gardés dans le sac (fabriqués à l'avance, bus quand on veut) */
   potions: 0, buffSpeedT: 0,
-  /* Boosts permanents forgés au sac (plafonnés, voir RECIPES/Crafting.js) */
-  forgeHp: 0, forgeMana: 0, nightSeals: 0,
+  /* Boosts permanents forgés au sac (plafonnés, voir RECIPES/Crafting.js).
+     orbAwaken : Éveils d'obscurité (+6 % dégâts chacun, max 5) — le vrai
+     scaling des orbes, palier intermédiaire avant les transcendances. */
+  forgeHp: 0, forgeMana: 0, nightSeals: 0, orbAwaken: 0,
   /* Guide du porteur : chaque découverte (ressource, arbre, bivouac...) ouvre
      UNE FOIS une page d'explication qui met le jeu en pause (voir guide, Quests.js) */
   seen: {},
@@ -415,6 +417,10 @@ export const S = {
      (null = monde ouvert) et verrou d'écran de chargement (aucune
      interaction pendant le fondu noir — anti double-déclenchement). */
   roomId: null, transitioning: false,
+  /* Période de grâce après chaque écran de chargement : pendant quelques
+     secondes, les ombres n'engagent PAS la chasse (et le directeur ne
+     spawne rien) — le joueur a le temps de se repérer dans la salle. */
+  graceT: 0,
   // télékinésie
   tkHeld: null,
   // sauvegarde

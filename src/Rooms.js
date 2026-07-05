@@ -153,6 +153,7 @@ export function loadRoom(id, spawn) {
   if (S.COOP && p2.pos) { p2.pos.set(e.x + 1.3, e.y, e.z + 0.8); p2.vel.set(0, 0, 0); }
   G.checkpoint = { x: e.x, y: e.y, z: e.z };
   if (e.yaw !== undefined) S.yaw = e.yaw;
+  S.graceT = Math.max(S.graceT, 4.5); // le temps de se repérer avant l'aggro
   return true;
 }
 
@@ -552,7 +553,7 @@ function buildCata() {
   });
   torch(RX - 13, 1.5, RZ + 14, 0x66a8ff, 1.25, 18);
   torch(RX + 13, 1.5, RZ + 24, 0x66a8ff, 1.25, 18);
-  bivouac(RX - 10, 0, RZ + 23, 'les catacombes', 'catacombes');
+  bivouac(RX - 10, 0, RZ + 23, 'les catacombes', 'catacombes', true, 4.5);
   const cCamp = CAMPS.find(c => c.id === 'catacombes');
   if (cCamp) cCamp.room = 'cata'; // le voyage rapide recharge la salle
   rPickup('heart', RX - 12, 0, RZ + 4);

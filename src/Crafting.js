@@ -29,7 +29,9 @@ export const RECIPES = [
   { id: 'potion', icon: '🧪', name: 'Potion lunaire', cost: { herbs: 2 },
     desc: '+50 PV. Gardée dans le sac : buvez-la QUAND VOUS VOULEZ (bouton ci-dessous ou touche H en jeu).' },
   { id: 'orbe', icon: '◉', name: 'Orbe d\'obscurité', cost: { shadows: 3 },
-    desc: 'Condense 3 essences en un orbe — la matière première des transcendances ci-dessous.' },
+    desc: 'Condense 3 essences en un orbe — la matière première des éveils et transcendances ci-dessous.' },
+  { id: 'eveil', icon: '✧', name: 'Éveil d\'obscurité', cost: { orbes: 2 }, max: 5,
+    desc: '+6 % de DÉGÂTS PERMANENTS par éveil (jusqu\'à 5). La voie de puissance des orbes : montez en force avant les grandes transcendances.' },
   { id: 'vent', icon: '➶', name: 'Élixir du Traqueur', cost: { feathers: 2, herbs: 1 },
     desc: '+20 % de vitesse de déplacement pendant 120 s. La hargne des Traqueurs coule dans vos jambes.' },
   { id: 'vigueur', icon: '⛨', name: 'Philtre de Colosse', cost: { bones: 2, herbs: 1 }, max: 5,
@@ -49,6 +51,7 @@ export function craftCount(id) {
   if (id === 'vigueur') return G.forgeHp;
   if (id === 'ether') return G.forgeMana;
   if (id === 'sceau') return G.nightSeals;
+  if (id === 'eveil') return G.orbAwaken;
   if (id === 'transcend') return G.upgrades.boltAoE ? 1 : 0;
   if (id === 'ailes') return G.hasWings ? 1 : 0;
   return 0;
@@ -87,6 +90,11 @@ export function craftRecipe(id) {
     G.orbes++; A.power();
     spawnBurst(px, py + 1.4, pz, 0xb08cff, 18);
     showMsg('Trois essences fusionnent : Orbe d\'obscurité forgé (◉ ' + G.orbes + ').', 3);
+  } else if (id === 'eveil') {
+    G.orbAwaken++;
+    A.power(); spawnBurst(px, py + 1.4, pz, 0xb08cff, 22);
+    G.items.push('Éveil d\'obscurité ' + G.orbAwaken + '/5 (+6 % dégâts)');
+    showMsg('✧ ÉVEIL D\'OBSCURITÉ (' + G.orbAwaken + '/5) : les orbes nourrissent votre flamme — +6 % de dégâts, pour toujours.', 3.5);
   } else if (id === 'vent') {
     G.buffSpeedT = 120; A.power();
     spawnBurst(px, py + 1.2, pz, 0x9fe8ff, 16);

@@ -194,6 +194,9 @@ function setCharEmissive(e, hex) {
 }
 export function updateEnemies(dt) {
   S.combatT = Math.max(0, S.combatT - dt);
+  /* période de grâce post-chargement : les ombres restent à leurs postes
+     quelques secondes, le temps que le joueur se repère dans la salle */
+  S.graceT = Math.max(0, S.graceT - dt);
   for (const e of enemies) {
     if (e.dead) continue;
     /* isPlayerInCombat : une ombre en chasse à portée verrouille le voyage
@@ -233,7 +236,7 @@ export function updateEnemies(dt) {
     if (tSafe && e.state === 'chase') e.state = 'return';
 
     if (e.state === 'patrol') {
-      if (distP < 9 && sameLevel && !tSafe) {
+      if (distP < 9 && sameLevel && !tSafe && S.graceT <= 0) {
         e.state = 'chase';
         if (!e.alerted) { e.alerted = true; A.alert(); }
       }
@@ -270,7 +273,7 @@ export function updateEnemies(dt) {
       const rd = Math.hypot(e.spawn.x - e.g.position.x, e.spawn.z - e.g.position.z);
       if (rd < 0.8) { e.state = 'patrol'; e.alerted = false; e.hp = Math.min(e.maxHp, e.hp + 12); }
       else { tx = e.spawn.x; tz = e.spawn.z; }
-      if (distP < 6 && sameLevel && !tSafe) e.state = 'chase';
+      if (distP < 6 && sameLevel && !tSafe && S.graceT <= 0) e.state = 'chase';
     }
     if (tx !== null) {
       const mdx = tx - e.g.position.x, mdz = tz - e.g.position.z;
@@ -480,6 +483,7 @@ export function updateDirector(dt) {
     }
   }
   if (!z || S.questI < 6) return; // aucun renfort avant l'ouverture de la bibliothèque
+  if (S.graceT > 0) return; // période de grâce post-chargement : pas d'invocation
   if (safeZoneAt(player.pos)) return; // jamais d'invocation quand le joueur est au sanctuaire d'un feu
   let alive = 0; for (const e of enemies) if (!e.dead) alive++;
   if (alive >= 26) return;

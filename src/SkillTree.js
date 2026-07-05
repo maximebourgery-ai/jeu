@@ -6,7 +6,9 @@ import { spawnBurst } from './World.js';
 import { lockPointer } from './Controls.js';
 import { guide } from './Quests.js';
 
-export function xpNeed(l) { return 40 + (l - 1) * 45 + (l - 1) * (l - 1) * 10; }
+/* Courbe d'XP durcie (retour joueur : on montait trop vite, full arts dès le
+   tutoriel). ~+50 % au début, davantage ensuite — chaque niveau se mérite. */
+export function xpNeed(l) { return 60 + (l - 1) * 70 + (l - 1) * (l - 1) * 16; }
 export function gainXP(n) {
   G.xp += n;
   let up = false;
@@ -76,6 +78,9 @@ export function classAtk(path) {
   if (G.tower && G.tower.crown) P.dmg = Math.round(P.dmg * 1.1);
   // Sceaux du Cœur de nuit (sac) : +10 % de dégâts permanents chacun, max 3
   if (G.nightSeals) P.dmg = Math.round(P.dmg * (1 + 0.1 * G.nightSeals));
+  // Éveils d'obscurité (sac, 2 orbes chacun) : +6 % de dégâts chacun, max 5 —
+  // la voie de puissance intermédiaire, avant les grandes transcendances
+  if (G.orbAwaken) P.dmg = Math.round(P.dmg * (1 + 0.06 * G.orbAwaken));
   // Forge des Arts : chaque rang forgé de l'attaque principale = +10 % de dégâts
   P.dmg = Math.round(P.dmg * (1 + 0.10 * (G.pupg.bolt || 0)));
   return P;

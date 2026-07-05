@@ -77,8 +77,13 @@ const KEY_DEFS = {
   ether:  { name: 'Clef d\'Éther',  color: 0x9a8cff },
   astre:  { name: 'Clef d\'Astre',  color: 0xffe9a8 }
 };
-const allPowersKnown = () => POWERS.every(p => G.powers[p.id]);
-const powersCount = () => POWERS.filter(p => G.powers[p.id]).length;
+/* Le portail de l'Ascension n'exige que les SIX ARTS ANCIENS du château.
+   (Bug v8 corrigé : POWERS compte désormais 8 sorts — la Nova d'Aurore et
+   l'Astre d'Aube ne s'apprennent que DANS l'Outre-Ciel, au-delà de la Tour.
+   Exiger POWERS.every() rendait le portail impossible à ouvrir.) */
+const BASE_ARTS = ['bolt', 'dash', 'tk', 'shield', 'frost', 'heal'];
+const allPowersKnown = () => BASE_ARTS.every(id => G.powers[id]);
+const powersCount = () => BASE_ARTS.filter(id => G.powers[id]).length;
 
 /* ================================================================
    INSTANCIATION — capture & déchargement (level streaming)
@@ -491,7 +496,7 @@ function buildPalier2() {
   addPickup('herb', TX - 18, 3.25, TZ - 7);
   addPickup('herb', TX - 11, 3.25, TZ - 6);
   addPickup('mana', TX - 19, 3.25, TZ - 12);
-  bivouac(TX - 14, 3.25, TZ - 4.5, 'la Salle de l\'Alchimiste', 'alchimiste', false);
+  bivouac(TX - 14, 3.25, TZ - 4.5, 'la Salle de l\'Alchimiste', 'alchimiste', false, 4.5);
 
   /* étage 7 (y 6) : corniche nord (montée par piliers taillés) */
   mkBox(3, 4.5, 2.6, TX - 6, 0, TZ - 14, 'stoneR');
@@ -890,7 +895,7 @@ function buildPalier5() {
   addPickup('mana', TX - 9, 2.4, TZ - 7);
   addPickup('maxhp', TX + 12, 4.8, TZ - 4); // Fragment de vitalité, sous le Titan
   /* le Belvédère des étoiles : bivouac-sanctuaire du palier */
-  bivouac(TX - 5, 7.2, TZ - 22, 'le Belvédère des étoiles', 'belvedere', false);
+  bivouac(TX - 5, 7.2, TZ - 22, 'le Belvédère des étoiles', 'belvedere', false, 4.5);
 
   /* ---- LE PONT DE CONSTELLATIONS (quête d'Orin) ----
      Préconstruit mais éteint (pattern des colonnes du Chevalier) : les
@@ -1030,7 +1035,7 @@ function buildPalier6() {
   addPickup('herb', TX + 17, 0, TZ + 8);
   addPickup('mana', TX - 4, 0, TZ - 10);
   /* le bivouac de la Veille : dernier feu avant la fin du monde */
-  bivouac(TX - 12, 0, TZ - 12, 'la Veille du Bout de la Nuit', 'veille', false);
+  bivouac(TX - 12, 0, TZ - 12, 'la Veille du Bout de la Nuit', 'veille', false, 4.5);
 
   /* ---- la porte de la Dernière Nuit + LE VEILLEUR SANS NOM ---- */
   mkBox(17, 16, 1, TX - 12.5, 0, TZ - 18, 'iron');
