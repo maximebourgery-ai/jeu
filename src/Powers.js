@@ -108,7 +108,7 @@ export function aimPoint2() {
 }
 
 export function castPower() {
-  if (G.treeOpen || G.travelOpen) return;
+  if (G.treeOpen || G.travelOpen || G.mapOpen) return;
   const pw = POWERS.find(q => q.id === G.sel);
   if (!G.powers[pw.id] || G.cd[pw.id] > 0) return;
   if (pw.id === 'tk') { tkToggle(); G.cd.tk = pw.cool; return; }
@@ -497,30 +497,38 @@ export function updateTK(dt) {
     syncCube(c);
   }
 }
+/* Plaques à pression — v7.4 : une porte peut dépendre de PLUSIEURS plaques
+   (les « plaques jumelles » de l'aile est), qui doivent alors être chargées
+   EN MÊME TEMPS. Une plaque est pressée par un bloc runique posé dessus ou,
+   en coop, par les DEUX porteurs de flamme réunis (le poids d'un Colosse).
+   Tant que la porte n'est pas ouverte, retirer la charge relâche la plaque. */
 export function checkPlate() {
   for (const P of PLATES) {
-    if (P.active || P.door.open) continue;
+    if (P.door.open) continue;
+    let pressed = false;
     for (const c of tkCubes) {
+      if (c.held) continue;
       const cp = c.mesh.position;
-      if (Math.abs(cp.x - P.x) < 1.3 && Math.abs(cp.z - P.z) < 1.3 && cp.y - c.half < P.y + 0.6) {
+      if (Math.abs(cp.x - P.x) < 1.3 && Math.abs(cp.z - P.z) < 1.3 && cp.y - c.half < P.y + 0.6) { pressed = true; break; }
+    }
+    if (!pressed && S.COOP && p2.pos) {
+      const on = pl => Math.abs(pl.pos.x - P.x) < 1.3 && Math.abs(pl.pos.z - P.z) < 1.3 && Math.abs(pl.pos.y - P.y) < 1.4;
+      if (on(player) && on(p2)) pressed = true;
+    }
+    if (pressed && !P.active) {
+      P.active = true;
+      P.glow.material.color.setHex(0x4ae08a);
+      const mates = PLATES.filter(q => q.door === P.door);
+      if (mates.every(q => q.active)) {
         openDoor(P.door);
-        P.active = true;
-        P.glow.material.color.setHex(0x4ae08a);
         showMsg(P.msg || 'La plaque s\'enfonce sous le bloc : une porte coulisse dans la pierre.', 4);
         if (P.questId) questReach(P.questId);
+      } else {
+        showMsg('Une plaque s\'enfonce... mais sa jumelle attend toujours sa charge, en même temps.', 3);
       }
-    }
-    /* Énigme à poids synchronisée (coop) : Joueur 1 + Joueur 2 réunis sur la
-       plaque pèsent le poids d'un Colosse — l'alternative au bloc runique. */
-    if (!P.active && S.COOP && p2.pos) {
-      const on = pl => Math.abs(pl.pos.x - P.x) < 1.3 && Math.abs(pl.pos.z - P.z) < 1.3 && Math.abs(pl.pos.y - P.y) < 1.4;
-      if (on(player) && on(p2)) {
-        openDoor(P.door);
-        P.active = true;
-        P.glow.material.color.setHex(0x4ae08a);
-        showMsg('Le poids des deux porteurs réunis vaut celui d\'un Colosse : la plaque s\'enfonce !', 4);
-        if (P.questId) questReach(P.questId);
-      }
+    } else if (!pressed && P.active) {
+      P.active = false;
+      P.glow.material.color.setHex(0x3a4880);
     }
   }
 }

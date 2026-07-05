@@ -7,7 +7,7 @@
    ================================================================ */
 import { G, S, SAVE_KEY, player, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, PLATES, applyPath } from './state.js';
 import { showMsg, buildPowersUI, refreshPowers } from './UI.js';
-import { openDoor, syncCube } from './World.js';
+import { openDoor, syncCube, runRestores } from './World.js';
 import { refreshPlayerVisual, addWingsToPlayer } from './Player.js';
 import { applyQuest } from './Quests.js';
 
@@ -23,6 +23,7 @@ export function saveGame(silent) {
       powers: G.powers, sel: G.sel,
       crystals: G.crystals, goldKey: G.goldKey, items: G.items,
       herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
+      stars: G.stars, // Éclats d'Aube étoilée (secrets v7.4)
       hasWings: G.hasWings, upgrades: G.upgrades,
       checkpoint: inTw ? TER : G.checkpoint,
       /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
@@ -59,6 +60,7 @@ export function loadGame() {
   G.crystals = s.crystals || 0; G.goldKey = !!s.goldKey;
   if (Array.isArray(s.items)) G.items = s.items;
   G.herbs = s.herbs || 0; G.shadows = s.shadows || 0; G.orbes = s.orbes || 0;
+  G.stars = s.stars || 0;
   G.hasWings = !!s.hasWings; Object.assign(G.upgrades, s.upgrades || {});
   // v7.1 : Ascension de la Tour + bivouacs découverts (fusion tolérante)
   if (s.tower) {
@@ -81,6 +83,9 @@ export function loadGame() {
   // plaques runiques : si la porte associée est ouverte, la plaque était chargée
   PLATES.forEach(p => { if (p.door.open) { p.active = true; p.glow.material.color.setHex(0x4ae08a); } });
   (s.inter || []).forEach((o, i) => { if (inter[i]) inter[i].on = !!o; });
+  /* énigmes v7.4 (feux des morts, offrandes, arbre aux lucioles...) :
+     ré-applique visuels et objets révélés d'après les flags `inter` */
+  runRestores();
   pedestals.forEach(pd => {
     if (G.powers[pd.powerId] && pd.cry.parent) {
       S.scene.remove(pd.cry);

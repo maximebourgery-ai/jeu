@@ -13,6 +13,7 @@ import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
 import { tryInteract, tryInteractP2 } from './World.js';
 import { castPower, castPowerP2, castSpecific } from './Powers.js';
+import { toggleMap, closeMap } from './WorldMap.js';
 
 /* ---------------- ENTRÉES (verrouillage souris + repli glisser) ---------------- */
 export function lockPointer() {
@@ -33,6 +34,7 @@ export function initControls() {
     if (!G.started || G.over) return;
     if (G.dialog) { if (e.code === 'KeyE' || e.code === 'Space') dlgNext(); return; }
     if (e.code === 'Escape' && !document.pointerLockElement) {
+      if (G.mapOpen) { closeMap(); return; }
       if (G.travelOpen) { closeTravel(); return; }
       if (G.treeOpen) { toggleTree(); return; }
       G.paused = !G.paused;
@@ -55,6 +57,7 @@ export function initControls() {
         showMsg(G.firstPerson ? 'Vue à la première personne.' : 'Vue à la troisième personne.', 1.4);
       }
       if (e.code === 'KeyK') toggleTree();
+      if (e.code === 'KeyM') toggleMap(); // carte d'Ombreciel (téléportation vers les bivouacs)
     }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
@@ -91,7 +94,7 @@ export function initControls() {
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.treeOpen && !G.travelOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.treeOpen && !G.travelOpen && !G.mapOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -351,6 +354,7 @@ export function setupTouch() {
   });
   bind('t-craft', () => $('craftpanel').classList.toggle('hidden'));
   bind('t-tree', () => toggleTree());
+  bind('t-map', () => toggleMap());
   bind('cr-h', () => craftAction('H'));
   bind('cr-o', () => craftAction('O'));
   bind('cr-c', () => craftAction('C'));

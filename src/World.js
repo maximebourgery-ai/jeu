@@ -278,10 +278,20 @@ export function pedestal(x, z, y, powerId, color, lore, questId) {
   });
 }
 
-/* ---------------- OBJETS À RAMASSER ---------------- */
-export function addPickup(type, x, y, z) {
+/* ---------------- OBJETS À RAMASSER ----------------
+   hidden=true : l'objet existe dès la construction du monde (les index de
+   sauvegarde restent stables) mais reste invisible et intouchable tant
+   qu'une énigme ne l'a pas révélé (revealPickup). */
+export function addPickup(type, x, y, z, hidden) {
   let mesh;
-  if (type === 'crystal') {
+  if (type === 'star') {
+    /* Éclat d'Aube étoilée : secret majeur (3 = Faveur des Étoiles) */
+    mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.3),
+      new THREE.MeshBasicMaterial({ color: 0xfff1b8 }));
+    mesh.add(glow(0xfff1b8, 3, 0.75));
+    const l = new THREE.PointLight(0xffe9a0, 0.8 * LIGHT_SCALE, 8, 2);
+    mesh.add(l);
+  } else if (type === 'crystal') {
     mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.42),
       new THREE.MeshBasicMaterial({ color: 0xffd97a }));
     mesh.add(glow(0xffd97a, 3.4, 0.7));
@@ -316,12 +326,29 @@ export function addPickup(type, x, y, z) {
     mesh.add(glow(0xff8899, 2.4, 0.6));
   }
   mesh.position.set(x, y + 0.9, z);
+  mesh.visible = !hidden;
   S.scene.add(mesh);
-  pickups.push({ mesh, type, y0: y + 0.9, taken: false });
+  const p = { mesh, type, y0: y + 0.9, taken: false, hidden: !!hidden };
+  pickups.push(p);
+  return p;
 }
+/* Révélation d'un objet caché par une énigme (éclair doré + apparition) */
+export function revealPickup(p) {
+  if (!p || p.taken || !p.hidden) return;
+  p.hidden = false;
+  p.mesh.visible = true;
+  spawnBurst(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, 0xfff1b8, 22);
+  A.power();
+}
+/* ---- Reconstruction des énigmes au chargement d'une sauvegarde ----
+   Chaque énigme qui révèle un objet caché enregistre ici une fonction qui
+   relit l'état persistant (flags `inter[i].on`) et ré-applique visuels et
+   révélations. SaveSystem.loadGame les appelle après avoir restauré inter. */
+export const RESTORES = [];
+export function runRestores() { for (const f of RESTORES) f(); }
 export function updatePickups(dt) {
   for (const p of pickups) {
-    if (p.taken) continue;
+    if (p.taken || p.hidden) continue;
     p.mesh.rotation.y += dt * 1.8;
     p.mesh.position.y = p.y0 + Math.sin(G.time * 2.4 + p.y0) * 0.14;
     const byP1 = player.pos.distanceTo(p.mesh.position) < 1.6;
@@ -347,6 +374,17 @@ export function updatePickups(dt) {
         G.goldKey = true; A.key();
         showMsg('Vous trouvez la Clef d\'or. Une serrure dorée l\'attend quelque part...', 4.5);
         questReach('crypt');
+      } else if (p.type === 'star') {
+        G.stars++; A.power();
+        spawnBurst(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, 0xfff1b8, 26);
+        if (G.stars >= 3 && !G.upgrades.starBoost) {
+          G.upgrades.starBoost = true;
+          G.maxMana += 20; G.mana = G.maxMana;
+          G.items.push('Faveur des Étoiles (+15 % dégâts, +20 PM max)');
+          showMsg('★ LA FAVEUR DES ÉTOILES ! Les trois Éclats fusionnent : +15 % de dégâts et +20 PM max, pour toujours.', 6);
+        } else {
+          showMsg('★ Éclat d\'Aube étoilée (' + G.stars + ' / 3). Les anciens parlaient d\'une faveur accordée au porteur des trois...', 4.5);
+        }
       } else if (p.type === 'mana') {
         if (byP1) G.mana = Math.min(G.maxMana, G.mana + 35);
         else p2.mana = Math.min(p2.maxMana, p2.mana + 35);
@@ -365,7 +403,11 @@ export function updatePickups(dt) {
 }
 
 /* ---------------- INTERACTIONS ---------------- */
-export function addInter(x, y, z, r, label, fn) { inter.push({ x, y, z, r, label, fn, on: true }); }
+export function addInter(x, y, z, r, label, fn) {
+  const it = { x, y, z, r, label, fn, on: true };
+  inter.push(it);
+  return it;
+}
 export function nearInterP(pl) {
   for (const i of inter) {
     if (!i.on) continue;
@@ -586,6 +628,21 @@ export function buildWorld() {
     new THREE.MeshStandardMaterial({ color: 0x2a6a9e, roughness: 0.15, metalness: 0.4, emissive: 0x0a2038 }));
   wa.position.set(0, 0.72, 42); S.scene.add(wa);
   mkCyl(0.4, 0.55, 1.7, 0, 0.7, 42, 'stoneR', false, 8);
+  /* SECRET — l'offrande de la fontaine : « une part d'ombre pour une part
+     d'étoile ». Sacrifier 1 essence d'ombre révèle un Éclat d'Aube étoilée
+     au sommet de la colonne (1er des 3 Éclats de la Faveur des Étoiles). */
+  const fountainStar = addPickup('star', 0, 2.45, 42, true);
+  const fountainInter = addInter(0, 0, 45.6, 2.3, 'Sonder le bassin de la fontaine', it => {
+    if (G.shadows >= 1) {
+      G.shadows--;
+      it.on = false;
+      revealPickup(fountainStar);
+      showMsg('L\'essence d\'ombre se dissout dans l\'eau claire... et une lumière monte des profondeurs : un Éclat scintille au sommet de la colonne.', 5);
+    } else {
+      showMsg('L\'eau murmure : « Une part d\'ombre pour une part d\'étoile. » Il vous faudrait une essence d\'ombre à offrir...', 4);
+    }
+  });
+  RESTORES.push(() => { if (!fountainInter.on) revealPickup(fountainStar); });
 
   /* Mur est des jardins : sépare du Parvis du Levant.
      Segment bas (3,6 m, sous le pont) : trop haut pour être escaladé,
@@ -655,12 +712,13 @@ export function buildWorld() {
   addPickup('heart', -30, 0, 50);
   addPickup('heart', 26, 0, 68);
   /* Ombres des jardins (tag 'garden' : leur chute lève la herse).
-     PV et dégâts réduits : ce sont les adversaires du tutoriel, elles
-     tombent en 2 coups et ne punissent pas les erreurs de débutant. */
-  mkEnemy(-10, 46, 0, [[-10, 46], [6, 46]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 22, dmg: 8 });
-  mkEnemy(14, 58, 0, [[14, 56], [14, 66], [24, 60]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 22, dmg: 8 });
+     PV et dégâts réduits : ce sont les adversaires du tutoriel — mais
+     depuis la v7.4 elles encaissent un coup de plus et pincent un peu
+     (le jeu annonce d'emblée qu'Ombreciel ne pardonne pas tout). */
+  mkEnemy(-10, 46, 0, [[-10, 46], [6, 46]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 27, dmg: 9 });
+  mkEnemy(14, 58, 0, [[14, 56], [14, 66], [24, 60]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 27, dmg: 9 });
   /* le Traqueur rôde près du labyrinthe de haies, loin du point d'éveil */
-  mkEnemy(-12, 68, 0, [[-12, 68], [-4, 72], [-16, 72]], { type: 'wraith', lvl: 1, hp: 12, dmg: 6 });
+  mkEnemy(-12, 68, 0, [[-12, 68], [-4, 72], [-16, 72]], { type: 'wraith', lvl: 1, hp: 15, dmg: 7 });
 
   /* ---- LUMEN, l'esprit-guide ---- */
   S.lumen = new THREE.Group();
@@ -752,18 +810,60 @@ export function buildWorld() {
   torch(-17, 2, 10); torch(17, 2, 16); torch(-6, 2, 30.6); torch(6, 2, 30.6);
   addPickup('mana', -14, 0, 4);
 
-  // levier -> bibliothèque
-  mkBox(0.8, 1, 0.8, 15, 0, 27, 'iron');
-  S.leverHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 6), matFor('wood', 1, 1));
-  S.leverHandle.position.set(15, 1.45, 27);
-  S.leverHandle.rotation.x = -0.8;
-  S.leverHandle.castShadow = true;
-  S.scene.add(S.leverHandle);
-  addInter(15, 0, 27, 2.3, 'Actionner le levier', it => {
-    it.on = false; S.leverHandle.rotation.x = 0.8;
-    A.lever(); openDoor(S.libDoor);
-    showMsg('Un grondement traverse les murs : la porte de la bibliothèque s\'ouvre à l\'ouest.', 4);
-    questReach('lever');
+  /* ---- ÉNIGME DES TROIS FLAMMES → bibliothèque ----
+     Trois leviers ceignent le hall (Levant à l'est, Midi au sud, Couchant à
+     l'ouest). Il faut les actionner dans l'ordre de la course du soleil :
+     Levant → Midi → Couchant. Une erreur réarme tout. L'indice est gravé
+     sur une plaque près de l'entrée (et Lumen le répète — HINTS.lever). */
+  const LEVER_ORDER = ['levant', 'midi', 'couchant'];
+  const leverSeq = [];
+  const LEVERS = [
+    { id: 'levant',   label: 'du Levant',   x: 16,  z: 20 },
+    { id: 'midi',     label: 'de Midi',     x: 8,   z: 29.5 },
+    { id: 'couchant', label: 'du Couchant', x: -16, z: 20 }
+  ];
+  for (const L of LEVERS) {
+    mkBox(0.8, 1, 0.8, L.x, 0, L.z, 'iron');
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 6), matFor('wood', 1, 1));
+    handle.position.set(L.x, 1.45, L.z);
+    handle.rotation.x = -0.8;
+    handle.castShadow = true;
+    S.scene.add(handle);
+    L.handle = handle;
+    /* flamme-témoin au-dessus du levier : éteinte (bleu nuit) → dorée */
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+      new THREE.MeshBasicMaterial({ color: 0x2a3454 }));
+    gem.position.set(L.x, 2.15, L.z);
+    S.scene.add(gem);
+    L.gem = gem;
+    addInter(L.x, 0, L.z, 2.3, 'Actionner le levier ' + L.label, () => {
+      if (S.libDoor.open) { showMsg('Le mécanisme est retombé au repos : la bibliothèque est ouverte.', 2.5); return; }
+      if (leverSeq.includes(L.id)) { showMsg('Ce levier est déjà abaissé. Sa flamme-témoin brûle.', 2); return; }
+      A.lever();
+      if (LEVER_ORDER[leverSeq.length] === L.id) {
+        leverSeq.push(L.id);
+        L.handle.rotation.x = 0.8;
+        L.gem.material.color.setHex(0xffd97a);
+        spawnBurst(L.x, 2.2, L.z, 0xffd97a, 12);
+        if (leverSeq.length === LEVER_ORDER.length) {
+          openDoor(S.libDoor);
+          showMsg('La troisième flamme s\'éveille — un grondement traverse les murs : la porte de la bibliothèque s\'ouvre à l\'ouest.', 4.5);
+          questReach('lever');
+        } else {
+          showMsg('La flamme ' + L.label + ' s\'éveille (' + leverSeq.length + ' / 3). Le soleil poursuit sa course...', 3);
+        }
+      } else {
+        leverSeq.length = 0;
+        for (const K of LEVERS) { K.handle.rotation.x = -0.8; K.gem.material.color.setHex(0x2a3454); }
+        A.burst(0.16, 300, 'lowpass', 0.14);
+        showMsg('Un claquement sec : les mécanismes se réarment tous. Ce n\'était pas l\'ordre du soleil...', 3.5);
+      }
+    });
+  }
+  /* plaque-indice, près de l'entrée du hall */
+  mkBox(1.2, 1.6, 0.3, -4, 0, 29.8, 'stoneR');
+  addInter(-4, 0, 28.5, 2.6, 'Lire la plaque des trois flammes', () => {
+    showMsg('« Trois flammes gardent le savoir. Le Levant l\'éveille, Midi la porte, le Couchant l\'endort. Suis la course du soleil, et le savoir s\'ouvrira. »', 5);
   });
 
   // porte du trône (verrouillée — Clef d'or)
@@ -858,21 +958,31 @@ export function buildWorld() {
   mkBox(1.2, 1.2, 1.2, 35.3, 0, 28.4, 'wood');
   mkBox(1.2, 1.2, 1.2, 34.6, 1.2, 28.2, 'wood');
   mkTkCube(24, 0, 8);
+  /* second bloc runique, oublié TOUT EN HAUT des caisses de l'armurerie :
+     il faut lever les yeux (ou grimper) pour le repérer — voir HINTS.plate */
+  mkTkCube(34.6, 2.4, 28.2);
   addInter(24, 0, 8, 2.2, 'Examiner le bloc runique', () => {
     if (G.powers.tk) showMsg('Le bloc vibre doucement. La Main céleste peut le porter (touche 3, puis clic).', 3.5);
     else showMsg('Un bloc gravé de runes, bien trop lourd pour vos bras. Seule une force céleste pourrait le soulever...', 4);
   });
-  /* salle de la plaque */
-  mkBox(2.6, 0.12, 2.6, 48, 0.02, 16, 'stoneD', false);
-  const plateGlow = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 2.2),
-    new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
-  plateGlow.position.set(48, 0.14, 16);
-  S.scene.add(plateGlow);
+  addInter(34.6, 0, 28.2, 2.4, 'Inspecter la pile de caisses', () => {
+    showMsg('Des caisses entassées à la hâte... Tout en haut, sous la poussière, une lueur de runes affleure.', 3.5);
+  });
+  /* ---- salle des PLAQUES JUMELLES : les deux doivent être chargées EN
+     MÊME TEMPS (deux blocs runiques — ou, en coop, un bloc + les deux
+     porteurs de flamme réunis sur l'autre plaque). Voir checkPlate(). ---- */
   S.basementDoor = mkDoor(1, 4, 4, 57.5, 0, 9, 'stoneD');
-  PLATES.push({ x: 48, z: 16, y: 0, glow: plateGlow, door: S.basementDoor, questId: 'plate',
-    msg: 'La plaque s\'enfonce sous le bloc : la porte des catacombes coulisse dans la pierre.' });
-  addInter(44, 0, 16, 2.4, 'Examiner la plaque gravée', () => {
-    showMsg('« Que le poids des runes ouvre la voie des morts. » La plaque attend une charge.', 3.5);
+  for (const [px, pz] of [[48, 16], [44, 24]]) {
+    mkBox(2.6, 0.12, 2.6, px, 0.02, pz, 'stoneD', false);
+    const plateGlow = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 2.2),
+      new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
+    plateGlow.position.set(px, 0.14, pz);
+    S.scene.add(plateGlow);
+    PLATES.push({ x: px, z: pz, y: 0, glow: plateGlow, door: S.basementDoor, questId: 'plate',
+      msg: 'Les plaques jumelles s\'enfoncent d\'un même souffle : la porte des catacombes coulisse dans la pierre.' });
+  }
+  addInter(46, 0, 20, 2.8, 'Examiner les plaques gravées', () => {
+    showMsg('« Que le poids des runes, deux fois pesé d\'un même souffle, ouvre la voie des morts. » Les deux plaques attendent leur charge ensemble.', 4.5);
   });
   torch(28, 2, 30.4); torch(48, 2, 1.2);
   addPickup('heart', 34, 0, 26);
@@ -918,7 +1028,7 @@ export function buildWorld() {
   addPickup('heart', 74, -8, 3);
   addPickup('mana', 90, -8, 2);
   addInter(82, -8, 1.6, 2.6, 'Lire le fronton de l\'Ossuaire', () => {
-    showMsg('« Ici dorment les gardiens d\'Ombreciel. Que celui qui cherche la Clef longe le couchant. »', 4);
+    showMsg('« Ici dorment les gardiens d\'Ombreciel. Que celui qui cherche la Clef longe le couchant... et que s\'éteignent les trois feux des morts : alors la châsse s\'ouvrira. »', 5);
   });
   mkEnemy(78, 6, -8, [[76, 4], [88, 6]], { type: 'sentinel', lvl: 4 });
   mkEnemy(86, 14, -8, [[86, 14], [76, 14]], { type: 'sentinel', lvl: 4 });
@@ -943,15 +1053,61 @@ export function buildWorld() {
   ], 64, 0, 4, 5, -8, 'stoneD');
   pedestal(70, -14, -8, 'heal', 0x9fffc0,
     'Bénédiction apprise ! (touche 6, puis clic) Une lumière chaude qui referme vos blessures — et ranime ce qui fut vivant.');
-  addPickup('key', 86, -8, -30);
   addPickup('heart', 82, -8, -14);
   addPickup('mana', 86, -8, -22);
   addPickup('maxhp', 98, -8, -30);
   addPickup('shadow', 98, -8, -10);
   addPickup('shadow', 74, -8, -30);
-  torch(70, -6.5, -6, 0x9a6cff, 1.1, 16);
-  torch(90, -6.5, -22, 0x9a6cff, 1.1, 16);
-  torch(82, -6.5, -30, 0x9a6cff, 1.1, 16);
+  /* ---- ÉNIGME DES FEUX DES MORTS → la Clef d'or ----
+     La Clef n'est plus posée au détour d'un couloir : elle dort dans une
+     châsse de pierre scellée. Trois braseros violets brûlent dans le
+     labyrinthe — les étouffer tous les trois (E) ouvre la châsse (le
+     fronton de l'Ossuaire et Lumen donnent l'indice). */
+  mkBox(1.7, 1, 1, 86, -8, -31.2, 'stoneR'); // la châsse (coffre de pierre)
+  const keyPickup = addPickup('key', 86, -8, -30, true);
+  const chestInter = addInter(86, -8, -30, 2.4, 'Examiner la châsse de pierre', () => {
+    showMsg('Une châsse scellée, sans serrure ni gond. Sur le couvercle : « Tant que veillent les feux des morts, je garde. »', 4);
+  });
+  let firesOut = 0;
+  const fireDone = () => {
+    firesOut++;
+    if (firesOut >= 3) {
+      chestInter.on = false;
+      revealPickup(keyPickup);
+      A.door();
+      showMsg('Le dernier feu meurt... Au fond de l\'Ossuaire, la châsse de pierre s\'ouvre dans un grincement : la Clef d\'or luit dans son écrin.', 5);
+    } else {
+      showMsg('Le feu des morts s\'étouffe sous votre paume (' + firesOut + ' / 3). L\'Ossuaire s\'assombrit...', 3);
+    }
+  };
+  const mkDeadFire = (x, z) => {
+    mkCyl(0.35, 0.45, 0.8, x, -8, z, 'stoneR', false, 7);
+    const fl = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.62, 6),
+      new THREE.MeshBasicMaterial({ color: 0xb08cff }));
+    fl.position.set(x, -6.85, z); S.scene.add(fl);
+    const h = glow(0x9a6cff, 2.6, 0.5);
+    h.position.set(x, -6.75, z); S.scene.add(h);
+    const light = new THREE.PointLight(0x9a6cff, 1.1 * LIGHT_SCALE, 16, 2);
+    light.position.set(x, -6.5, z); S.scene.add(light);
+    const rec = { flame: fl, light, halo: h, base: 1.1 * LIGHT_SCALE, seed: Math.random() * 10 };
+    flames.push(rec);
+    const snuff = () => { fl.visible = false; h.visible = false; light.intensity = 0; rec.light = null; rec.base = 0; };
+    const it = addInter(x, -8, z, 2.3, 'Étouffer le feu des morts', () => {
+      it.on = false;
+      snuff();
+      A.burst(0.14, 500, 'lowpass', 0.1);
+      fireDone();
+    });
+    /* au chargement : feux déjà éteints re-snuffés, châsse rouverte si besoin */
+    RESTORES.push(() => {
+      if (!it.on) {
+        snuff();
+        firesOut++;
+        if (firesOut >= 3) { chestInter.on = false; revealPickup(keyPickup); }
+      }
+    });
+  };
+  mkDeadFire(70, -6); mkDeadFire(90, -22); mkDeadFire(78, -30);
   /* ossements épars (décor) */
   for (let i = 0; i < 10; i++) {
     const bx = 66 + ((i * 53) % 36), bz = -4 - ((i * 31) % 30);
@@ -983,6 +1139,15 @@ export function buildWorld() {
   /* débris de l'ancien pont, au fond */
   mkBox(3.5, 0.4, 2.2, 101, -14.5, 11, 'stoneR');
   mkBox(2.6, 0.4, 1.8, 104.5, -14.5, 8.5, 'stoneR');
+  /* SECRET — sous les décombres, un 2ᵉ Éclat d'Aube étoilée : il faut oser
+     descendre dans la fosse (gardée par un Colosse) ET fouiller les dalles. */
+  const gouffreStar = addPickup('star', 102.8, -14.5, 10, true);
+  const gouffreInter = addInter(102.8, -14.5, 10, 2.3, 'Fouiller les décombres du pont', it => {
+    it.on = false;
+    revealPickup(gouffreStar);
+    showMsg('Sous une dalle brisée, vos doigts frôlent quelque chose de froid : un Éclat tombé du ciel avec le pont, il y a des lustres.', 4.5);
+  });
+  RESTORES.push(() => { if (!gouffreInter.on) revealPickup(gouffreStar); });
   addInter(95.5, -8, 10, 2.6, 'Scruter le gouffre', () => {
     showMsg('Le pont s\'est effondré. Onze mètres de vide... Un saut sprinté, puis le Pas du vent en plein vol.', 4);
   });
@@ -1236,6 +1401,34 @@ export function buildOpenWorld() {
     [27, -87], [51, -87], [3, -75], [-45, -87]
   ];
   FTREES.forEach(([tx, tz], i) => tree(tx, tz, 1.8 + (i % 3) * 0.25));
+  /* SECRET — l'arbre aux lucioles : perdu dans un couloir du labyrinthe,
+     un arbre éteint que seule la Bénédiction ranime. Ses lucioles rendent
+     alors le 3ᵉ Éclat d'Aube étoilée (la Faveur des Étoiles à la clef). */
+  mkCyl(0.3, 0.42, 2.2, 21, 0, -69, 'trunk', true, 7);
+  const fireflyGlow = glow(0x3a5a3a, 1.6, 0.25);
+  fireflyGlow.position.set(21, 2.6, -69);
+  S.scene.add(fireflyGlow);
+  const fireflyStar = addPickup('star', 21, 1.6, -69.9, true);
+  const fireflyInter = addInter(21, 0, -69, 2.6, 'Bénir l\'arbre aux lucioles', it => {
+    if (G.powers.heal) {
+      it.on = false;
+      fireflyGlow.material.color.setHex(0x9fffb0);
+      fireflyGlow.material.opacity = 0.6;
+      spawnBurst(21, 2.4, -69, 0x9fffb0, 24);
+      A.power();
+      revealPickup(fireflyStar);
+      showMsg('Mille lucioles s\'embrasent dans les branches... et déposent à vos pieds un Éclat d\'Aube étoilée.', 4.5);
+    } else {
+      showMsg('Un arbre éteint, couvert de lucioles endormies. Une lumière chaude pourrait les réveiller... (la Bénédiction dort dans l\'Ossuaire)', 4);
+    }
+  });
+  RESTORES.push(() => {
+    if (!fireflyInter.on) {
+      fireflyGlow.material.color.setHex(0x9fffb0);
+      fireflyGlow.material.opacity = 0.6;
+      revealPickup(fireflyStar);
+    }
+  });
   torch(3, 0, -57, 0xffa04a, 1.1, 16);
   torch(-39, 0, -69, 0xffa04a, 1.1, 16);
   torch(15, 0, -81, 0xffa04a, 1.1, 16);
