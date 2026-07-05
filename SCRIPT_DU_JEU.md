@@ -89,10 +89,13 @@ pour la quête en cours.
 
 | Type | Nom | Profil | PV | Dégâts | XP |
 |---|---|---|---|---|---|
-| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 30 | 12 | 12 |
-| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 16 | 8 | 16 |
-| brute | **Colosse** | Très lent, dévastateur (masse rouge sombre, yeux braise) | 110 | 30 | 36 |
-| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 26 | 14 | 24 |
+| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 34 | 14 | 12 |
+| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 19 | 9 | 16 |
+| brute | **Colosse** | Très lent, dévastateur (masse rouge sombre, yeux braise) | 118 | 30 | 36 |
+| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 30 | 15 | 24 |
+
+*(v7.4 : stats de base relevées de ~10-15 % — le début du jeu pardonne un peu
+moins. Les ombres du tutoriel des jardins restent bridées : 27 PV / 9 dégâts.)*
 
 Les archétypes se découvrent **un à un** : Ombre (jardins) → Traqueur → Tisseur
 (bibliothèque) → Colosse (aile est, version « leçon d'esquive » aux dégâts plafonnés).
@@ -313,6 +316,29 @@ indice donné par Lumen si on retourne le voir.
   Bénédiction dort dans l'Ossuaire des catacombes... »* → *« La Bénédiction ranime
   l'arbre-sanctuaire : la haie s'écarte devant sa sève neuve. »*
 
+### 5.2 bis (v7.4) Les énigmes DURCIES
+
+La v7.4 complexifie l'accès aux pouvoirs et aux objectifs-clefs :
+
+- **L'énigme des trois flammes** (remplace le levier unique) : trois leviers
+  ceignent le grand hall — **Levant** (mur est), **Midi** (côté entrée, au sud),
+  **Couchant** (mur ouest). Il faut les actionner **dans l'ordre de la course du
+  soleil** (Levant → Midi → Couchant). Une erreur réarme tout dans un claquement
+  sec. L'indice est gravé sur une plaque près de l'entrée du hall :
+  *« Trois flammes gardent le savoir. Le Levant l'éveille, Midi la porte, le
+  Couchant l'endort. Suis la course du soleil, et le savoir s'ouvrira. »*
+  Chaque levier abaissé allume une flamme-témoin dorée (1/3, 2/3...).
+- **Les plaques jumelles** (catacombes) : la porte exige désormais **DEUX
+  plaques chargées EN MÊME TEMPS**. Le premier bloc runique est au sol de
+  l'armurerie ; le second dort **tout en haut de la pile de caisses** (il faut
+  lever les yeux). Retirer une charge relâche sa plaque. Alternative coop :
+  un bloc sur une plaque + les deux porteurs réunis sur l'autre.
+- **Les feux des morts** (Ossuaire) : la Clef d'or n'est plus posée au détour
+  d'un couloir — elle dort dans une **châsse de pierre scellée**. Il faut
+  trouver et **étouffer les trois braseros violets** dispersés dans le
+  labyrinthe pour que la châsse s'ouvre. Le fronton l'annonce : *« ...et que
+  s'éteignent les trois feux des morts : alors la châsse s'ouvrira. »*
+
 ### 5.13 Secrets optionnels
 - **Fausse haie** (labyrinthe de haies des jardins, zone optionnelle) : une haie
   traversable cache un Fragment de vitalité + un cœur.
@@ -322,6 +348,15 @@ indice donné par Lumen si on retourne le voir.
   déplaçait souvent. »*
 - **Fond du Gouffre** : Fragment de vitalité + 2 essences d'ombre (gardés par un Colosse).
 - **Fragments de vitalité** : +25 PV max chacun (aussi dans l'Ossuaire et la forêt).
+- **Les Éclats d'Aube étoilée** (v7.4 — 3 secrets à VRAI boost) : réunir les
+  trois confère la **Faveur des Étoiles** : **+15 % de dégâts permanents
+  (toutes voies) et +20 PM max**.
+  1. **L'offrande de la fontaine** (Jardins) : sonder le bassin avec une
+     essence d'ombre en poche — *« Une part d'ombre pour une part d'étoile. »*
+  2. **Les décombres du pont** (fond du Gouffre des Morts, gardé par un
+     Colosse) : fouiller les dalles brisées de l'ancien pont.
+  3. **L'arbre aux lucioles** (couloir perdu de la Forêt de Nuit) : un arbre
+     éteint que seule la **Bénédiction** ranime — les lucioles rendent l'Éclat.
 - **Les Confins d'Ombre** (friches optionnelles) : deux champs en friche flanquent la
   salle du trône, accessibles uniquement en longeant la lisière de la Forêt de Nuit
   (bande étroite au sud des ruines) puis en contournant les murs des Terres Perdues.
@@ -439,8 +474,17 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
 - **Anti-glitch** : saut max ≈ 2,85 m (+0,62 m de rebord, +1,1 m avec le bloc-escabeau) ;
   tous les murs de progression font ≥ 4,8 m, les intérieurs ont un plafond, les brèches
   au Pas du vent font 11,5 m.
-- **Mort** : retour au dernier bivouac — *« Les ombres vous ont submergé... Vous rouvrez
-  les yeux près du dernier feu de bivouac. »*
+- **Mort (v7.4)** : en solo, un **écran GAME OVER** (« VOUS ÊTES TOMBÉ ») s'affiche ;
+  pendant ~4 secondes les ombres « se referment » (aucun choix possible), puis le
+  porteur **choisit à quel feu de bivouac découvert** il rouvre les yeux (60 % des
+  PV, pleine mana, 1,5 s d'invulnérabilité au réveil). En coop, la renaissance
+  immédiate au dernier bivouac est conservée (l'écran scindé continue de vivre
+  pour l'autre porteur).
+- **Carte d'Ombreciel (v7.4, touche M / bouton 🗺)** : carte stylisée du monde
+  (canvas) — traits fixes du château, **noms des zones dévoilés en explorant**,
+  sous-sol en pointillés, position et orientation du porteur, objectif ✧, et
+  **feux de bivouac découverts cliquables = téléportation** (interdite en plein
+  combat, comme la matrice des Bivouacs).
 - **Décor 3D** : vraies textures Poly Haven (plancher `plank_flooring_04`, briques
   `slumped_mortar_brick`) ; arbres variés — chêne mort (scan) et érable feuillu alternés
   déterministiquement selon la position, orientation stable — ; bosquets denses

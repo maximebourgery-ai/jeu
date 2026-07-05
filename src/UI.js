@@ -47,6 +47,69 @@ export function travelTo(c) {
   showMsg('Le feu appelle le feu... Vous rouvrez les yeux près du bivouac — ' + c.label + '.', 3.5);
 }
 
+/* ---------------- GAME OVER (solo) ----------------
+   v7.4 : la mort n'est plus un aller-retour instantané. Un écran s'affiche,
+   les ombres « se referment » quelques secondes (aucun bouton actif), puis
+   le porteur de flamme CHOISIT à quel feu de bivouac découvert il rouvre
+   les yeux. En coop, l'ancien retour immédiat est conservé (l'écran scindé
+   continue de vivre pour l'autre joueur — voir hurt() dans Player.js). */
+let goTimer = null;
+export function gameOver() {
+  if (G.dead) return;
+  G.dead = true; G.over = true; G.hp = 0;
+  S.combatT = 0;
+  /* refermer tous les panneaux : la mort a le dernier mot */
+  G.inv = false; $('inv').classList.add('hidden');
+  G.treeOpen = false; $('tree').classList.add('hidden');
+  G.travelOpen = false; $('travel').classList.add('hidden');
+  G.mapOpen = false; const mp = $('map'); if (mp) mp.classList.add('hidden');
+  G.paused = false; $('pause').classList.add('hidden');
+  if (document.exitPointerLock) document.exitPointerLock();
+  /* un bouton par feu découvert (à défaut : le dernier feu connu) */
+  const ul = $('golist'); ul.innerHTML = '';
+  const mkBtn = (label, x, y, z) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.textContent = '🔥 ' + label;
+    b.disabled = true;
+    b.addEventListener('click', () => reviveAt(x, y, z, label));
+    li.appendChild(b); ul.appendChild(li);
+  };
+  const dests = CAMPS.filter(c => c.travel && G.camps[c.id]);
+  if (!dests.length) mkBtn('le dernier feu connu', G.checkpoint.x, G.checkpoint.y, G.checkpoint.z);
+  for (const c of dests) mkBtn(c.label, c.x, c.y, c.z);
+  /* latence de renaissance : les ombres se referment avant tout choix
+     (échéance sur horloge réelle — insensible aux dérives des timers) */
+  const cnt = $('gocount');
+  const deadline = performance.now() + 4000;
+  cnt.textContent = 'Les ombres se referment sur vous... 4';
+  $('gameover').classList.remove('hidden');
+  if (goTimer) clearInterval(goTimer);
+  goTimer = setInterval(() => {
+    const left = deadline - performance.now();
+    if (left > 0) { cnt.textContent = 'Les ombres se referment sur vous... ' + Math.ceil(left / 1000); return; }
+    clearInterval(goTimer); goTimer = null;
+    cnt.textContent = 'Choisissez le feu où rouvrir les yeux :';
+    ul.querySelectorAll('button').forEach(b => { b.disabled = false; });
+  }, 200);
+}
+export function reviveAt(x, y, z, label) {
+  if (!G.dead) return;
+  if (goTimer) { clearInterval(goTimer); goTimer = null; }
+  G.dead = false; G.over = false;
+  $('gameover').classList.add('hidden');
+  if (S.inTower) leaveTower(true); // l'instance de la Tour ne survit pas à la mort
+  G.hp = Math.floor(G.maxHp * 0.6);
+  G.mana = G.maxMana;
+  player.pos.set(x, y, z); player.vel.set(0, 0, 0);
+  player.invuln = 1.5; // le temps de se relever, les ombres ne mordent pas
+  G.checkpoint = { x, y, z };
+  A.dash();
+  spawnBurst(x, y + 1, z, 0xffc06a, 20);
+  showMsg('Vous rouvrez les yeux près du feu — ' + label + '. Les ombres vous ont laissé la vie... cette fois.', 4.5);
+  if (!IS_TOUCH && !G.paused) lockPointer();
+}
+
 export function buildPowersUI() {
   const c = $('powers'); c.innerHTML = '';
   POWERS.forEach((p, i) => {
@@ -83,6 +146,7 @@ export function refreshInv() {
   const rows = [];
   rows.push('Voie : ' + PATHS[G.path].name);
   rows.push('Larmes d\'Aube : ' + G.crystals + ' / 3');
+  if (G.stars > 0) rows.push('Éclats d\'Aube étoilée : ' + G.stars + ' / 3' + (G.upgrades.starBoost ? ' — Faveur des Étoiles active' : ''));
   rows.push('Herbes lunaires : ' + G.herbs + '  (H : potion, 2 herbes = +30 PV)');
   rows.push('Essences d\'ombre : ' + G.shadows + '  (O : 3 essences = 1 orbe)');
   rows.push('Orbes d\'obscurité : ' + G.orbes + '  (C : transcender)');

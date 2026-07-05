@@ -54,6 +54,22 @@ canvas{display:block}
 #travel li button:hover{background:rgba(255,170,70,.28)}
 #btn-travelclose{font-family:inherit;font-size:13px;letter-spacing:1px;color:#8892b0;background:none;border:1px solid rgba(136,146,176,.4);border-radius:7px;padding:7px 16px;cursor:pointer}
 #btn-travelclose:hover{color:#cfd8f2}
+/* ---------- Carte d'Ombreciel (M) ---------- */
+#map{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:94vh;background:rgba(8,10,22,.96);border:1px solid rgba(255,180,90,.45);border-radius:12px;padding:16px 18px;z-index:9;text-align:center;overflow:auto}
+#map h3{color:#ffd97a;font-weight:normal;letter-spacing:3px;margin-bottom:6px;font-size:17px}
+#map .tvhint{font-size:12px;color:#8892b0;font-style:italic;margin-bottom:10px;line-height:1.5}
+#mapcanvas{max-width:100%;height:auto;border:1px solid rgba(160,150,120,.35);border-radius:8px;cursor:crosshair;background:#0b101f}
+#btn-mapclose{margin-top:10px;font-family:inherit;font-size:13px;letter-spacing:1px;color:#8892b0;background:none;border:1px solid rgba(136,146,176,.4);border-radius:7px;padding:7px 16px;cursor:pointer}
+#btn-mapclose:hover{color:#cfd8f2}
+/* ---------- Game over (choix du feu de renaissance) ---------- */
+#gameover{background:radial-gradient(ellipse at 50% 32%,#2a0d14 0%,#05060d 74%)}
+#gameover h1{color:#ff7a6a;text-shadow:0 0 34px rgba(255,80,60,.45)}
+#gocount{font-size:15px;letter-spacing:1px;color:#d8b090;font-style:italic;margin-bottom:18px;min-height:22px}
+#golist{list-style:none;width:min(360px,86vw)}
+#golist li{margin:8px 0}
+#golist li button{width:100%;font-size:16px;letter-spacing:1px;color:#ffe2b0;background:rgba(255,170,70,.12);border:1px solid rgba(255,180,90,.4);border-radius:8px;padding:11px 14px;box-shadow:none}
+#golist li button:hover:not(:disabled){background:rgba(255,170,70,.28);filter:none}
+#golist li button:disabled{opacity:.35;cursor:default}
 /* ---------- Écrans ---------- */
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;padding:24px}
 .overlay h1{font-size:50px;letter-spacing:8px;color:#ffd97a;text-shadow:0 0 34px rgba(255,190,60,.45);font-weight:normal;margin-bottom:14px}
@@ -220,6 +236,7 @@ body.touchmode #powers{display:none}
   transition:border-color .18s,color .18s}
 #treeclose:hover{border-color:#ffd97a;color:#ffd97a}
 #t-tree{left:26px;top:38%;width:48px;height:48px;font-size:20px}
+#t-map{left:26px;top:66%;width:48px;height:48px;font-size:19px}
 /* ---------- Barres de vie des ennemis ----------
    .en (nom · niveau) AU-DESSUS, .etrack (barre, seule à rogner son
    remplissage), .eh (PV chiffrés) DESSOUS — l'ancienne barre unique en

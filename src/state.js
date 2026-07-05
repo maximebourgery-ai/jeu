@@ -12,6 +12,10 @@ export const IS_TOUCH = (typeof matchMedia === 'function' && matchMedia('(pointe
 
 export const G = {
   started: false, paused: false, over: false, inv: false, dialog: false,
+  /* v7.4 — dead : écran GAME OVER en cours (solo). mapOpen : carte du monde
+     à l'écran. stars : Éclats d'Aube étoilée (secrets, 3 = Faveur des
+     Étoiles, un vrai boost permanent — voir World.js / SkillTree.js). */
+  dead: false, mapOpen: false, stars: 0,
   hp: 100, maxHp: 100, mana: 100, maxMana: 100,
   powers: { bolt: true, dash: false, tk: false, shield: false, frost: false, heal: false, nova: false, meteor: false },
   sel: 'bolt',
@@ -29,7 +33,7 @@ export const G = {
      forger des rangs d'amélioration de chaque sort (voir PUPG / SkillTree). */
   shards: 0, pupg: { bolt: 0, dash: 0, shield: 0, frost: 0, heal: 0 },
   rage: 0, maxRage: 100, // jauge de rage du Guerrier (voir Powers.js / UI.js)
-  upgrades: { boltAoE: false }, firstPerson: false,
+  upgrades: { boltAoE: false, starBoost: false }, firstPerson: false,
   checkpoint: { x: 0, y: 0.2, z: 60 },
   shieldT: 0, time: 0, msgT: 0, vig: 0,
   /* v7.1 — Ascension de la Tour du Levant : clefs de palier, Maîtres d'Étage
@@ -83,11 +87,15 @@ export function applyPath(id) {
    · brute    → COLOSSE   : très lent, dévastateur (masse rouge sombre, yeux braise)
    · wraith   → TRAQUEUR  : ultra-rapide, fragile (silhouette fine verte, yeux acides)
    · caster   → TISSEUR   : rare, projectiles hostiles à distance (inchangé) */
+/* v7.4 — les ombres du début mordent un peu plus fort (PV et dégâts de
+   base +10~15 %) : le tutoriel reste clément (voir les stats dédiées des
+   ombres 'garden' dans World.js) mais dès le grand hall, baisser sa garde
+   se paie. La courbe par niveau (mul/dmul dans Enemies.js) est inchangée. */
 export const ETYPES = {
-  sentinel: { name: 'Ombre',    hp: 30,  dmg: 12, speed: 2.2,  chase: 4.4, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
-  wraith:   { name: 'Traqueur', hp: 16,  dmg: 8,  speed: 3.9,  chase: 7.6, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
-  brute:    { name: 'Colosse',  hp: 110, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
-  caster:   { name: 'Tisseur',  hp: 26,  dmg: 14, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
+  sentinel: { name: 'Ombre',    hp: 34,  dmg: 14, speed: 2.2,  chase: 4.6, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
+  wraith:   { name: 'Traqueur', hp: 19,  dmg: 9,  speed: 3.9,  chase: 7.8, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
+  brute:    { name: 'Colosse',  hp: 118, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
+  caster:   { name: 'Tisseur',  hp: 30,  dmg: 15, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
   /* v8 — l'Outre-Ciel (étages 16-20 de l'Ascension) : trois archétypes de fin
      de partie, plus forts que tout ce que le château connaît.
      · seraph   → SÉRAPHIN DÉCHU  : garde ailée du Berger, bordées à distance
@@ -230,11 +238,11 @@ export const QUESTS = [
   { id: 'lumen',   text: 'Rejoignez la petite lueur bleue près de la fontaine et parlez-lui (E).', pos: [2.5, 1, 44.5] },
   { id: 'garden',  text: 'Repoussez les 2 Ombres des jardins : la herse du château se lèvera. (clic gauche : attaque)' },
   { id: 'hall',    text: 'Franchissez la herse et entrez dans le grand hall.', pos: [0, 1, 16] },
-  { id: 'lever',   text: 'Trouvez le mécanisme qui ouvre la bibliothèque.', pos: [15, 1, 27] },
+  { id: 'lever',   text: 'Percez l\'énigme des trois flammes du grand hall : la bibliothèque s\'ouvrira.', pos: [-4, 1, 28.5] },
   { id: 'dash',    text: 'Grimpez les étagères de la bibliothèque jusqu\'à la passerelle : le Pas du vent y sommeille.', pos: [-55, 8.4, 5] },
   { id: 'tower',   text: 'Avec le Pas du vent (touche 2), franchissez le pont brisé du parvis est et gagnez le sommet de la Tour du Levant.', pos: [58, 23.8, 46] },
-  { id: 'plate',   text: 'Avec la Main céleste (touche 3), posez le bloc runique de l\'armurerie sur la plaque gravée de l\'aile est.', pos: [48, 1, 16] },
-  { id: 'crypt',   text: 'Descendez aux catacombes : la Clef d\'or et la Bénédiction sont perdues dans l\'Ossuaire.', pos: [86, -7, -30] },
+  { id: 'plate',   text: 'Avec la Main céleste (touche 3), chargez les DEUX plaques gravées de l\'aile est. L\'armurerie cache deux blocs runiques...', pos: [48, 1, 16] },
+  { id: 'crypt',   text: 'Descendez aux catacombes : la Bénédiction dort dans l\'Ossuaire, et la Clef d\'or ne paraîtra que si les feux des morts s\'éteignent.', pos: [86, -7, -30] },
   { id: 'gouffre', text: 'Franchissez le Gouffre des Morts d\'un Pas du vent : l\'Égide veille sur l\'autre rive.', pos: [113, -7, 10] },
   { id: 'flamme',  text: 'L\'Égide activée (touche 4), traversez le rideau de flammes : la première Larme est derrière.', pos: [123, -7, 10] },
   { id: 'throne',  text: 'Ouvrez la salle du trône avec la Clef d\'or, au nord du grand hall : la deuxième Larme y est gardée.', pos: [0, 1, 1] },
@@ -246,11 +254,11 @@ export const QUESTS = [
 export const HINTS = {
   garden: 'Les Ombres craignent ton attaque. Vise du regard, frappe au clic gauche. La herse ne se lèvera qu\'une fois les jardins purgés.',
   hall: 'La herse du château est levée, au nord de la fontaine. Les torches du grand hall brûlent encore.',
-  lever: 'Cherche un levier de fer contre le mur est du grand hall.',
+  lever: 'Trois leviers ceignent le grand hall, et une plaque près de l\'entrée murmure leur ordre : suis la course du soleil — le Levant l\'éveille, Midi le porte, le Couchant l\'endort.',
   dash: 'Dans la bibliothèque, les étagères de l\'angle sud-ouest font un escalier vers la passerelle haute.',
   tower: 'Au parvis est des jardins, un escalier mène au pont brisé. « Seul le vent franchit ce que la pierre refuse. »',
-  plate: 'Saisis le bloc runique de l\'armurerie avec la Main céleste (touche 3, puis clic) et pose-le sur la plaque gravée, dans la salle voisine.',
-  crypt: 'Sous l\'aile est, l\'escalier des catacombes est ouvert. Dans l\'Ossuaire, longe le mur de l\'ouest : la Bénédiction, puis la Clef d\'or.',
+  plate: 'Les DEUX plaques gravées veulent leur charge en même temps. Un bloc runique attend au sol de l\'armurerie... et l\'autre dort là où l\'on empile ce qu\'on veut oublier : lève les yeux vers les caisses.',
+  crypt: 'Sous l\'aile est, l\'escalier des catacombes est ouvert. Dans l\'Ossuaire, longe le mur de l\'ouest jusqu\'à la Bénédiction. Quant à la Clef d\'or : « que s\'éteignent les trois feux des morts, et la châsse s\'ouvrira ».',
   gouffre: 'À l\'est de la salle des gardes, le Gouffre des Morts n\'a plus de pont. Prends ton élan : saut, puis Pas du vent en plein vol.',
   flamme: 'Le rideau de flammes ne brûle pas ce que l\'Égide protège. Active-la (touche 4) juste avant de traverser.',
   throne: 'La serrure d\'or attend sa clef, au nord du grand hall. Les Colosses gardent la deuxième Larme.',
@@ -280,9 +288,10 @@ export const gpMove = { x: 0, z: 0 };
 export const tmMove = { x: 0, z: 0 };
 
 export const STEP_HEIGHT = 0.62; // hauteur de rebord franchissable automatiquement (marche/mantle)
-/* v7 : refonte totale des niveaux (le monde, les portes et les objets ont
-   changé de place — les sauvegardes v6 seraient incohérentes, on repart). */
-export const SAVE_KEY = 'ombreciel_save_v7';
+/* v8 : les énigmes durcies (trois leviers, plaques jumelles, feux des morts)
+   et les nouveaux secrets ajoutent des interactions/objets — les index des
+   sauvegardes v7 seraient décalés, on repart. */
+export const SAVE_KEY = 'ombreciel_save_v8';
 
 /* ---- Réglages joueur (visée, luminosité) — persistés indépendamment de la
    sauvegarde de partie, façon menu Options d'un FPS (sensibilité, zone
@@ -326,7 +335,7 @@ export const S = {
   shieldMesh: null, dirLight: null, beacon: null, lumen: null,
   // portes / éléments nommés du monde
   libDoor: null, basementDoor: null, throneDoor: null, beyondDoor: null,
-  gateDoor: null, leverHandle: null,
+  gateDoor: null,
   // caméra / entrées J1
   yaw: 0, pitch: -0.22, camKick: 0, jumpQueued: 0,
   plOK: true, mDown: false, dragDist: 0,

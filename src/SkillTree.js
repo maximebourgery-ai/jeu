@@ -62,6 +62,8 @@ export function classAtk(path) {
     if (hasN('p_avatar')) P.dmg = Math.round(P.dmg * 1.15);
   }
   if (G.upgrades.boltAoE) P.aoe = true; // Transcendance (artisanat) : compatible
+  // Faveur des Étoiles (les 3 Éclats d'Aube étoilée secrets) : +15 % de dégâts
+  if (G.upgrades.starBoost) P.dmg = Math.round(P.dmg * 1.15);
   // Aura du Premier Foyer (Observatoire de l'Aube) : +15 % de dégâts, toutes voies
   if (G.tower && G.tower.aura) P.dmg = Math.round(P.dmg * 1.15);
   // Couronne de l'Aube (Cœur de la Nuit sans lune, v8) : +10 % de plus, toutes voies

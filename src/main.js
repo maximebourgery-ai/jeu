@@ -18,6 +18,7 @@ import { updateFx } from './Animations.js';
 import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad, initSettingsUI } from './Controls.js';
+import { initMap } from './WorldMap.js';
 import { openManettePanel, retryManette, startControllerMode } from './Network.js';
 import { saveGame, hasSave, loadGame } from './SaveSystem.js';
 import { buildTowerGate, updateTower } from './Tower.js';
@@ -29,7 +30,7 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(S.clock.getDelta(), 0.05);
   updateGamepad(dt);
-  const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen;
+  const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen;
   // ✦ tactile : toujours l'attaque de base (les autres sorts ont leurs boutons dédiés)
   if (S.tmBoltHeld && canAct) castSpecific('bolt');
   // manette smartphone : flux historique ⟳ + attaque (lance le sort sélectionné)
@@ -210,6 +211,7 @@ async function initGame() {
   setupTouch();
   wireMenus();
   initSettingsUI();
+  initMap(); // carte d'Ombreciel (M) : consultation + téléportation vers les bivouacs
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
   if (import.meta.env.DEV) {
