@@ -13,7 +13,7 @@ import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
 import { tryInteract, tryInteractP2 } from './World.js';
 import { castPower, castSpecific } from './Powers.js';
-import { toggleMap, closeMap } from './WorldMap.js';
+import { toggleMap, closeMap, mapPan, mapZoom, mapCenter } from './WorldMap.js';
 
 /* ---------------- ENTRÉES (verrouillage souris + repli glisser) ---------------- */
 export function lockPointer() {
@@ -231,11 +231,119 @@ function padActive(gp, m, dzv) {
 
 /* Croix « chapeau » : 8 directions réparties sur [-1,1], repos hors plage. */
 function hatDirs(gp, m) {
-  if (m.hat < 0) return { up: false, down: false };
+  if (m.hat < 0) return { up: false, down: false, left: false, right: false };
   const v = gp.axes[m.hat];
-  if (!(v >= -1.01 && v <= 1.01)) return { up: false, down: false };
+  if (!(v >= -1.01 && v <= 1.01)) return { up: false, down: false, left: false, right: false };
   const d = Math.round((v + 1) * 3.5); // 0=haut,1=h-d,2=droite,3=b-d,4=bas,5=b-g,6=gauche,7=h-g
-  return { up: d === 0 || d === 1 || d === 7, down: d >= 3 && d <= 5 };
+  return {
+    up: d === 0 || d === 1 || d === 7, down: d >= 3 && d <= 5,
+    left: d >= 5 && d <= 7, right: d >= 1 && d <= 3
+  };
+}
+
+/* ================================================================
+   NAVIGATION DES MENUS À LA MANETTE (retour joueur : « la manette
+   fonctionne mais pas sur les menus »). Croix / stick gauche :
+   surbrillance dorée · A : activer · B : refermer · Start : reprendre
+   (pause). Couvre : écran-titre, histoire, pause, réglages (les
+   curseurs s'ajustent à gauche/droite), sac-atelier, arbre des
+   pouvoirs, matrice des bivouacs, game over, victoire. La CARTE a ses
+   commandes propres : stick/croix = déplacer, RB/LB = zoom ±,
+   A = centrer sur soi, B = fermer. Select/Back en jeu = carte.
+   ================================================================ */
+/* anti-répétition en TEMPS RÉEL (performance.now) : l'ancien décompte en
+   temps de jeu (dt plafonné) avalait des appuis quand le framerate chute */
+let navI = 0, navNextT = 0, navPanel = null;
+const PANEL_DEFS = {
+  title:    { sel: '#title .classbtn, #title .modebtn, #title .p2btn, #title > button' },
+  story:    { sel: '#story button' },
+  pause:    { sel: '#pause button', close: '#btn-resume' },
+  settings: { sel: '#settings input, #settings button', close: '#btn-settings-close' },
+  inv:      { sel: '#inv button', close: '#btn-invclose' },
+  tree:     { sel: '#tree button', close: '#treeclose' },
+  travel:   { sel: '#travel button', close: '#btn-travelclose' },
+  gameover: { sel: '#golist button' },
+  win:      { sel: '#win button' }
+};
+function activePanel() {
+  const vis = id => { const el = $(id); return el && !el.classList.contains('hidden'); };
+  if (vis('settings')) return 'settings';
+  if (G.paused && vis('pause')) return 'pause';
+  if (G.mapOpen) return 'map';
+  if (G.inv) return 'inv';
+  if (G.treeOpen) return 'tree';
+  if (G.travelOpen) return 'travel';
+  if (G.dead && vis('gameover')) return 'gameover';
+  if (vis('win')) return 'win';
+  if (vis('story')) return 'story';
+  if (!G.started && vis('title')) return 'title';
+  return null;
+}
+function navButtons(panel) {
+  const def = PANEL_DEFS[panel];
+  if (!def) return [];
+  return [...document.querySelectorAll(def.sel)]
+    .filter(el => el.offsetParent !== null && !el.disabled && !el.classList.contains('hidden'));
+}
+export function clearPadFocus() {
+  document.querySelectorAll('.padfocus').forEach(el => el.classList.remove('padfocus'));
+  navPanel = null;
+}
+function padMenus(panel, b, dirs, gp, dt) {
+  const now = performance.now();
+  /* --- la carte : déplacement continu + zoom, pas de liste de boutons --- */
+  if (panel === 'map') {
+    const px = deadzone(gp.axes[0] || 0, 0.3), py = deadzone(gp.axes[1] || 0, 0.3);
+    if (px || py) mapPan(px * 560 * dt, py * 560 * dt);
+    if (dirs.left()) mapPan(-380 * dt, 0);
+    if (dirs.right()) mapPan(380 * dt, 0);
+    if (dirs.up()) mapPan(0, -380 * dt);
+    if (dirs.down()) mapPan(0, 380 * dt);
+    if (b(5) && !S.gpPrev[5]) mapZoom(1.35);
+    if (b(4) && !S.gpPrev[4]) mapZoom(1 / 1.35);
+    if (b(0) && !S.gpPrev[0]) mapCenter();
+    if ((b(1) && !S.gpPrev[1]) || (b(8) && !S.gpPrev[8]) || (b(9) && !S.gpPrev[9])) closeMap();
+    return;
+  }
+  if (navPanel !== panel) {
+    // on change de panneau : éteindre la surbrillance de l'ancien
+    document.querySelectorAll('.padfocus').forEach(el => el.classList.remove('padfocus'));
+    navPanel = panel; navI = 0; navNextT = now + 250;
+  }
+  const list = navButtons(panel);
+  if (!list.length) return;
+  if (navI >= list.length) navI = list.length - 1;
+  const cur = list[navI];
+  const sx = deadzone(gp.axes[0] || 0, 0.45), sy = deadzone(gp.axes[1] || 0, 0.45);
+  const goPrev = dirs.up() || sy < 0, goNext = dirs.down() || sy > 0;
+  const goLeft = dirs.left() || sx < 0, goRight = dirs.right() || sx > 0;
+  const isRange = cur && cur.tagName === 'INPUT' && cur.type === 'range';
+  if (now >= navNextT) {
+    if (isRange && (goLeft || goRight)) {
+      /* curseur de réglage : gauche/droite ajuste la valeur en place */
+      const step = (parseFloat(cur.step) || 0.05) * (goRight ? 1 : -1);
+      const min = parseFloat(cur.min) || 0, max = parseFloat(cur.max) || 1;
+      cur.value = String(Math.min(max, Math.max(min, parseFloat(cur.value) + step)));
+      cur.dispatchEvent(new Event('input', { bubbles: true }));
+      navNextT = now + 110;
+    } else if (goPrev || goLeft) { navI = (navI - 1 + list.length) % list.length; navNextT = now + 190; }
+    else if (goNext || goRight) { navI = (navI + 1) % list.length; navNextT = now + 190; }
+  }
+  list.forEach((el, i) => el.classList.toggle('padfocus', i === navI));
+  const focused = list[navI];
+  if (focused && focused.scrollIntoView) focused.scrollIntoView({ block: 'nearest' });
+  if (b(0) && !S.gpPrev[0] && focused) {
+    if (focused.tagName === 'INPUT' && focused.type === 'checkbox') focused.click();
+    else focused.click(); // A : activer (boutons, voies, recettes...)
+  }
+  const def = PANEL_DEFS[panel];
+  if (def.close) {
+    const wantClose = (b(1) && !S.gpPrev[1]) || (b(9) && !S.gpPrev[9] && panel === 'pause');
+    if (wantClose) {
+      const c = document.querySelector(def.close);
+      if (c) c.click();
+    }
+  }
 }
 
 /* Publie la manette principale vers la légende des boutons (UI.js) dès
@@ -333,13 +441,29 @@ export function updateGamepad(dt) {
   };
   const hat = hatDirs(gp, m);
   const padUp = () => b(12) || hat.up, padDown = () => b(13) || hat.down;
+  const padLeft = () => b(14) || hat.left, padRight = () => b(15) || hat.right;
   const camX = dz(gp.axes[m.camX] || 0), camY = dz(gp.axes[m.camY] || 0);
   if (padActive(gp, m, settings.deadzone)) { S.gpActiveT = 2; gpUiT = 6; syncTouchUi(); }
+  const snapPrev = () => {
+    S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7),
+      8: b(8), 9: b(9), 12: padUp(), 13: padDown(), 14: padLeft(), 15: padRight() };
+  };
+  /* — MENUS : dès qu'un panneau est ouvert, la manette navigue DEDANS
+     (écran-titre compris) et le gameplay ne reçoit plus rien — */
+  const panel = activePanel();
+  if (panel) {
+    padMenus(panel, b, { up: padUp, down: padDown, left: padLeft, right: padRight }, gp, dt);
+    snapPrev();
+    return;
+  }
+  if (navPanel) clearPadFocus(); // on sort d'un menu : éteint la surbrillance
   // Pause (Start)
   if (b(9) && !S.gpPrev[9] && G.started && !G.over && !G.dialog) {
     G.paused = !G.paused;
     $('pause').classList.toggle('hidden', !G.paused);
   }
+  // Select / Back : la carte d'Ombreciel
+  if (b(8) && !S.gpPrev[8] && G.started && !G.over && !G.dialog) toggleMap();
   if (G.started && !G.over) {
     if (G.dialog) {
       if ((b(0) || b(2)) && !S.gpPrev[0] && !S.gpPrev[2]) dlgNext();
@@ -387,7 +511,7 @@ export function updateGamepad(dt) {
       }
     }
   }
-  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9), 12: padUp(), 13: padDown() };
+  snapPrev();
 }
 
 /* ================================================================

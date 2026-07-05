@@ -98,6 +98,9 @@ canvas{display:block;touch-action:none}
 #travel li{margin:7px 0}
 #travel li button{width:100%;font-family:inherit;font-size:15.5px;letter-spacing:1px;color:#ffe2b0;background:rgba(255,170,70,.12);border:1px solid rgba(255,180,90,.4);border-radius:8px;padding:10px 14px;cursor:pointer}
 #travel li button:hover{background:rgba(255,170,70,.28)}
+/* surbrillance de la navigation manette dans les menus */
+.padfocus{outline:2px solid #ffd97a!important;outline-offset:2px;
+  box-shadow:0 0 16px rgba(255,215,120,.6)!important;border-radius:8px}
 /* boutons de repos (choix du réveil : aube / crépuscule) */
 #travel li button.resttime{color:#cfe2ff;background:rgba(110,150,255,.1);border-color:rgba(140,170,255,.4)}
 #travel li button.resttime:hover{background:rgba(110,150,255,.24)}

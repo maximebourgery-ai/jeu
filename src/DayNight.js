@@ -117,13 +117,27 @@ export function updateDayNight(dt) {
     }
     if (S.renderer) S.renderer.toneMappingExposure = 1.28;
   }
+  /* LE CIEL SUIT LA CAMÉRA. Les dômes (nuit 400, jour 396) et les étoiles
+     sont centrés sur le monde à la création — or la Tour vit en x +400 et
+     les salles en x -400 : depuis un site d'instance, la moitié du champ de
+     vision regardait HORS du dôme → une nappe noire (nuit) ou beige (jour)
+     coupait l'écran en diagonale. Recentrer les dômes sur la caméra à
+     chaque frame supprime définitivement le « drap ». */
+  const cp = S.camera ? S.camera.position : null;
+  if (cp) {
+    if (S.sky) S.sky.position.copy(cp);
+    if (S.skyDay) S.skyDay.position.copy(cp);
+    if (S.stars) S.stars.position.set(cp.x, 0, cp.z);
+    if (S.moon) S.moon.position.set(cp.x + 120, 140, cp.z - 180);
+  }
   if (S.skyDay) S.skyDay.material.opacity = f;
   if (S.stars) S.stars.material.opacity = 0.9 * (1 - f);
   if (S.moon) S.moon.visible = f < 0.85;
   if (S.sun) {
-    /* le soleil se lève à l'est (6 h) et se couche à l'ouest (22 h) */
+    /* le soleil se lève à l'est (6 h) et se couche à l'ouest (22 h),
+       lui aussi ancré sur la caméra (visible depuis les instances) */
     const a = Math.max(0, Math.min(1, (G.hour - 6) / 16)) * Math.PI;
-    S.sun.position.set(-Math.cos(a) * 250, Math.sin(a) * 185 + 4, -130);
+    S.sun.position.set((cp ? cp.x : 0) - Math.cos(a) * 250, Math.sin(a) * 185 + 4, (cp ? cp.z : 0) - 130);
     S.sun.material.opacity = f;
     S.sun.children[0].material.opacity = 0.55 * f;
     S.sun.visible = f > 0.02;

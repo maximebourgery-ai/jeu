@@ -72,15 +72,22 @@ export function initScene() {
   S.scene.add(tgt); S.dirLight.target = tgt;
   S.scene.add(S.dirLight);
 
-  /* Ciel nocturne en dégradé généré en mémoire (aucun HDRI à charger). */
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 16, 12),
-    new THREE.MeshBasicMaterial({ map: assets.skyTex, side: THREE.BackSide, fog: false }));
-  S.scene.add(sky);
+  /* Ciel nocturne en dégradé généré en mémoire (aucun HDRI à charger).
+     IMPORTANT : le dôme (rayon 400) SUIT LA CAMÉRA à chaque frame (voir
+     updateDayNight) — les sites d'instance (Tour x +400, salles x -400)
+     sont au bord de la sphère : sans ce suivi, la moitié du champ de
+     vision regardait HORS du dôme → l'écran était coupé par une nappe
+     noire (nuit) ou beige (jour) à la diagonale du bord du ciel. */
+  S.sky = new THREE.Mesh(new THREE.SphereGeometry(400, 16, 12),
+    new THREE.MeshBasicMaterial({ map: assets.skyTex, side: THREE.BackSide, fog: false, depthWrite: false }));
+  S.sky.renderOrder = -3;
+  S.scene.add(S.sky);
   /* Ciel de JOUR : sphère jumelle légèrement plus petite dont l'opacité est
      fondue par le cycle (0 = nuit noire, 1 = plein jour). */
   S.skyDay = new THREE.Mesh(new THREE.SphereGeometry(396, 16, 12),
     new THREE.MeshBasicMaterial({ map: assets.skyDayTex, side: THREE.BackSide, fog: false,
       transparent: true, opacity: 0, depthWrite: false }));
+  S.skyDay.renderOrder = -2;
   S.scene.add(S.skyDay);
   // lune + halo (cachée en plein jour)
   S.moon = new THREE.Mesh(new THREE.SphereGeometry(8, 16, 16),

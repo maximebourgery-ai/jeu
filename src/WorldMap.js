@@ -389,6 +389,16 @@ export function toggleMap() {
   if (G.mapOpen) closeMap(); else openMap();
 }
 
+/* ---- pilotage à la MANETTE (Controls.js) : la carte se déplace au stick /
+   à la croix, zoome avec LB/RB, se recentre avec A et se ferme avec B ---- */
+export function mapPan(dx, dy) {
+  panX -= dx; panY -= dy;
+  clampPan();
+  drawMap();
+}
+export function mapZoom(f) { zoomAt(W / 2 || 360, H / 2 || 320, f); }
+export function mapCenter() { centerOnPlayer(); }
+
 export function initMap() {
   const cv = $('mapcanvas');
   if (!cv) return;

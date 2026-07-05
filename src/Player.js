@@ -478,7 +478,9 @@ function occludeDist(eye, back, want) {
     const t = rayAABB(eye, back, c.min, c.max);
     if (t !== null && t < closest) closest = t;
   }
-  return Math.max(1.4, Math.min(want, closest - 0.35));
+  /* plancher abaissé (0,9 contre 1,4) : dans les couloirs étroits, la caméra
+     préfère se rapprocher du dos du héros plutôt que rester DANS la paroi */
+  return Math.max(0.9, Math.min(want, closest - 0.3));
 }
 /* Battement d'ailes (partagé J1/J2 — code unifié) */
 function flapWings(pl) {
@@ -614,7 +616,9 @@ export function updatePlayer(dt) {
      d'opacité (matériau cloné par mesh — jamais le matériau partagé).
    · Lock-on axe Z : en combat rapproché, la verticalité extrême est
      bridée pour ne pas perdre ses repères face aux Traqueurs bondissants. */
-const DITHER_OPACITY = 0.2;
+/* 7 % (contre 20 %) : un mur occultant devient un voile à peine visible —
+   fini la grande nappe beige quand la caméra recule contre une paroi. */
+const DITHER_OPACITY = 0.07;
 function setDither(mesh, on) {
   if (!mesh) return;
   if (on) {

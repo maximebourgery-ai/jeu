@@ -75,7 +75,7 @@ function presetOpen(dr) {
 /* Fond de sas : boîte presque noire posée derrière chaque embrasure de
    transition — l'ouverture se lit comme un passage sombre, et personne ne
    peut marcher dans le vide du site en franchissant physiquement la porte. */
-const darkMat = () => new THREE.MeshStandardMaterial({ color: 0x07080f, roughness: 1 });
+const darkMat = () => new THREE.MeshStandardMaterial({ color: 0x141828, roughness: 1 });
 function stubCap(w, h, d, x, y, z) { mkBox(w, h, d, x, y, z, darkMat()); }
 
 /* ================================================================

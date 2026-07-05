@@ -401,7 +401,7 @@ export const S = {
      Calculés chaque frame par DayNight.js, lus par Enemies.js. */
   nightK: 0, nightMul: 1,
   // références d'éclairage/ciel pilotées par le cycle (créées dans World.initScene)
-  hemi: null, amb: null, sun: null, moon: null, stars: null, skyDay: null,
+  hemi: null, amb: null, sun: null, moon: null, stars: null, skyDay: null, sky: null,
   // progression / narration
   questI: -1, storyIdx: 0, dlg: null, // dlg = {pages:[],i:0,after:fn}
   // coop
