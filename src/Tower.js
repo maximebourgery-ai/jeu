@@ -1251,7 +1251,12 @@ export function updateTower(dt) {
       }
     }
   } else if (f.kind === 'racine') {
-    if (f.vulnT > 0) f.vulnT -= dt;
+    if (f.vulnT > 0) {
+      f.vulnT -= dt;
+      // la sève embrasée goutte : la fenêtre de vulnérabilité se voit aussi
+      if (Math.random() < dt * 7)
+        spawnBurst(bp.x + (Math.random() - 0.5) * 1.6, bp.y + 0.8, bp.z + (Math.random() - 0.5) * 1.6, 0x9fffb0, 2);
+    }
     boss.cloakMat.emissive.setHex(f.vulnT > 0 ? 0x2a6a2a : 0x0d0820);
     f.spikeT -= dt;
     if (f.spikeT <= 0 && dP < 16 && sameY) {
@@ -1351,7 +1356,12 @@ export function updateTower(dt) {
        dévorant radial, crocs de nuit télégraphiés, Échos recrachés, et une
        gueulée de zone façon Chevalier quand on colle. Sous 50 % de PV, la
        bête s'enrage : tout s'accélère. */
-    if (f.veilT > 0) f.veilT -= dt;
+    if (f.veilT > 0) {
+      f.veilT -= dt;
+      /* le voile déchiré SAIGNE de lumière : la fenêtre de dégâts se voit */
+      if (Math.random() < dt * 9)
+        spawnBurst(bp.x + (Math.random() - 0.5) * 2, bp.y + 0.6 + Math.random() * 1.6, bp.z + (Math.random() - 0.5) * 2, 0xffd97a, 2);
+    }
     boss.cloakMat.emissive.setHex(f.veilT > 0 ? 0x8a6a2a : 0x08041a);
     if (f.state === 'IDLE') {
       if (dP < 15 && sameY) {

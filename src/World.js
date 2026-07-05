@@ -441,6 +441,31 @@ export function winGame() {
   $('win').classList.remove('hidden');
 }
 
+/* Après la quête principale, Lumen devient le guide de l'Ascension puis de
+   l'Outre-Ciel (v8) : son indice suit l'avancée de la Tour, étape par étape,
+   jusqu'à la Couronne de l'Aube. */
+function towerLumenHint() {
+  const T = G.tower;
+  const known = POWERS.slice(0, 6).filter(p => G.powers[p.id]).length;
+  if (known < 6)
+    return 'Les trois Larmes brûlent à nouveau... mais il te manque des arts anciens (' + known + ' / 6). Le portail doré de la terrasse de la Tour du Levant ne s\'ouvre qu\'aux six.';
+  if (!T.aura)
+    return 'Le portail doré de la terrasse t\'attend : vingt étages, quatre clefs. Au quinzième, l\'Observatoire de l\'Aube — et une vérité que je te dois depuis trop longtemps.';
+  if (!T.met.maela)
+    return 'Près de l\'autel de l\'Observatoire, une ombre agenouillée essaie de parler depuis un siècle. Ton Aura est sa voix, porteur de flamme : écoute-la.';
+  if (!T.bosses.berger)
+    return T.bridge
+      ? 'Le pont de constellations est tissé : l\'île du Berger des Étoiles t\'attend au sommet de l\'Outre-Ciel. Vise son troupeau quand il plonge.'
+      : 'Dans l\'Outre-Ciel, retrouve les trois Éclats d\'étoile d\'Orin (' + T.shards + ' / 3) : sans son pont de constellations, l\'île du Berger reste hors d\'atteinte.';
+  if (!T.met.veilleur)
+    return 'La Clef d\'Astre ouvre le Cœur de la Nuit sans lune. Au bout de la salle figée, un Veilleur garde la dernière porte : parle-lui — il attend depuis cent ans.';
+  if (!T.bosses.avale)
+    return 'L\'Avale-Lune digère la lune derrière la porte de la Dernière Nuit. Souviens-toi : la Nova d\'Aurore (touche 7), prononcée tout contre son voile, le déchire — frappe quand il saigne de lumière.';
+  if (!T.crown)
+    return 'La bête est déchirée... mais la Couronne de l\'Aube attend toujours son porteur, au centre de l\'arène. Retourne la cueillir.';
+  return 'La lune veille à nouveau sur Ombreciel, et les ombres dorment enfin. Il n\'y a plus rien que je puisse t\'apprendre — merci, porteur d\'aube.';
+}
+
 /* ================================================================
    CONSTRUCTION DU MONDE — refonte v7
    Progression verrouillée par les pouvoirs (aucun passage ne peut être
@@ -682,7 +707,7 @@ export function buildWorld() {
       ], () => questReach('lumen'));
     } else {
       const q = QUESTS[S.questI];
-      const h = q ? HINTS[q.id] : null;
+      const h = q ? HINTS[q.id] : towerLumenHint();
       openDialog([h || 'L\'Aube est proche, porteur de flamme. Je le sens.']);
     }
   });
