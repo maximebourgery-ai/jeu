@@ -254,7 +254,10 @@ export function updatePadLegend() {
     spell('bolt', L[2]), // l'attaque de base, toujours sur X/□/Y-phys.
   ];
   settings.slots.forEach((id, i) => { if (id) rows.push(spell(id, L[[3, 4, 5, 6, 7][i]])); });
-  rows.push(spell('nova', 'Croix ▲'), spell('meteor', 'Croix ▼'), chip(L[9]) + 'Pause');
+  rows.push(spell('nova', 'Croix ▲'), spell('meteor', 'Croix ▼'),
+    chip('Croix ◀') + '🎒 Sac & atelier',
+    chip('Croix ▶') + '❖ Pouvoirs & améliorations',
+    chip(L[9]) + 'Pause');
   el.innerHTML = '<div class="plname">🎮 ' + (S.COOP ? 'Joueur 2 · ' : '')
     + (S.padName || 'Manette') + '</div>'
     + rows.filter(Boolean).map(r => '<div class="plrow">' + r + '</div>').join('');

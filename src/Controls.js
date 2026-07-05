@@ -146,6 +146,8 @@ export function initControls() {
    Y/LB/RB/LT/RT : 5 emplacements de sort assignables dans ⚙ Réglages
    (par défaut : Pas du vent, Main céleste, Égide, Souffle glacé, Bénédiction).
    Croix haut/bas : Nova d'Aurore / Astre d'Aube (arts de l'Outre-Ciel).
+   Croix gauche : SAC-ATELIER (Tab) · Croix droite : ARBRE DES POUVOIRS &
+   Forge des Arts (K) — les panneaux se naviguent ensuite à la manette.
 
    Beaucoup de manettes Bluetooth s'annoncent avec mapping ≠ "standard" :
    axes du stick droit décalés, gâchettes exposées en axes (repos à -1),
@@ -487,6 +489,8 @@ export function updateGamepad(dt) {
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4, p2);             // RT : emplacement 5 J2
         if (padUp() && !S.gpPrev[12] && !G.inv) castSpecific('nova', p2);   // Croix haut : Nova d'Aurore J2
         if (padDown() && !S.gpPrev[13] && !G.inv) castSpecific('meteor', p2);// Croix bas : Astre d'Aube J2
+        if (padLeft() && !S.gpPrev[14]) toggleInv();                     // Croix gauche : sac-atelier
+        if (padRight() && !S.gpPrev[15]) toggleTree();                   // Croix droite : arbre & Forge des Arts
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
@@ -508,6 +512,8 @@ export function updateGamepad(dt) {
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4);                // RT / R2 : emplacement 5
         if (padUp() && !S.gpPrev[12] && !G.inv) castSpecific('nova');    // Croix haut : Nova d'Aurore
         if (padDown() && !S.gpPrev[13] && !G.inv) castSpecific('meteor');// Croix bas : Astre d'Aube
+        if (padLeft() && !S.gpPrev[14]) toggleInv();                     // Croix gauche : sac-atelier
+        if (padRight() && !S.gpPrev[15]) toggleTree();                   // Croix droite : arbre & Forge des Arts
       }
     }
   }
