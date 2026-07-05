@@ -107,9 +107,23 @@ canvas{display:block;touch-action:none}
 #map{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:94vh;background:rgba(8,10,22,.96);border:1px solid rgba(255,180,90,.45);border-radius:12px;padding:16px 18px;z-index:9;text-align:center;overflow:auto}
 #map h3{color:#ffd97a;font-weight:normal;letter-spacing:3px;margin-bottom:6px;font-size:17px}
 #map .tvhint{font-size:12px;color:#8892b0;font-style:italic;margin-bottom:10px;line-height:1.5}
-#mapcanvas{max-width:100%;height:auto;border:1px solid rgba(160,150,120,.35);border-radius:8px;cursor:crosshair;background:#0b101f}
+#mapcanvas{max-width:100%;height:auto;border:1px solid rgba(160,150,120,.35);border-radius:8px;cursor:grab;background:#0b101f;touch-action:none}
+#mapcanvas:active{cursor:grabbing}
 #btn-mapclose{margin-top:10px;font-family:inherit;font-size:13px;letter-spacing:1px;color:#8892b0;background:none;border:1px solid rgba(136,146,176,.4);border-radius:7px;padding:7px 16px;cursor:pointer}
 #btn-mapclose:hover{color:#cfd8f2}
+/* croix de fermeture + commandes de zoom de la carte */
+#btn-mapx{position:absolute;top:10px;right:12px;width:34px;height:34px;font-size:16px;line-height:1;
+  color:#ffd97a;background:rgba(255,170,70,.12);border:1px solid rgba(255,180,90,.45);border-radius:50%;cursor:pointer;z-index:2}
+#btn-mapx:hover{background:rgba(255,170,70,.3)}
+#mapwrap{position:relative;display:inline-block;max-width:100%}
+#mapzoom{position:absolute;right:10px;bottom:26px;display:flex;flex-direction:column;gap:8px}
+#mapzoom button{width:38px;height:38px;font-size:19px;line-height:1;color:#ffe2b0;
+  background:rgba(10,14,30,.85);border:1px solid rgba(255,180,90,.45);border-radius:9px;cursor:pointer}
+#mapzoom button:hover{background:rgba(255,170,70,.25)}
+@media (pointer: coarse){
+  #btn-mapx{width:42px;height:42px;font-size:19px}
+  #mapzoom button{width:46px;height:46px;font-size:22px}
+}
 /* ---------- Game over (choix du feu de renaissance) ---------- */
 #gameover{background:radial-gradient(ellipse at 50% 32%,#2a0d14 0%,#05060d 74%)}
 #gameover h1{color:#ff7a6a;text-shadow:0 0 34px rgba(255,80,60,.45)}

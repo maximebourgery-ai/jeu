@@ -224,12 +224,13 @@ async function initGame() {
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
   if (import.meta.env.DEV) {
-    const { inter, CAMPS, doors, tkCubes } = await import('./state.js');
+    const { inter, CAMPS, doors, tkCubes, zoneSeen } = await import('./state.js');
     const { killEnemy } = await import('./Enemies.js');
     const { loadRoom, unloadRoom } = await import('./Rooms.js');
     const { travelTo } = await import('./UI.js');
+    const { openMap, closeMap } = await import('./WorldMap.js');
     window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, doors,
-      tkCubes, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo };
+      tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap };
   }
   loop();
 }

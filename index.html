@@ -81,9 +81,17 @@
   <button id="btn-travelclose">Rester près de ce feu (Échap)</button>
 </div>
 <div id="map" class="hidden">
+  <button id="btn-mapx" title="Fermer la carte (M)">✕</button>
   <h3>CARTE D'OMBRECIEL</h3>
-  <p class="tvhint">Chaque région reste un « ? » tant que vous n'y avez pas mis les pieds : explorez et découvrez ses bivouacs pour révéler formes, noms et détails. Cliquez un feu 🔥 découvert pour vous y téléporter — impossible en plein combat.</p>
-  <canvas id="mapcanvas" width="720" height="640"></canvas>
+  <p class="tvhint">Chaque région reste un « ? » tant que vous n'y avez pas mis les pieds : explorez et découvrez ses bivouacs pour révéler formes, noms et détails — zoomez pour lire les repères fins. Cliquez un feu 🔥 découvert pour vous y téléporter — impossible en plein combat.</p>
+  <div id="mapwrap">
+    <canvas id="mapcanvas" width="720" height="640"></canvas>
+    <div id="mapzoom">
+      <button id="btn-mapzoomin" title="Zoomer">＋</button>
+      <button id="btn-mapzoomout" title="Reculer">−</button>
+      <button id="btn-mapcenter" title="Centrer sur moi">◎</button>
+    </div>
+  </div>
   <button id="btn-mapclose">Refermer la carte (M)</button>
 </div>
 <div id="gameover" class="overlay hidden">
