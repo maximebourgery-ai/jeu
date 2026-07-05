@@ -220,6 +220,45 @@ export function refreshPowers() {
     d.classList.toggle('sel', G.sel === p.id);
   });
   updateTouchSlots();
+  updatePadLegend();
+}
+
+/* ---------------- LÉGENDE MANETTE (bouton → action / sort) ----------------
+   Affichée dès qu'une manette physique est la manette principale (S.padBrand,
+   posé par Controls.js). Les libellés suivent la MARQUE détectée : mêmes
+   positions physiques (mapping standard : 0=bas, 1=droite, 2=gauche, 3=haut),
+   seuls les noms gravés sur les boutons changent d'un constructeur à l'autre.
+   Les 5 emplacements de sort reflètent ⚙ Réglages ; 🔒 = pas encore appris. */
+const PAD_LABELS = {
+  xbox: { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 9: 'Start', 10: 'L3' },
+  ps:   { 0: '✕', 1: '◯', 2: '□', 3: '△', 4: 'L1', 5: 'R1', 6: 'L2', 7: 'R2', 9: 'Options', 10: 'L3' },
+  nin:  { 0: 'B', 1: 'A', 2: 'Y', 3: 'X', 4: 'L', 5: 'R', 6: 'ZL', 7: 'ZR', 9: '+', 10: 'L3' },
+};
+PAD_LABELS.generic = PAD_LABELS.xbox; // les pads génériques copient la sérigraphie Xbox
+export function updatePadLegend() {
+  const el = $('padlegend');
+  if (!el) return;
+  if (!S.padBrand || !G.started) { el.classList.add('hidden'); return; }
+  const L = PAD_LABELS[S.padBrand] || PAD_LABELS.generic;
+  const chip = t => '<span class="plbtn">' + t + '</span>';
+  const spell = (id, btnTxt) => {
+    const p = POWERS.find(x => x.id === id);
+    if (!p) return null;
+    return chip(btnTxt) + '<span class="plico">' + p.icon + '</span>' + p.name + (G.powers[id] ? '' : ' <span class="pllock">🔒</span>');
+  };
+  const rows = [
+    chip('◀ Stick') + 'Déplacer <small>(enfoncé : sprint)</small>',
+    chip('Stick ▶') + 'Caméra',
+    chip(L[0]) + 'Saut <small>(tenir : planer)</small>',
+    chip(L[1]) + 'Interagir',
+    spell('bolt', L[2]), // l'attaque de base, toujours sur X/□/Y-phys.
+  ];
+  settings.slots.forEach((id, i) => { if (id) rows.push(spell(id, L[[3, 4, 5, 6, 7][i]])); });
+  rows.push(spell('nova', 'Croix ▲'), spell('meteor', 'Croix ▼'), chip(L[9]) + 'Pause');
+  el.innerHTML = '<div class="plname">🎮 ' + (S.COOP ? 'Joueur 2 · ' : '')
+    + (S.padName || 'Manette') + '</div>'
+    + rows.filter(Boolean).map(r => '<div class="plrow">' + r + '</div>').join('');
+  el.classList.remove('hidden');
 }
 /* Boutons de sort tactiles (ts-*) : un bouton n'apparaît que si l'art est
    appris ET assigné à un emplacement dans ⚙ Réglages — retirer un sort de
