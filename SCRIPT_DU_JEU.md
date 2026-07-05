@@ -89,13 +89,29 @@ pour la quête en cours.
 
 | Type | Nom | Profil | PV | Dégâts | XP |
 |---|---|---|---|---|---|
-| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 34 | 14 | 12 |
-| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 19 | 9 | 16 |
-| brute | **Colosse** | Très lent, dévastateur (masse rouge sombre, yeux braise) | 118 | 30 | 36 |
-| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 30 | 15 | 24 |
+| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 52 | 14 | 12 |
+| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 36 | 9 | 16 |
+| brute | **Colosse** | Très lent, dévastateur (masse rouge sombre, yeux braise) | 165 | 30 | 36 |
+| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 46 | 15 | 24 |
 
-*(v7.4 : stats de base relevées de ~10-15 % — le début du jeu pardonne un peu
-moins. Les ombres du tutoriel des jardins restent bridées : 27 PV / 9 dégâts.)*
+*(v8.1 : PV de base relevés de ~50 % sur toute la ligne — plus aucune ombre
+« standard » ne tombe d'un seul coup à niveau égal, même le Traqueur face à la
+Frappe lourde. Les ombres du tutoriel restent bridées : 40 PV / 9 dégâts.)*
+
+**Attaque de mêlée télégraphiée (v8.1)** — fini les dégâts « au contact »
+invisibles, chaque coup d'ombre se déroule en trois temps lisibles :
+1. **Préparation** : l'ombre se cambre en arrière, crépite d'étincelles rouges
+   et son manteau **clignote** — c'est la fenêtre pour s'écarter ou dasher ;
+2. **Frappe** : bond physique en avant (murs respectés) + **arc de coup lumineux**,
+   direction figée au départ du coup — un pas de côté suffit à esquiver. Les
+   dégâts n'existent que sur cette « frame active » ;
+3. **Récupération** : l'ombre reste plantée un instant, exposée à la contre-attaque.
+   Un étourdissement **interrompt** l'attaque en préparation.
+
+Les lourds (Colosse : 0,8 s de préparation, onde au sol ; Titan : 0,9 s) préviennent
+longtemps et frappent large ; les rapides (Traqueur : 0,3 s ; Écho : 0,26 s) mordent
+vite mais pour peu de dégâts. Les Tisseurs/Séraphins chargent leur tir **0,55 s**
+en crépitant de rouge — le temps de rompre la ligne de vue ou de strafer.
 
 Les archétypes se découvrent **un à un** : Ombre (jardins) → Traqueur → Tisseur
 (bibliothèque) → Colosse (aile est, version « leçon d'esquive » aux dégâts plafonnés).
@@ -387,7 +403,11 @@ La v7.4 complexifie l'accès aux pouvoirs et aux objectifs-clefs :
 | 12 | Clairière du Cœur (final) | 10 | 2 Colosses + Tisseur + Traqueur |
 
 Un « directeur de renforts » repeuple les zones (cap par zone) et affiche à l'entrée :
-*« — [Zone] : les ombres y sont de niveau N — »*.
+*« — [Zone] : les ombres y sont de niveau N — »*. **v8.1 : caps de zone relevés
+d'un cran dans le château** (jardins, parvis, hall, bibliothèque, aile est, gardes,
+gouffre, trône), plafond global 26 → 30, et **6 patrouilles statiques de plus**
+dans les salles qui se vidaient trop vite (hall, bibliothèque, aile est, parvis,
+trône, ruines).
 
 **Points de contrôle (bivouacs)** : salle des gardes, Terres Perdues, cœur de la forêt,
 Clairière du Cœur — soin complet + point de renaissance. Ramasser une Larme fait aussi
@@ -425,7 +445,13 @@ Chaque piédestal joue un petit texte d'apprentissage, ex. : *« Pas du vent app
 - **Vraie balistique** : les projectiles (Trait astral, dagues) **retombent en vol**
   (gravité 5,2 pour le Mage, 3,4 pour les dagues plus tendues de l'Assassin). À la
   souris, il faut viser au-dessus d'une cible lointaine et gérer sa distance ; la
-  visée aimantée (tactile/manette) compense automatiquement la chute.
+  visée aimantée (tactile/manette) compense **85 %** de la chute et disperse le tir
+  de **±2,5°** — une aide, plus un pilote automatique : de près on touche presque
+  toujours, de loin il faut soigner placement et distance.
+- **Les murs arrêtent les tirs (v8.1)** : collision **balayée** sur tout le trajet
+  de la frame — plus aucun projectile (du joueur comme des Tisseurs/Séraphins) ne
+  « tunnelle » à travers un mur fin, l'impact colle à la paroi. Seul un futur
+  pouvoir spécial explicitement conçu pour percer la pierre y échappera.
 - **Coups critiques contextuels** — la *façon* de toucher décide, le meilleur
   multiplicateur s'applique seul (jamais de cumul) :
   · **En pleine tête** (tout projectile au-dessus des épaules) : ×1,6 ;
@@ -541,7 +567,9 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
   relâche) ; **glisser le bouton d'attaque sans le lâcher affine la visée pendant le
   tir** (double-stick, sensibilité réduite pour la précision) ; chaque coup **recentre
   brièvement la caméra** vers la cible sans jamais voler le contrôle. À la souris
-  (pointer lock) : visée libre 100 % manuelle, rien ne change.
+  (pointer lock) : visée libre 100 % manuelle, rien ne change. **v8.1 : l'aimant
+  n'est plus infaillible** — dispersion ±2,5° et chute compensée à 85 % seulement
+  (voir § 7 bis) : l'assist aide, elle ne joue pas à votre place.
 - **La mêlée pardonne** : Frappe lourde et Marteau d'aube partent vers la cible
   aimantée même si le réticule est à côté.
 - **Animations d'attaque par voie** (bras armé monté sur pivot d'épaule,

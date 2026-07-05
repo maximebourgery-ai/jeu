@@ -844,12 +844,12 @@ export function buildWorld() {
   addPickup('heart', 26, 0, 68);
   /* Ombres des jardins (tag 'garden' : leur chute lève la herse).
      PV et dégâts réduits : ce sont les adversaires du tutoriel — mais
-     depuis la v7.4 elles encaissent un coup de plus et pincent un peu
-     (le jeu annonce d'emblée qu'Ombreciel ne pardonne pas tout). */
-  mkEnemy(-10, 46, 0, [[-10, 46], [6, 46]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 27, dmg: 9 });
-  mkEnemy(14, 58, 0, [[14, 56], [14, 66], [24, 60]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 27, dmg: 9 });
+     elles encaissent désormais 3 coups de Mage (plus de mise à mort en
+     un éclair : le jeu apprend d'emblée à enchaîner les frappes). */
+  mkEnemy(-10, 46, 0, [[-10, 46], [6, 46]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 40, dmg: 9 });
+  mkEnemy(14, 58, 0, [[14, 56], [14, 66], [24, 60]], { tag: 'garden', type: 'sentinel', lvl: 1, hp: 40, dmg: 9 });
   /* le Traqueur rôde près du labyrinthe de haies, loin du point d'éveil */
-  mkEnemy(-12, 68, 0, [[-12, 68], [-4, 72], [-16, 72]], { type: 'wraith', lvl: 1, hp: 15, dmg: 7 });
+  mkEnemy(-12, 68, 0, [[-12, 68], [-4, 72], [-16, 72]], { type: 'wraith', lvl: 1, hp: 24, dmg: 7 });
 
   /* ---- LUMEN, l'esprit-guide ---- */
   S.lumen = new THREE.Group();
@@ -1603,6 +1603,23 @@ export function buildOpenWorld() {
   mkEnemy(0, -98, 0, [[-6, -98], [6, -98]], { type: 'caster', lvl: 10 });
   /* un Traqueur de plus : la Clairière est le pic de difficulté du jeu */
   mkEnemy(0, -92, 0, [[-8, -92], [8, -92]], { type: 'wraith', lvl: 10 });
+}
+
+/* ---------------- PATROUILLES DE RENFORT (v8.1) ----------------
+   Les salles du château se vidaient trop vite : quelques ombres de plus
+   dans les zones les plus calmes (grand hall, bibliothèque, aile est,
+   parvis, trône, ruines). Appelé EN DERNIER par main.js — après tout le
+   reste du monde — pour ne pas décaler les index d'ennemis des
+   sauvegardes existantes (S.STATIC_ENEMIES / SaveSystem). Les points de
+   patrouille reprennent des couloirs déjà arpentés par les ombres
+   d'origine : ils sont garantis praticables. */
+export function buildExtraPatrols() {
+  mkEnemy(0, 20, 0, [[-8, 20], [8, 20]], { type: 'sentinel', lvl: 2 });          // grand hall
+  mkEnemy(-40, 15, 0, [[-46, 15], [-34, 15]], { type: 'wraith', lvl: 2 });       // bibliothèque
+  mkEnemy(38, 16, 0, [[32, 16], [44, 16]], { type: 'sentinel', lvl: 3 });        // aile est
+  mkEnemy(52, 54, 0, [[46, 54], [58, 54]], { type: 'wraith', lvl: 3 });          // parvis du Levant
+  mkEnemy(-3, -8, 0, [[-6, -8], [4, -8]], { type: 'wraith', lvl: 6 });           // salle du trône
+  mkEnemy(0, -36, 0, [[-8, -36], [8, -36]], { type: 'wraith', lvl: 7 });         // ruines
 }
 
 /* ---------------- HERBES LUNAIRES (jardins + forêt) ---------------- */

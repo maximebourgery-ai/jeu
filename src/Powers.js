@@ -396,15 +396,26 @@ export function fireBolt(P, pl, dirO, target) {
   /* Vraie balistique : les projectiles RETOMBENT en vol. À la souris, il
      faut viser au-dessus de la cible lointaine et gérer sa distance ; les
      dagues de l'Assassin, plus véloces, sont plus tendues que le trait du
-     Mage. La visée aimantée (tactile/manette) compense automatiquement la
-     chute — le mobile n'est pas puni par la physique. */
+     Mage. La visée aimantée (tactile/manette) compense l'ESSENTIEL de la
+     chute (85 %) — une aide, plus un pilote automatique. */
   const grav = isAss ? 3.4 : 5.2;
-  if (pl === player && assistTarget()) {
+  const assisted = pl === player && assistTarget();
+  if (assisted) {
     const tof = start.distanceTo(target) / (P.pSpeed || 26);
     target = target.clone();
-    target.y += 0.5 * grav * tof * tof;
+    target.y += 0.5 * grav * tof * tof * 0.85;
   }
   const baseDir = target.clone().sub(start).normalize();
+  if (assisted) {
+    /* L'aimant n'est plus infaillible : dispersion angulaire ±~2,5°.
+       De près on touche presque toujours, de loin (avec la chute mal
+       compensée) il faut encore soigner placement et distance. */
+    const err = 0.09;
+    baseDir.x += (Math.random() - 0.5) * err;
+    baseDir.y += (Math.random() - 0.5) * err;
+    baseDir.z += (Math.random() - 0.5) * err;
+    baseDir.normalize();
+  }
   const col = P.pierce ? 0xffe9a8 : (isAss ? 0xd8ffe8 : 0x8feaff);
   const count = P.count || 1;
   const spreadTot = count > 1 ? (count === 2 ? 0.1 : 0.42) : 0;
@@ -438,11 +449,37 @@ export function fireBolt(P, pl, dirO, target) {
   if (pl === player) S.camKick = 0.12;
 }
 const UPV = new THREE.Vector3(0, 1, 0), dirTmp = new THREE.Vector3();
+/* Collision balayée d'un projectile contre les murs : on teste TOUT le
+   segment parcouru pendant la frame (rayAABB sur chaque collider), plus
+   seulement le point d'arrivée — un tir rapide ne peut plus « tunneler »
+   à travers un mur fin entre deux frames. Vaut pour les traits/dagues du
+   joueur COMME pour les projectiles hostiles des Tisseurs/Séraphins :
+   plus aucune attaque à distance ne traverse les murs. Retourne la
+   fraction [0..1] du trajet au point d'impact, ou null si le chemin est
+   libre. (Seul un futur « pouvoir spécial » explicitement conçu pour
+   percer la pierre devrait contourner ce test.) */
+const segO = new THREE.Vector3(), segD = new THREE.Vector3();
+function sweepWall(x0, y0, z0, x1, y1, z1) {
+  segO.set(x0, y0, z0);
+  segD.set(x1 - x0, y1 - y0, z1 - z0);
+  const len = segD.length();
+  if (len < 1e-6) return pointSolid(x1, y1, z1) ? 0 : null;
+  segD.multiplyScalar(1 / len);
+  let best = null;
+  for (let i = 0; i < colliders.length; i++) {
+    const c = colliders[i];
+    if (!c.on) continue;
+    const t = rayAABB(segO, segD, c.min, c.max);
+    if (t !== null && t <= len && (best === null || t < best)) best = t;
+  }
+  return best === null ? null : best / len;
+}
 export function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const pr = projectiles[i];
     pr.life -= dt;
     if (pr.grav) pr.vel.y -= pr.grav * dt; // balistique : le tir retombe en vol
+    const ox0 = pr.mesh.position.x, oy0 = pr.mesh.position.y, oz0 = pr.mesh.position.z;
     pr.mesh.position.addScaledVector(pr.vel, dt);
     // les dagues restent alignées sur leur trajectoire (piqué du nez compris)
     if (pr.orient && pr.vel.lengthSq() > 0.001)
@@ -460,10 +497,15 @@ export function updateProjectiles(dt) {
     }
     const pos = pr.mesh.position;
     let hit = pr.life <= 0;
-    if (!hit && pointSolid(pos.x, pos.y, pos.z)) {
-      hit = true;
-      spawnBurst(pos.x, pos.y, pos.z, 0x6ab8dd, 6);
-      A.burst(0.08, 1400, 'bandpass', 0.08);
+    if (!hit) {
+      const tw = sweepWall(ox0, oy0, oz0, pos.x, pos.y, pos.z);
+      if (tw !== null) {
+        hit = true;
+        // l'impact est ramené SUR le mur (et non derrière lui)
+        pos.set(ox0 + (pos.x - ox0) * tw, oy0 + (pos.y - oy0) * tw, oz0 + (pos.z - oz0) * tw);
+        spawnBurst(pos.x, pos.y, pos.z, 0x6ab8dd, 6);
+        A.burst(0.08, 1400, 'bandpass', 0.08);
+      }
     }
     if (!hit && pr.hostile) {
       const near = (pp) => Math.hypot(pos.x - pp.x, pos.z - pp.z) < 0.65 && Math.abs(pos.y - (pp.y + 1.1)) < 1.3;

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, zoneSeen } from './state.js';
 import { A } from './Audio.js';
 import { showMsg, dmgText } from './UI.js';
+import { slashArc, groundRing, impactFlash } from './Animations.js';
 import { spawnBurst, addPickup, pointSolid, openDoor, safeZoneAt } from './World.js';
 import { glow } from './AssetManager.js';
 import { gainXP, hasN } from './SkillTree.js';
@@ -130,7 +131,7 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     speed: opt.speed || T.speed, chaseSpeed: opt.chase || T.chase,
     atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '', elite,
     spawn: { x, z }, alerted: false,
-    lvl: lvl, ranged: !!T.ranged, shot: 1.2, windup: false, stunT: 0, dotT: 0, dotDps: 0, dotCol: 0, dyn: !!opt.dyn,
+    lvl: lvl, ranged: !!T.ranged, shot: 1.2, windup: false, mAtk: null, stunT: 0, dotT: 0, dotDps: 0, dotCol: 0, dyn: !!opt.dyn,
     xp: Math.round((T.xp || 12) * (1 + 0.5 * (lvl - 1)) * (elite ? 2.5 : 1)),
     tKey: opt.type || 'sentinel', tName: elite ? T.name + ' Alpha' : T.name
   };
@@ -143,6 +144,92 @@ function setCharEmissive(e, hex) {
   if (!e.charMats) return;
   for (const m of e.charMats)
     m.emissive.setHex(hex === null ? m.userData.baseEmissive : hex);
+}
+
+/* ================================================================
+   ATTAQUE DE MÊLÉE TÉLÉGRAPHIÉE — fini les dégâts « au contact »
+   invisibles : chaque coup se déroule en trois temps LISIBLES.
+   · PRÉPARATION : l'ombre se cambre en arrière, crépite de rouge et
+     clignote — c'est la fenêtre pour s'écarter ou dasher.
+   · FRAPPE : bond physique en avant (murs respectés) + arc de coup
+     lumineux ; les dégâts n'existent que sur cette « frame active »,
+     et seulement si la cible est encore devant l'ombre.
+   · RÉCUPÉRATION : l'ombre reste plantée, exposée à la contre-attaque.
+   Les lourds (Colosse, Titan) préviennent longtemps et frappent large ;
+   les rapides (Traqueur, Écho) mordent vite mais pour peu de dégâts.
+   ================================================================ */
+const MELEE = {
+  sentinel: { wind: 0.5,  strike: 0.16, rec: 0.45, reach: 2.2, lunge: 2.4, cool: 1.5, col: 0xb08cff },
+  wraith:   { wind: 0.3,  strike: 0.12, rec: 0.35, reach: 2.0, lunge: 3.4, cool: 1.1, col: 0x5affc8 },
+  brute:    { wind: 0.8,  strike: 0.2,  rec: 0.7,  reach: 2.8, lunge: 2.0, cool: 2.3, col: 0xff8a4a, ring: true },
+  caster:   { wind: 0.5,  strike: 0.16, rec: 0.5,  reach: 2.2, lunge: 2.0, cool: 1.7, col: 0xff8a5a },
+  seraph:   { wind: 0.45, strike: 0.16, rec: 0.5,  reach: 2.2, lunge: 2.2, cool: 1.6, col: 0xffe9a8 },
+  echo:     { wind: 0.26, strike: 0.12, rec: 0.3,  reach: 2.0, lunge: 3.8, cool: 1.0, col: 0xfff2b0 },
+  obsidian: { wind: 0.9,  strike: 0.22, rec: 0.8,  reach: 3.2, lunge: 1.8, cool: 2.5, col: 0xff5a2a, ring: true }
+};
+function meleeProf(e) { return MELEE[e.tKey] || MELEE.sentinel; }
+function startMelee(e) {
+  e.mAtk = { P: meleeProf(e), ph: 'wind', t: 0, hitDone: false, dx: 0, dz: 0 };
+  // télégraphe immédiat : éclat rouge + grondement sourd dès la préparation
+  spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, 0xff5a3a, 8);
+  A.burst(0.12, 300, 'lowpass', 0.06);
+}
+function stepMelee(e, dt, tp, tgt2) {
+  const m = e.mAtk, P = m.P;
+  m.t += dt;
+  if (m.ph === 'wind') {
+    // l'ombre se cambre en arrière et suit sa cible du regard — le coup se lit
+    const k = Math.min(1, m.t / P.wind);
+    e.g.rotation.x = -0.4 * k;
+    e.g.rotation.y = Math.atan2(tp.x - e.g.position.x, tp.z - e.g.position.z);
+    if (Math.random() < dt * 12)
+      spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, 0xff5a3a, 2);
+    if (m.t >= P.wind) {
+      m.ph = 'strike'; m.t = 0;
+      /* direction FIGÉE au départ du coup : un pas de côté suffit à esquiver */
+      const dx = tp.x - e.g.position.x, dz = tp.z - e.g.position.z;
+      const l = Math.hypot(dx, dz) || 1;
+      m.dx = dx / l; m.dz = dz / l;
+      e.g.rotation.y = Math.atan2(m.dx, m.dz);
+      slashArc(e.g.position.x + m.dx * 0.9, e.floorY + 1.15, e.g.position.z + m.dz * 0.9,
+        { x: m.dx, z: m.dz }, P.col, P.reach);
+      if (P.ring) groundRing(e.g.position.x, e.floorY, e.g.position.z, P.col, P.reach + 0.8);
+      A.impact();
+    }
+  } else if (m.ph === 'strike') {
+    e.g.rotation.x = 0.35;
+    // bond en avant — murs respectés (glissement le long des parois)
+    const step = (P.lunge / P.strike) * dt;
+    const ey = e.floorY + 1.0;
+    const nx = e.g.position.x + m.dx * step, nz = e.g.position.z + m.dz * step;
+    if (!pointSolid(nx, ey, e.g.position.z)) e.g.position.x = nx;
+    if (!pointSolid(e.g.position.x, ey, nz)) e.g.position.z = nz;
+    if (!m.hitDone && m.t >= P.strike * 0.5) {
+      m.hitDone = true;
+      /* FRAME ACTIVE : les dégâts n'existent qu'ici — sortir de l'arc
+         pendant la préparation (ou dasher : invuln) esquive le coup */
+      const dx = tp.x - e.g.position.x, dz = tp.z - e.g.position.z;
+      const d = Math.hypot(dx, dz);
+      const front = d < 0.6 || (dx * m.dx + dz * m.dz) / (d || 1) > 0.1;
+      if (d < P.reach + 0.4 && Math.abs(tp.y - e.floorY) < 3 && front) {
+        const shielded = tgt2 ? p2.shieldT > 0 : G.shieldT > 0;
+        const dmgN = Math.round(e.dmg * S.nightMul); // la nuit, les coups pèsent (S.nightMul)
+        if (shielded) {
+          A.impact();
+          spawnBurst(tp.x, tp.y + 1.1, tp.z, 0x66c8ff, 7);
+        } else {
+          impactFlash(tp.x, tp.y + 1.0, tp.z, 0xff4a3a, 1.1);
+          if (tgt2) hurtP2(dmgN, e.g.position); else hurt(dmgN, e.g.position);
+        }
+      } else {
+        A.burst(0.1, 700, 'bandpass', 0.05); // le coup fend l'air : esquivé !
+      }
+    }
+    if (m.t >= P.strike) { m.ph = 'rec'; m.t = 0; }
+  } else { // récupération : l'ombre se redresse lentement, punissable
+    e.g.rotation.x = 0.35 * (1 - Math.min(1, m.t / P.rec));
+    if (m.t >= P.rec) { e.g.rotation.x = 0; e.mAtk = null; e.atk = P.cool; }
+  }
 }
 export function updateEnemies(dt) {
   S.combatT = Math.max(0, S.combatT - dt);
@@ -162,6 +249,8 @@ export function updateEnemies(dt) {
     }
     if (e.stunT > 0) {
       e.stunT -= dt;
+      // l'étourdissement INTERROMPT l'attaque en préparation (contre-jeu)
+      if (e.mAtk) { e.mAtk = null; e.g.rotation.x = 0; }
       e.cloakMat.emissive.setHex(0x1a3a6a);
       setCharEmissive(e, 0x1a3a6a);
       e.g.position.y = e.floorY + 0.95;
@@ -184,7 +273,11 @@ export function updateEnemies(dt) {
     const tSafe = !e.fsm && safeZoneAt(tp);
     if (tSafe && e.state === 'chase') e.state = 'return';
 
-    if (e.state === 'patrol') {
+    if (e.mAtk) {
+      /* attaque de mêlée en cours (préparation → bond → récupération) :
+         elle pilote seule position et posture, pas de déplacement normal */
+      stepMelee(e, dt, tp, tgt2);
+    } else if (e.state === 'patrol') {
       if (distP < 9 && sameLevel && !tSafe) {
         e.state = 'chase';
         if (!e.alerted) { e.alerted = true; A.alert(); }
@@ -197,27 +290,21 @@ export function updateEnemies(dt) {
       sp = e.chaseSpeed * (1 + 0.18 * S.nightK);
       if (e.ranged && !e.fsm && distP < 15 && sameLevel) {
         e.shot -= dt;
-        if (e.shot <= 0.35 && !e.windup) {
+        /* télégraphe du tir ALLONGÉ (0,55 s) et continu : l'ombre crépite
+           de rouge tant qu'elle charge — on a le temps de rompre la ligne */
+        if (e.shot <= 0.55 && !e.windup) {
           e.windup = true;
           spawnBurst(e.g.position.x, e.g.position.y + 0.6, e.g.position.z, 0xff2a4a, 6);
         }
+        if (e.windup && Math.random() < dt * 16)
+          spawnBurst(e.g.position.x, e.g.position.y + 0.7, e.g.position.z, 0xff2a4a, 2);
         if (e.shot <= 0) { e.shot = 2.4; e.windup = false; fireHostile(e, tp); }
       }
       if (!e.fsm && (distP > 16 || (!sameLevel && distP > 7))) e.state = 'return';
+      /* à portée de coup et prêt : la mêlée télégraphiée s'arme (les Maîtres
+         d'Étage — e.fsm — gardent leur propre FSM d'attaque, voir Tower.js) */
+      else if (e.atk <= 0 && !e.fsm && sameLevel && distP < meleeProf(e).reach) startMelee(e);
       else if (distP > (e.ranged ? 7 : 1.7)) { tx = px; tz = pz; }
-      else if (e.atk <= 0 && !e.fsm) {
-        /* (les Maîtres d'Étage — e.fsm — n'infligent leurs dégâts de contact
-           que pendant les « active frames » de leur attaque, voir Tower.js) */
-        e.atk = 1.3;
-        const shielded = tgt2 ? p2.shieldT > 0 : G.shieldT > 0;
-        // la nuit, les coups des ombres pèsent jusqu'à ×1,8 (S.nightMul)
-        const dmgN = Math.round(e.dmg * S.nightMul);
-        if (shielded) {
-          A.impact();
-          spawnBurst(tp.x, tp.y + 1.1, tp.z, 0x66c8ff, 7);
-        } else if (tgt2) hurtP2(dmgN, e.g.position);
-        else hurt(dmgN, e.g.position);
-      }
     } else {
       const rd = Math.hypot(e.spawn.x - e.g.position.x, e.spawn.z - e.g.position.z);
       if (rd < 0.8) { e.state = 'patrol'; e.alerted = false; e.hp = Math.min(e.maxHp, e.hp + 12); }
@@ -241,8 +328,11 @@ export function updateEnemies(dt) {
     e.g.position.y = e.floorY + 0.95 + Math.sin(G.time * 3 + e.spawn.x) * 0.12;
     // la nuit, les ombres luisent d'une braise sanguine : le danger se voit
     const baseEm = S.nightK > 0.5 ? 0x2a0a18 : 0x0d0820;
-    e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : baseEm);
-    setCharEmissive(e, e.hitT > 0 ? 0x992233 : null);
+    /* télégraphe : le manteau CLIGNOTE rouge pendant toute préparation
+       d'attaque (mêlée en wind-up ou tir de Tisseur en charge) */
+    const tele = ((e.mAtk && e.mAtk.ph === 'wind') || e.windup) && Math.sin(G.time * 26) > 0;
+    e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : tele ? 0x8a1a1a : baseEm);
+    setCharEmissive(e, e.hitT > 0 ? 0x992233 : tele ? 0x8a1a1a : null);
   }
 }
 export function damageEnemy(e, d, knock, opts) {
@@ -426,7 +516,7 @@ export function updateDirector(dt) {
   if (!z || S.questI < 6) return; // aucun renfort avant l'ouverture de la bibliothèque
   if (safeZoneAt(player.pos)) return; // jamais d'invocation quand le joueur est au sanctuaire d'un feu
   let alive = 0; for (const e of enemies) if (!e.dead) alive++;
-  if (alive >= 26) return;
+  if (alive >= 30) return; // plafond global relevé avec les caps de zone (v8.1)
   const cap = z.cap + Math.floor(S.questI / 5);
   if (aliveIn(z) >= cap) return;
   for (let t = 0; t < 8; t++) {
