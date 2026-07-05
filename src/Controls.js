@@ -4,7 +4,7 @@
    La manette smartphone (PeerJS) est dans Network.js.
    ================================================================ */
 import * as THREE from 'three';
-import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
+import { G, S, IS_TOUCH, IS_IOS, IS_STANDALONE, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots } from './UI.js';
@@ -22,7 +22,33 @@ export function lockPointer() {
   try { S.renderer.domElement.requestPointerLock(); } catch (e) { S.plOK = false; }
 }
 
+/* Garde-fous anti-zoom pour iOS Safari, qui IGNORE user-scalable=no :
+   sans eux, marteler le bouton d'attaque déclenche le zoom au double-tap
+   et un pincement à deux doigts zoome la page — injouable sur iPhone.
+   (touch-action:manipulation dans style.css couvre le cas nominal ; ceci
+   rattrape les zones où le navigateur passe outre.) */
+function initTouchZoomGuards() {
+  if (!IS_TOUCH) return;
+  // pincement (événements gesture* propres à Safari)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
+    document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+  // double-tap : deux fins de toucher rapprochées = zoom → on l'annule.
+  // Les boutons/inputs sont épargnés (taper vite « Continuer » doit marcher :
+  // eux sont déjà couverts par touch-action:manipulation).
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', e => {
+    const now = performance.now();
+    if (now - lastTouchEnd < 350 && !e.target.closest('button,input,label,.classbtn,.modebtn,.p2btn'))
+      e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+  // appui long : pas de menu contextuel / loupe de sélection en plein combat
+  document.addEventListener('contextmenu', e => e.preventDefault());
+}
+
 export function initControls() {
+  initTouchZoomGuards();
   document.addEventListener('pointerlockerror', () => {
     S.plOK = false;
     showMsg('Astuce : maintenez le clic gauche et déplacez la souris pour orienter la caméra.', 4);
@@ -435,6 +461,14 @@ export function initSettingsUI() {
    iOS Safari) : on essaie sans bloquer si le navigateur refuse. */
 export function tryFullscreenMobile() {
   if (!IS_TOUCH) return;
+  if (IS_IOS) {
+    /* iPhone : Safari n'expose AUCUNE API plein écran (requestFullscreen
+       n'existe que sur <video>). Le seul vrai plein écran est la PWA
+       « Sur l'écran d'accueil » — déjà actif si on y est (standalone). */
+    if (!IS_STANDALONE)
+      showMsg('📱 Plein écran iPhone : Partager ⬆ puis « Sur l\'écran d\'accueil ».', 5);
+    return;
+  }
   try {
     const el = document.documentElement;
     const p = el.requestFullscreen ? el.requestFullscreen() : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);

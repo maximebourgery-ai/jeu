@@ -1,19 +1,28 @@
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#05060d;font-family:Georgia,'Times New Roman',serif;color:#e8e0cc;user-select:none}
-canvas{display:block}
+/* touch-action:manipulation partout : iOS Safari IGNORE user-scalable=no,
+   c'est la seule façon fiable de tuer le zoom au double-tap sur iPhone.
+   Les zones de jeu (canvas, joystick, boutons) repassent à none plus bas. */
+*{margin:0;padding:0;box-sizing:border-box;touch-action:manipulation}
+html{height:100%;-webkit-text-size-adjust:100%}
+/* body en position:fixed : supprime le rebond élastique d'iOS Safari et
+   garantit que la page suit exactement le viewport visible (barre d'adresse
+   comprise) — c'est ce qui corrigeait les « mauvaises dimensions » iPhone. */
+body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;
+  background:#05060d;font-family:Georgia,'Times New Roman',serif;color:#e8e0cc;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;touch-action:none}
 .hidden{display:none!important}
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
-#bars{position:absolute;top:18px;left:18px;width:270px}
+#bars{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));left:calc(18px + env(safe-area-inset-left,0px));width:270px}
 .bar{position:relative;height:15px;border:1px solid rgba(232,224,204,.5);border-radius:8px;margin-bottom:7px;background:rgba(0,0,0,.55);overflow:hidden}
 .bar .fill{height:100%;border-radius:7px;transition:width .18s ease-out}
 .barnum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Verdana,sans-serif;font-size:10px;letter-spacing:1px;color:#f4ecd6;text-shadow:0 1px 2px #000;pointer-events:none}
 #hpfill{background:linear-gradient(90deg,#7a1420,#d13438);width:100%}
 #mpfill{background:linear-gradient(90deg,#1d3f8f,#4fa8e8);width:100%}
-#objective{position:absolute;top:70px;left:18px;max-width:360px;font-size:15px;color:#ffe6a8;text-shadow:0 1px 5px #000;background:rgba(6,8,18,.55);border-left:3px solid #ffd97a;padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.45}
-#crystals{position:absolute;top:16px;right:22px;font-size:23px;color:#ffd97a;text-shadow:0 0 14px rgba(255,200,80,.85);letter-spacing:2px}
+#objective{position:absolute;top:calc(70px + env(safe-area-inset-top,0px));left:calc(18px + env(safe-area-inset-left,0px));max-width:360px;font-size:15px;color:#ffe6a8;text-shadow:0 1px 5px #000;background:rgba(6,8,18,.55);border-left:3px solid #ffd97a;padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.45}
+#crystals{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:calc(22px + env(safe-area-inset-right,0px));font-size:23px;color:#ffd97a;text-shadow:0 0 14px rgba(255,200,80,.85);letter-spacing:2px}
 /* ---------- Horloge d'Ombreciel (cycle jour/nuit) ---------- */
-#clock{position:absolute;top:52px;right:22px;font-size:16px;letter-spacing:2px;color:#ffe6a8;
+#clock{position:absolute;top:calc(52px + env(safe-area-inset-top,0px));right:calc(22px + env(safe-area-inset-right,0px));font-size:16px;letter-spacing:2px;color:#ffe6a8;
   text-shadow:0 0 10px rgba(255,210,120,.7);font-family:Georgia,serif;
   background:rgba(6,8,18,.5);border-radius:8px;padding:3px 10px;transition:color .8s,text-shadow .8s}
 #clock.night{color:#9fb4f0;text-shadow:0 0 10px rgba(130,160,255,.75)}
@@ -108,7 +117,16 @@ canvas{display:block}
 #golist li button:hover:not(:disabled){background:rgba(255,170,70,.28);filter:none}
 #golist li button:disabled{opacity:.35;cursor:default}
 /* ---------- Écrans ---------- */
-.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;padding:24px}
+/* Les écrans (titre, pause...) sont centrés MAIS défilables : sur un iPhone
+   en paysage (~390 px de haut), le menu dépasse — margin:auto sur les
+   extrémités centre quand ça tient, et laisse défiler depuis le haut sinon
+   (justify-content:center, lui, rognerait le haut ET le bas). */
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;
+  background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;
+  padding:calc(24px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) calc(24px + env(safe-area-inset-left,0px))}
+.overlay>:first-child{margin-top:auto}
+.overlay>:last-child{margin-bottom:auto}
+.overlay>*{flex-shrink:0}
 .overlay h1{font-size:50px;letter-spacing:8px;color:#ffd97a;text-shadow:0 0 34px rgba(255,190,60,.45);font-weight:normal;margin-bottom:14px}
 .overlay h2{font-size:34px;letter-spacing:5px;color:#ffd97a;font-weight:normal;margin-bottom:16px}
 .overlay .sub{font-size:18px;color:#b8c4e0;font-style:italic;margin-bottom:32px;max-width:640px;line-height:1.7}
@@ -181,7 +199,7 @@ canvas{display:block}
    bouton. Toucher un ennemi à l'écran le verrouille (marqueur ◈). */
 #touch{position:fixed;inset:0;z-index:6;pointer-events:none}
 #lookzone{position:absolute;top:0;right:0;width:55%;height:100%;pointer-events:auto;touch-action:none}
-#joy{position:absolute;left:calc(26px + env(safe-area-inset-left,0px));bottom:30px;width:132px;height:132px;border-radius:50%;
+#joy{position:absolute;left:calc(26px + env(safe-area-inset-left,0px));bottom:calc(30px + env(safe-area-inset-bottom,0px));width:132px;height:132px;border-radius:50%;
   background:rgba(20,26,52,.35);border:2px solid rgba(150,180,255,.35);pointer-events:auto;touch-action:none}
 #joyknob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px;border-radius:50%;
   background:rgba(140,170,255,.45);border:2px solid rgba(200,220,255,.6);box-shadow:0 0 14px rgba(100,150,255,.4)}
@@ -189,13 +207,13 @@ canvas{display:block}
   color:#e8e0cc;font-family:Georgia,serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
   display:flex;align-items:center;justify-content:center;text-shadow:0 0 8px rgba(120,180,255,.7);overflow:hidden}
 .tbtn:active{background:rgba(70,90,160,.6)}
-#t-attack{right:calc(20px + env(safe-area-inset-right,0px));bottom:26px;width:96px;height:96px;font-size:38px;
+#t-attack{right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(26px + env(safe-area-inset-bottom,0px));width:96px;height:96px;font-size:38px;
   border-color:rgba(255,170,110,.55);box-shadow:0 0 22px rgba(255,150,80,.25)}
 #t-attack:active{background:rgba(160,80,40,.5)}
-#t-jump{right:calc(130px + env(safe-area-inset-right,0px));bottom:30px;width:68px;height:68px;font-size:26px}
-#t-act{right:calc(26px + env(safe-area-inset-right,0px));bottom:208px;width:54px;height:54px;font-size:20px}
-#t-craft{left:26px;top:52%;width:48px;height:48px;font-size:20px}
-#t-pause{right:14px;top:14px;width:44px;height:44px;font-size:18px}
+#t-jump{right:calc(130px + env(safe-area-inset-right,0px));bottom:calc(30px + env(safe-area-inset-bottom,0px));width:68px;height:68px;font-size:26px}
+#t-act{right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(208px + env(safe-area-inset-bottom,0px));width:54px;height:54px;font-size:20px}
+#t-craft{left:calc(26px + env(safe-area-inset-left,0px));top:52%;width:48px;height:48px;font-size:20px}
+#t-pause{right:calc(14px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));width:44px;height:44px;font-size:18px}
 /* --- Arc de sorts à lancement direct autour du bouton d'attaque --- */
 #spellbar{position:absolute;inset:0;pointer-events:none}
 .sbtn{position:absolute;border-radius:50%;border:2px solid rgba(150,180,255,.45);background:rgba(15,19,40,.62);
@@ -205,14 +223,14 @@ canvas{display:block}
 .sbtn.owned{display:flex}
 .sbtn:active{background:rgba(70,90,160,.65);transform:scale(.92)}
 .sbtn.nomana{filter:grayscale(.7);opacity:.45}
-#ts-dash{right:calc(212px + env(safe-area-inset-right,0px));bottom:36px;width:60px;height:60px}
-#ts-frost{right:calc(26px + env(safe-area-inset-right,0px));bottom:138px;width:56px;height:56px}
-#ts-shield{right:calc(96px + env(safe-area-inset-right,0px));bottom:152px;width:56px;height:56px}
-#ts-heal{right:calc(166px + env(safe-area-inset-right,0px));bottom:152px;width:56px;height:56px}
-#ts-tk{right:calc(232px + env(safe-area-inset-right,0px));bottom:120px;width:56px;height:56px}
+#ts-dash{right:calc(212px + env(safe-area-inset-right,0px));bottom:calc(36px + env(safe-area-inset-bottom,0px));width:60px;height:60px}
+#ts-frost{right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(138px + env(safe-area-inset-bottom,0px));width:56px;height:56px}
+#ts-shield{right:calc(96px + env(safe-area-inset-right,0px));bottom:calc(152px + env(safe-area-inset-bottom,0px));width:56px;height:56px}
+#ts-heal{right:calc(166px + env(safe-area-inset-right,0px));bottom:calc(152px + env(safe-area-inset-bottom,0px));width:56px;height:56px}
+#ts-tk{right:calc(232px + env(safe-area-inset-right,0px));bottom:calc(120px + env(safe-area-inset-bottom,0px));width:56px;height:56px}
 /* Arts de l'Outre-Ciel (v8) : l'arc s'étend vers la gauche du pouce */
-#ts-nova{right:calc(292px + env(safe-area-inset-right,0px));bottom:52px;width:54px;height:54px}
-#ts-meteor{right:calc(298px + env(safe-area-inset-right,0px));bottom:118px;width:54px;height:54px}
+#ts-nova{right:calc(292px + env(safe-area-inset-right,0px));bottom:calc(52px + env(safe-area-inset-bottom,0px));width:54px;height:54px}
+#ts-meteor{right:calc(298px + env(safe-area-inset-right,0px));bottom:calc(118px + env(safe-area-inset-bottom,0px));width:54px;height:54px}
 /* voile de recharge : descend du haut du bouton, disparaît quand le sort est prêt */
 .tbtn .scd,.sbtn .scd{position:absolute;left:0;right:0;top:0;height:0;background:rgba(3,5,12,.74);
   pointer-events:none;border-radius:0}
@@ -272,8 +290,8 @@ body.touchmode #powers{display:none}
   padding:8px 26px;font-family:Georgia,serif;font-size:13px;letter-spacing:2px;cursor:pointer;margin-top:8px;
   transition:border-color .18s,color .18s}
 #treeclose:hover{border-color:#ffd97a;color:#ffd97a}
-#t-tree{left:26px;top:38%;width:48px;height:48px;font-size:20px}
-#t-map{left:26px;top:66%;width:48px;height:48px;font-size:19px}
+#t-tree{left:calc(26px + env(safe-area-inset-left,0px));top:38%;width:48px;height:48px;font-size:20px}
+#t-map{left:calc(26px + env(safe-area-inset-left,0px));top:66%;width:48px;height:48px;font-size:19px}
 /* ---------- Barres de vie des ennemis ----------
    .en (nom · niveau) AU-DESSUS, .etrack (barre, seule à rogner son
    remplissage), .eh (PV chiffrés) DESSOUS — l'ancienne barre unique en
@@ -305,6 +323,26 @@ body.touchmode #powers{display:none}
 /* Forge des Arts (panneau de l'arbre) : rangs forgés ◆◆◇◇◇ */
 .tnode .stars{color:#8feaff;font-size:11px;letter-spacing:2px;margin-left:6px}
 .tbranch .bt small{color:#8791b4;letter-spacing:0;font-size:9.5px}
+/* ---------- Aides mobiles : rotation paysage + plein écran iPhone ---------- */
+/* Bannière « tournez l'appareil » : le jeu est pensé paysage (joystick à
+   gauche, sorts à droite). Visible uniquement en mode tactile + portrait. */
+#rotate{display:none;position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);
+  z-index:25;background:rgba(7,9,20,.92);border:1px solid rgba(255,215,120,.5);border-radius:10px;
+  padding:10px 18px;font-size:14px;color:#ffd97a;text-shadow:0 1px 3px #000;pointer-events:none;
+  white-space:nowrap;animation:rotpulse 1.6s ease-in-out infinite}
+@keyframes rotpulse{0%,100%{opacity:.75}50%{opacity:1}}
+@media (orientation:portrait){body.is-touch #rotate{display:block}}
+/* Astuce iPhone sur l'écran-titre : le plein écran passe par l'écran
+   d'accueil. En SURBRILLANCE (halo doré pulsé, mêmes tons que les boutons
+   principaux) pour que les joueurs iPhone ne la ratent pas. */
+#ioshint{margin:-14px 0 14px;max-width:540px;font-size:13.5px;font-family:Verdana,sans-serif;color:#ffe6a8;
+  line-height:1.8;background:rgba(30,24,10,.92);border:1.5px solid #ffd97a;border-radius:12px;padding:12px 20px;
+  text-shadow:0 1px 3px #000;animation:ioshintglow 1.8s ease-in-out infinite}
+#ioshint b{color:#ffd97a}
+@keyframes ioshintglow{
+  0%,100%{box-shadow:0 0 14px rgba(255,215,120,.35);border-color:rgba(255,217,122,.75)}
+  50%{box-shadow:0 0 30px rgba(255,215,120,.75);border-color:#ffd97a}
+}
 @media (max-width:900px){
   .tnode{width:100%}
   .invcol{min-width:100%}
@@ -318,3 +356,21 @@ body.touchmode #powers{display:none}
   .classbtn{width:140px;padding:10px 8px}
   .classbtn .cdsc{font-size:10px}
 }
+/* Menus compacts pour les écrans peu hauts (iPhone en paysage ≈ 390 px) :
+   tout l'écran-titre — astuce plein écran comprise — doit tenir ou presque. */
+@media (max-height:520px){
+  .overlay h1{font-size:26px;letter-spacing:4px;margin-bottom:6px}
+  .overlay h2{font-size:22px;margin-bottom:8px}
+  .overlay .sub{font-size:13px;margin-bottom:12px;line-height:1.5}
+  .overlay button{font-size:15px;padding:9px 26px}
+  #title .glyph,#loading .glyph{font-size:26px;margin-bottom:4px}
+  #classes{gap:8px;margin:10px 0 2px}
+  .classbtn{width:132px;padding:7px 6px}
+  .classbtn .ci{font-size:20px;margin-bottom:2px}
+  .classbtn .cn{font-size:13px}
+  .classbtn .cdsc{font-size:9px;line-height:1.4;margin-top:3px}
+  .overlay .controls{margin-top:12px;line-height:1.5}
+  #ioshint{margin:-4px 0 8px;font-size:12px;line-height:1.6;padding:8px 14px}
+}
+/* Sur tactile, l'aide-mémoire clavier/souris des menus est du bruit. */
+body.is-touch .overlay .controls{display:none}
