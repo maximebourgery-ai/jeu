@@ -952,11 +952,21 @@ export function buildWorld() {
   mkBox(12, 4.8, 12, 58, 0, 50, 'stoneD');   // socle intérieur (plancher à 4,8 m)
   const cone = new THREE.Mesh(new THREE.ConeGeometry(9.4, 5, 10), matFor('roof', 5, 2));
   cone.position.set(58, 30, 50); cone.castShadow = true; S.scene.add(cone);
-  /* Spirale de plateformes intérieures (pas de 1,45 m, saut simple) */
+  /* Spirale de plateformes intérieures (pas de 1,45 m, saut simple).
+     Le départ angulaire est calé pour que la FIN de l'ascension arrive au
+     NORD (z > 49,5), côté opposé à la terrasse : les dernières plateformes
+     ne passent jamais sous sa dalle (base 22,6), qui ferait plafond et
+     rendrait le sommet inatteignable. Deux paliers élargis (i = 4 et 8)
+     servent de points de repos — une chute ne renvoie plus tout en bas. */
   for (let i = 0; i < 12; i++) {
-    const a = -Math.PI / 2 + i * 0.62;
-    mkBox(2, 0.35, 2, 58 + Math.cos(a) * 4.3, 6.2 + i * 1.45, 50 + Math.sin(a) * 4.3, 'stoneD');
+    const a = 1.035 + i * 0.62;
+    const w = (i === 4 || i === 8) ? 3.2 : 2.4;
+    mkBox(w, 0.35, w, 58 + Math.cos(a) * 4.3, 6.2 + i * 1.45, 50 + Math.sin(a) * 4.3, 'stoneD');
   }
+  addPickup('mana', 62.1, 18.15, 48.8); // souffle sur le palier de repos haut (i = 8)
+  /* passerelle sommitale : de la dernière plateforme (nord, sommet 22,5)
+     vers la terrasse sud (dessus 23,1) — deux marches franchies au pas */
+  mkBox(2, 0.35, 5, 58, 22.55, 51, 'stoneD');
   mkBox(12, 0.5, 5, 58, 22.6, 46.5, 'stone'); // terrasse sommitale
   pedestal(58, 46, 23.1, 'tk', 0xc8a8ff,
     'Main céleste apprise ! (touche 3, puis clic) Saisissez les blocs runiques par la pensée.', 'tower');
