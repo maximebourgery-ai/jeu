@@ -40,7 +40,7 @@ export function initControls() {
       return;
     }
     if (e.code === 'Tab' && !G.paused) { G.inv = !G.inv; refreshInv(); $('inv').classList.toggle('hidden', !G.inv); }
-    if (/^Digit[1-6]$/.test(e.code)) {
+    if (/^Digit[1-8]$/.test(e.code)) {
       const p = POWERS[+e.code.slice(5) - 1];
       if (G.powers[p.id]) { G.sel = p.id; refreshPowers(); showMsg(p.name + ' préparé.', 1); }
       else showMsg('Vous ne maîtrisez pas encore cet art...', 1.4);
@@ -113,6 +113,8 @@ export function initControls() {
      RB/R1        : sort 4 — Égide
      LT/L2        : sort 5 — Souffle glacé
      RT/R2        : sort 6 — Bénédiction
+     Croix haut   : sort 7 — Nova d'Aurore (l'Outre-Ciel)
+     Croix bas    : sort 8 — Astre d'Aube (l'Outre-Ciel)
    ================================================================ */
 /* Zone morte à rééchelonnage linéaire : au-delà du seuil, la valeur repart
    de 0 (pas de saut brusque façon |v|>seuil, qui donne cette sensation de
@@ -174,6 +176,8 @@ export function updateGamepad(dt) {
         if (b(5) && !S.gpPrev[5] && !G.inv) castSpecific('shield', p2);  // RB : sort 4 J2
         if (b(6) && !S.gpPrev[6] && !G.inv) castSpecific('frost', p2);   // LT : sort 5 J2
         if (b(7) && !S.gpPrev[7] && !G.inv) castSpecific('heal', p2);    // RT : sort 6 J2
+        if (b(12) && !S.gpPrev[12] && !G.inv) castSpecific('nova', p2);  // Croix haut : sort 7 J2
+        if (b(13) && !S.gpPrev[13] && !G.inv) castSpecific('meteor', p2);// Croix bas : sort 8 J2
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
@@ -193,10 +197,12 @@ export function updateGamepad(dt) {
         if (b(5) && !S.gpPrev[5] && !G.inv) castSpecific('shield');     // RB / R1 : sort 4
         if (b(6) && !S.gpPrev[6] && !G.inv) castSpecific('frost');      // LT / L2 : sort 5
         if (b(7) && !S.gpPrev[7] && !G.inv) castSpecific('heal');       // RT / R2 : sort 6
+        if (b(12) && !S.gpPrev[12] && !G.inv) castSpecific('nova');     // Croix haut : sort 7
+        if (b(13) && !S.gpPrev[13] && !G.inv) castSpecific('meteor');   // Croix bas : sort 8
       }
     }
   }
-  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9) };
+  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9), 12: b(12), 13: b(13) };
 }
 
 /* ================================================================

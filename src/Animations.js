@@ -98,6 +98,21 @@ export function groundRing(x, y, z, color, rMax) {
   fx.push({ m, t: 0, life: 0.34, kind: 'ring', rMax });
 }
 
+/* Colonne de lumière (Nova d'Aurore, Astre d'Aube, voile déchiré...) :
+   un fût additif qui jaillit du sol, tourne lentement et se dissout —
+   la super-puissance se voit à l'autre bout de la salle, surtout la nuit. */
+export function lightPillar(x, y, z, color, r, h, life) {
+  if (!S.scene) return;
+  const geo = new THREE.CylinderGeometry(r * 0.55, r, h, 18, 1, true);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y + h / 2, z);
+  m.scale.set(0.25, 0.05, 0.25);
+  S.scene.add(m);
+  fx.push({ m, t: 0, life: life || 0.7, kind: 'pillar' });
+}
+
 export function updateFx(dt) {
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i];
@@ -113,6 +128,11 @@ export function updateFx(dt) {
     if (f.kind === 'arc') {
       f.m.scale.setScalar(0.55 + 0.75 * k);
       f.m.material.opacity = 0.85 * (1 - k * k);
+    } else if (f.kind === 'pillar') {
+      const grow = Math.min(1, k * 3); // jaillit vite, s'éteint lentement
+      f.m.scale.set(0.25 + 0.75 * grow, 0.05 + 0.95 * grow, 0.25 + 0.75 * grow);
+      f.m.rotation.y += dt * 2.4;
+      f.m.material.opacity = 0.7 * (1 - k * k);
     } else { // ring
       f.m.scale.setScalar(0.4 + (f.rMax || 5) * k);
       f.m.material.opacity = 0.75 * (1 - k);

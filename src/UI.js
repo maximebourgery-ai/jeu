@@ -83,7 +83,10 @@ export function refreshInv() {
   if (G.tower.keys.copper) rows.push('Clef de Cuivre — Ascension, Palier I');
   if (G.tower.keys.sap) rows.push('Clef de Sève — Ascension, Palier II');
   if (G.tower.keys.ether) rows.push('Clef d\'Éther — Ascension, Palier III');
+  if (G.tower.keys.astre) rows.push('Clef d\'Astre — Ascension, Palier V (l\'Outre-Ciel)');
   if (G.tower.aura) rows.push('Aura du Premier Foyer (+15 % dégâts, régénération)');
+  if (G.tower.shards > 0 && !G.tower.bridge) rows.push('Éclats d\'étoile : ' + G.tower.shards + ' / 3 — pour Orin, le cartographe céleste');
+  if (G.tower.crown) rows.push('Couronne de l\'Aube (+10 % dégâts, le foyer veille sur l\'esprit)');
   POWERS.forEach(p => { if (G.powers[p.id]) rows.push('Sort — ' + p.name); });
   G.items.forEach(i => rows.push(i));
   rows.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });

@@ -1,11 +1,23 @@
 /* ================================================================
-   L'ASCENSION DE LA TOUR DU LEVANT — v7.1 (l'épreuve ultime)
-   15 étages thématiques répartis en 4 PALIERS INSTANCIÉS :
+   L'ASCENSION DE LA TOUR DU LEVANT — v8 (l'épreuve ultime, et au-delà)
+   20 étages thématiques répartis en 6 PALIERS INSTANCIÉS :
      · Palier I   — Les Archives Vertigineuses (étages 1-4)  → Clef de Cuivre
      · Palier II  — La Serre des Ombres        (étages 5-9)  → Clef de Sève
      · Palier III — Le Donjon de Fer           (étages 10-14)→ Clef d'Éther
      · Palier IV  — L'Observatoire de l'Aube   (étage 15)    → l'Aura du
        Premier Foyer et le secret des ombres.
+     · Palier V   — L'OUTRE-CIEL               (étages 16-18)→ Clef d'Astre
+       Les îles flottantes par-delà le firmament. La NOVA D'AURORE (touche 7)
+       y dort ; Orin le cartographe céleste retisse le pont de constellations
+       contre 3 Éclats d'étoile ; le Berger des Étoiles garde le sommet.
+     · Palier VI  — LE CŒUR DE LA NUIT SANS LUNE (étages 19-20) → la
+       Couronne de l'Aube. L'instant du désastre, figé depuis cent ans :
+       l'ASTRE D'AUBE (touche 8) y dort ; le Veilleur sans Nom garde la
+       dernière porte ; l'AVALE-LUNE — l'ombre des Larmes elles-mêmes —
+       digère la lune derrière. Seule la Nova d'Aurore déchire son voile.
+   La progression du v8 passe par les PNJ : Maëla (Observatoire) nomme le
+   porteur au Seuil de l'Outre-Ciel, Orin donne la quête des Éclats,
+   le Veilleur ouvre la porte de la Dernière Nuit.
 
    LEVEL STREAMING (§3.1 du GDD) : un seul palier existe en mémoire à la
    fois. Le site est bâti loin du château (x ≈ 400) ; franchir un portail
@@ -18,13 +30,15 @@ import * as THREE from 'three';
 import {
   G, S, POWERS,
   colliders, doors, pickups, inter, enemies, projectiles, tkCubes,
-  spinners, flames, player, p2
+  spinners, flames, pedestals, player, p2
 } from './state.js';
 import { A } from './Audio.js';
 import { showMsg } from './UI.js';
 import {
-  mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube
+  mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube,
+  pedestal, mkDoor, openDoor
 } from './World.js';
+import { lightPillar } from './Animations.js';
 import { matFor, glow } from './AssetManager.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt, hurtP2 } from './Player.js';
@@ -41,7 +55,9 @@ const ENTRY = [
   { x: TX, y: 0.2, z: TZ + 14 },
   { x: TX, y: 0.2, z: TZ + 16 },
   { x: TX, y: 0.2, z: TZ + 21 },
-  { x: TX, y: 0.2, z: TZ + 12 }
+  { x: TX, y: 0.2, z: TZ + 12 },
+  { x: TX, y: 0.2, z: TZ + 20 }, // Palier V — l'Outre-Ciel (île d'entrée)
+  { x: TX, y: 0.2, z: TZ + 24 }  // Palier VI — le Cœur de la Nuit sans lune
 ];
 const TERRACE = { x: 58, y: 23.2, z: 46.8 }; // terrasse de la Tour du Levant
 
@@ -49,7 +65,8 @@ const TERRACE = { x: 58, y: 23.2, z: 46.8 }; // terrasse de la Tour du Levant
 let snap = null;         // instantané des collections du monde avant le build
 let origAdd = null;      // S.scene.add d'origine (capture des meshes du palier)
 const hazards = [];      // zones de danger {x,z,w,d,y,h,dmg,label,period,on,mesh}
-const spikes = [];       // télégraphes de la Racine {x,z,y,t}
+const spikes = [];       // télégraphes d'impact {x,z,y,t,dmg,col,r,pillar}
+const npcs = [];         // PNJ du palier courant {g,y0,seed} — respiration douce
 let boss = null;         // Maître d'Étage du palier courant
 let pillars = [];        // colonnes de feu de l'arène du Chevalier
 let pillarT = 0, pillarI = 0;
@@ -57,7 +74,8 @@ let pillarT = 0, pillarI = 0;
 const KEY_DEFS = {
   copper: { name: 'Clef de Cuivre', color: 0xc87a4a },
   sap:    { name: 'Clef de Sève',   color: 0x7ade5a },
-  ether:  { name: 'Clef d\'Éther',  color: 0x9a8cff }
+  ether:  { name: 'Clef d\'Éther',  color: 0x9a8cff },
+  astre:  { name: 'Clef d\'Astre',  color: 0xffe9a8 }
 };
 const allPowersKnown = () => POWERS.every(p => G.powers[p.id]);
 const powersCount = () => POWERS.filter(p => G.powers[p.id]).length;
@@ -69,7 +87,7 @@ function beginBuild() {
   snap = {
     col: colliders.length, doors: doors.length, pickups: pickups.length,
     inter: inter.length, enemies: enemies.length, flames: flames.length,
-    spinners: spinners.length, tk: tkCubes.length, added: []
+    spinners: spinners.length, tk: tkCubes.length, ped: pedestals.length, added: []
   };
   origAdd = S.scene.add;
   S.scene.add = function (...objs) { snap.added.push(...objs); return origAdd.apply(S.scene, objs); };
@@ -95,12 +113,13 @@ function unloadPalier() {
   spinners.length = snap.spinners;
   if (S.tkHeld) { S.tkHeld.held = false; S.tkHeld = null; }
   tkCubes.length = snap.tk;
+  pedestals.length = snap.ped; // piédestaux instanciés (Nova, Astre) : jamais de doublon
   for (const o of snap.added) S.scene.remove(o);
   for (const pr of projectiles) S.scene.remove(pr.mesh);
   projectiles.length = 0;
-  hazards.length = 0; spikes.length = 0;
+  hazards.length = 0; spikes.length = 0; npcs.length = 0;
   boss = null; pillars = []; pillarT = 0; pillarI = 0;
-  S.onHeal = null;
+  S.onHeal = null; S.onNova = null;
   snap = null;
 }
 
@@ -150,11 +169,60 @@ function mkTowerKey(kind, x, y, z) {
     saveGame(true); // auto-save forcée au ramassage des clefs
   });
 }
-/* Plaque d'étage (repère narratif des 15 étages) */
+/* Plaque d'étage (repère narratif des 20 étages) */
 function floorSign(n, theme, x, y, z) {
   mkBox(1.2, 1.5, 0.25, x, y, z, 'stoneR');
   addInter(x, y, z, 2.4, 'Lire la plaque de l\'étage ' + n, () => {
-    showMsg('— Étage ' + n + ' / 15 — ' + theme, 3);
+    showMsg('— Étage ' + n + ' / 20 — ' + theme, 3);
+  });
+}
+/* PNJ : une silhouette immobile qui respire doucement (jamais dans
+   `spinners` — un personnage qui culbute sur lui-même briserait la scène).
+   opt = { name, color, eye, halo, emissive, kneel, onTalk } */
+function mkNpc(x, y, z, opt) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: opt.color, roughness: 1,
+    emissive: opt.emissive || 0x0d0820 });
+  const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.5, opt.kneel ? 1.05 : 1.45, 8), mat);
+  cloak.castShadow = true;
+  const hood = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), mat);
+  hood.position.y = opt.kneel ? 0.5 : 0.7;
+  const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6),
+    new THREE.MeshBasicMaterial({ color: opt.eye }));
+  e1.position.set(-0.1, hood.position.y + 0.02, 0.2);
+  const e2 = e1.clone(); e2.position.x = 0.1;
+  g.add(cloak, hood, e1, e2, glow(opt.halo || opt.eye, 2.4, 0.4));
+  g.position.set(x, y + (opt.kneel ? 0.72 : 0.95), z);
+  S.scene.add(g);
+  npcs.push({ g, y0: g.position.y, seed: Math.random() * 10 });
+  addInter(x, y, z, 2.6, 'Parler à ' + opt.name, opt.onTalk);
+  return g;
+}
+/* Piédestal d'art ancien DANS une instance : jamais recréé une fois l'art
+   appris (le palier se reconstruit à chaque visite). */
+function towerPedestal(x, z, y, id, color, lore) {
+  if (!G.powers[id]) pedestal(x, z, y, id, color, lore);
+}
+/* Éclat d'étoile (quête d'Orin) : trois lueurs qui chantent, dispersées
+   sur les îles de l'Outre-Ciel. Ramassage persistant (shardsTaken). */
+function mkShard(i, x, y, z) {
+  if (G.tower.shardsTaken[i] || G.tower.bridge) return;
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.3),
+    new THREE.MeshBasicMaterial({ color: 0xfff2b0 }));
+  g.add(core, glow(0xfff2b0, 3, 0.7));
+  g.position.set(x, y + 1.3, z);
+  S.scene.add(g); spinners.push(g);
+  addInter(x, y, z, 2.4, 'Recueillir l\'Éclat d\'étoile', it => {
+    it.on = false;
+    S.scene.remove(g);
+    const k = spinners.indexOf(g); if (k >= 0) spinners.splice(k, 1);
+    G.tower.shardsTaken[i] = true;
+    G.tower.shards++;
+    A.key();
+    spawnBurst(x, y + 1.3, z, 0xfff2b0, 22);
+    showMsg('Éclat d\'étoile recueilli (' + G.tower.shards + ' / 3). Il chante doucement dans votre main — Orin saura quoi en faire.', 3.5);
+    saveGame(true);
   });
 }
 /* Zone de danger (flammes, poison, lave froide). period = [cycle, durée ON]
@@ -185,7 +253,7 @@ function radialBurst(e, n, dmg, speed, color) {
    ================================================================ */
 export function enterTower() {
   gotoPalier(0);
-  showMsg('— L\'ASCENSION DE LA TOUR DU LEVANT — Quinze étages vous séparent de l\'Observatoire de l\'Aube.', 5);
+  showMsg('— L\'ASCENSION DE LA TOUR DU LEVANT — Quinze étages vous séparent de l\'Observatoire de l\'Aube... et l\'on murmure que le ciel n\'est pas le sommet.', 5);
 }
 export function leaveTower(silent) {
   unloadPalier();
@@ -203,7 +271,9 @@ function gotoPalier(n) {
     else if (n === 1) buildPalier1();
     else if (n === 2) buildPalier2();
     else if (n === 3) buildPalier3();
-    else buildPalier4();
+    else if (n === 4) buildPalier4();
+    else if (n === 5) buildPalier5();
+    else buildPalier6();
   } finally { endBuild(); }
   S.inTower = true; S.palier = n;
   const e = ENTRY[n];
@@ -223,7 +293,7 @@ export function buildTowerGate() {
     enterTower);
   mkBox(1.2, 1.6, 0.3, 55, 23.1, 44.6, 'stoneR');
   addInter(55, 23.1, 44.6, 2.4, 'Lire la stèle de l\'Ascension', () => {
-    showMsg('« Quinze étages, quatre paliers, trois clefs. Au sommet, l\'Observatoire — et la vérité sur la Nuit sans lune. »', 4.5);
+    showMsg('« Vingt étages, six paliers, quatre clefs. Au sommet, l\'Observatoire et la vérité sur la Nuit sans lune — et par-delà le ciel, l\'Outre-Ciel, où la Dernière Nuit tombe encore. »', 5);
   });
 }
 
@@ -266,6 +336,18 @@ function buildVestibule() {
   mkPortal(TX + 10.5, 0, TZ - 15, 0xffd97a, 'Palier IV — L\'Observatoire de l\'Aube (étage 15)',
     () => G.tower.shortcuts.p4, () => 'Raccourci scellé : triomphez d\'abord du Chevalier de l\'Éclipse (Palier III).',
     () => gotoPalier(4));
+
+  /* v8 — la seconde rangée : les paliers par-delà le ciel */
+  mkPortal(TX - 7, 0, TZ - 10.5, 0xfff2b0, 'Palier V — L\'Outre-Ciel (étages 16-18)',
+    () => G.tower.shortcuts.p5,
+    () => G.tower.aura
+      ? 'Raccourci scellé : franchissez d\'abord le Seuil de l\'Outre-Ciel depuis l\'Observatoire — Maëla doit vous y nommer.'
+      : 'Raccourci scellé : l\'Aura du Premier Foyer (Palier IV) doit d\'abord brûler en vous.',
+    () => gotoPalier(5));
+  mkPortal(TX + 7, 0, TZ - 10.5, 0x6a5aff, 'Palier VI — Le Cœur de la Nuit sans lune (étages 19-20)',
+    () => G.tower.shortcuts.p6,
+    () => 'Raccourci scellé : triomphez d\'abord du Berger des Étoiles (Palier V).',
+    () => gotoPalier(6));
 }
 
 /* ================================================================
@@ -684,7 +766,54 @@ function buildPalier4() {
     else showMsg('« Les trois Clefs, porteur de flamme. La vérité attend derrière trois serrures. »', 3.5);
   });
 
+  /* ---- v8 : MAËLA, L'OMBRE SOUVENANTE ----
+     Une ombre agenouillée près de l'autel. Tant que l'Aura ne brûle pas,
+     elle n'a pas de voix ; ensuite, elle raconte la suite de l'histoire
+     et NOMME le porteur au Seuil de l'Outre-Ciel (déblocage du Palier V). */
+  mkNpc(TX + 2.5, 0, TZ + 2.5, {
+    name: 'l\'ombre agenouillée', color: 0x241a3a, eye: 0x8ff4ff,
+    halo: 0x6a4a9e, kneel: true, onTalk: maelaTalk
+  });
+
+  /* Le Seuil de l'Outre-Ciel : le portail du v8, au bord nord de la
+     plate-forme. FLAGS STRICTS : aura obtenue ET Maëla rencontrée. */
+  mkPortal(TX, 0, TZ - 12, 0xfff2b0, 'Le Seuil de l\'Outre-Ciel — étages 16-20',
+    () => G.tower.aura && G.tower.met.maela,
+    () => G.tower.aura
+      ? 'Le Seuil attend qu\'une voix vous nomme. Parlez à l\'ombre agenouillée, près de l\'autel.'
+      : 'Par-delà l\'Observatoire, le ciel reste clos : l\'Aura du Premier Foyer d\'abord.',
+    () => { G.tower.shortcuts.p5 = true; saveGame(true); gotoPalier(5); });
+
   mkPortal(TX, 0, TZ + 15, 0x8fe8ff, 'Sas — revenir au vestibule', () => true, () => '', () => gotoPalier(0));
+}
+/* Le dialogue de Maëla — premier PNJ du v8. L'Aura rend leur voix aux
+   ombres : c'est elle qui ouvre la suite du scénario. */
+function maelaTalk() {
+  if (!G.tower.aura) {
+    showMsg('L\'ombre agenouillée frémit sans un mot. Quelque chose, en elle, cherche encore une voix.', 3.5);
+    return;
+  }
+  if (!G.tower.met.maela) {
+    openDialog([
+      'Votre Aura... elle me rend ma voix. Cent ans que je n\'avais plus de nom. Je m\'appelais Maëla — premier ordre des porteurs de flamme.',
+      'Lumen vous a dit ce que nous sommes devenus. Mais pas ce qui nous a dévorés. Une lumière trop pure projette une ombre à sa mesure : la nôtre s\'appelle l\'AVALE-LUNE. C\'est elle qui a gobé la lune, cette nuit-là.',
+      'Elle niche toujours au-dessus de nous, dans l\'Outre-Ciel — l\'envers du firmament, là où notre capitaine, le Berger des Étoiles, garde encore son troupeau de constellations... corrompu, comme nous tous.',
+      'Deux arts dorment là-haut, que même votre ordre a oubliés : la NOVA D\'AURORE et l\'ASTRE D\'AUBE. Sans la Nova, le voile de l\'Avale-Lune ne se déchirera jamais.',
+      'Je vous nomme au Seuil, porteur de flamme. Franchissez-le. Rendez-nous la lune — et nous pourrons enfin dormir.'
+    ], () => {
+      G.tower.met.maela = true;
+      showMsg('Le Seuil de l\'Outre-Ciel s\'éveille dans un chant d\'étoiles. (sauvegarde automatique)', 4);
+      saveGame(true);
+    }, 'MAËLA, L\'OMBRE SOUVENANTE');
+  } else if (!G.tower.bosses.avale) {
+    openDialog([
+      '« Le Berger n\'était pas cruel, avant — il comptait les étoiles comme un vieux compte ses moutons. S\'il faut l\'abattre, faites-le en berger : d\'un coup franc. Et souvenez-vous : seule la Nova d\'Aurore, prononcée tout contre l\'Avale-Lune, déchire son voile. »'
+    ], null, 'MAËLA, L\'OMBRE SOUVENANTE');
+  } else {
+    openDialog([
+      '« La lune est revenue... je la sens à travers la pierre. Merci, porteur de flamme. Nous pouvons enfin fermer les yeux. »'
+    ], null, 'MAËLA, L\'OMBRE SOUVENANTE');
+  }
 }
 /* Le lourd secret d'Ombreciel, révélé par Lumen à l'Observatoire. */
 function lumenReveal() {
@@ -693,8 +822,335 @@ function lumenReveal() {
     'Les ombres ne sont pas des envahisseuses. Elles n\'ont jamais franchi nos murailles : elles en sont les fondations.',
     'Ce sont les premiers porteurs de flamme. Lors de la Nuit sans lune, la lumière des Larmes d\'Aube devint trop pure — elle allait consumer la vallée entière.',
     'Ils se sont offerts à elle. La lumière les a dévorés jusqu\'à ne laisser que leur silhouette — une ombre. Ils se sont sacrifiés pour sauver le monde.',
-    'Souviens-t\'en quand ta lame se lève, porteur de flamme : chaque ombre que tu affrontes fut une aube, avant toi.'
+    'Souviens-t\'en quand ta lame se lève, porteur de flamme : chaque ombre que tu affrontes fut une aube, avant toi.',
+    'Et... regarde. L\'ombre agenouillée, près de l\'autel — elle essaie de parler depuis un siècle. Ton Aura est peut-être sa voix.'
   ], () => showMsg('Le ciel de l\'Observatoire semble soudain plus vaste.', 3));
+}
+
+/* ================================================================
+   PALIER V — L'OUTRE-CIEL (étages 16-18) — v8
+   L'envers du firmament : des îles flottantes au-dessus du vide (toute
+   chute ramène à l'entrée du palier — Kill Z). La Nova d'Aurore dort sur
+   l'île d'entrée ; Orin le cartographe céleste retisse le pont de
+   constellations contre 3 Éclats d'étoile ; le Berger des Étoiles garde
+   l'île du sommet. Récompense : la Clef d'Astre.
+   ================================================================ */
+function buildPalier5() {
+  /* ---- étage 16 : l'île d'entrée ---- */
+  mkBox(26, 1, 26, TX, -1, TZ + 12, 'slabW');
+  floorSign(16, 'L\'Outre-Ciel. Les cartes des vivants s\'arrêtent ici.', TX + 8, 0, TZ + 16);
+  torch(TX - 10, 0, TZ + 18, 0xfff2b0, 1.2, 16);
+  torch(TX + 10, 0, TZ + 18, 0xfff2b0, 1.2, 16);
+  // le troupeau d'étoiles : petites lueurs en lévitation tout autour des îles
+  for (let i = 0; i < 14; i++) {
+    const st = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0 }));
+    st.add(glow(0xfff2b0, 1.4, 0.5));
+    st.position.set(TX - 18 + (i * 29) % 36, 2 + (i * 7) % 13, TZ + 20 - (i * 17) % 56);
+    S.scene.add(st); spinners.push(st);
+  }
+  /* le piédestal de la NOVA D'AURORE (touche 7) — premier art perdu */
+  towerPedestal(TX - 8, TZ + 7, 0, 'nova', 0xffd97a,
+    'Nova d\'Aurore apprise ! (touche 7) Le lever du soleil, tenu dans un poing : colonne de lumière, triple anneau d\'aube — et les voiles de la Nuit la craignent.');
+  addPickup('mana', TX - 11, 0, TZ + 10);
+  addPickup('heart', TX + 11, 0, TZ + 12);
+  /* ORIN, LE CARTOGRAPHE CÉLESTE — PNJ de quête (3 Éclats → le pont) */
+  const bridgeParts = [];
+  mkNpc(TX + 6, 0, TZ + 6, {
+    name: 'Orin, le cartographe céleste', color: 0x1a2c4a, eye: 0x8fe8ff,
+    halo: 0x5fc8ff, emissive: 0x0a1830, onTalk: () => orinTalk(bridgeParts)
+  });
+  // sa lunette de poche, plantée là depuis un siècle
+  mkCyl(0.25, 0.35, 1.1, TX + 7.4, 0, TZ + 5.4, 'stoneR', true, 8);
+  /* Éclat d'étoile n° 1 : sur l'île d'entrée, gardé par un Séraphin */
+  mkShard(0, TX + 10, 0, TZ + 3);
+  mkEnemy(TX + 8, TZ + 2, 0, [[TX + 5, TZ + 2], [TX + 11, TZ + 5]], { type: 'seraph', lvl: 14 });
+  mkEnemy(TX - 6, TZ + 12, 0, [[TX - 10, TZ + 12], [TX - 2, TZ + 12]], { type: 'echo', lvl: 14 });
+
+  /* ---- étage 17 : le chapelet d'îles (Pas du vent conseillé) ---- */
+  mkBox(8, 1, 8, TX - 9, 1.4, TZ - 7, 'slabW');   // île A (y 2,4)
+  mkBox(8, 1, 8, TX + 2, 3.8, TZ - 15, 'slabW');  // île B (y 4,8)
+  mkBox(7, 1, 7, TX + 12, 3.8, TZ - 6, 'slabW');  // île C (y 4,8) — l'Éclat gardé
+  mkBox(10, 1, 10, TX - 3, 6.2, TZ - 24, 'slabW');// le Belvédère (y 7,2)
+  mkBox(6, 1, 6, TX + 10, 6.2, TZ - 22, 'slabW'); // île E (y 7,2) — l'Éclat des Échos
+  floorSign(17, 'Le troupeau du Berger paissait ici. Les étoiles ont peur, maintenant.', TX - 6, 7.2, TZ - 21);
+  /* Éclat n° 2 : île C, sous la garde d'un Titan d'obsidienne */
+  mkShard(1, TX + 12, 4.8, TZ - 6);
+  mkEnemy(TX + 12, TZ - 7.5, 4.8, [[TX + 10, TZ - 7.5], [TX + 14, TZ - 5]], { type: 'obsidian', lvl: 15 });
+  /* Éclat n° 3 : île E, deux Échos de l'Aube en maraude */
+  mkShard(2, TX + 10, 7.2, TZ - 22);
+  mkEnemy(TX + 10, TZ - 20.5, 7.2, [[TX + 8.5, TZ - 20.5], [TX + 11.5, TZ - 23]], { type: 'echo', lvl: 15 });
+  mkEnemy(TX + 2, TZ - 13, 4.8, [[TX - 1, TZ - 13], [TX + 5, TZ - 16]], { type: 'echo', lvl: 15 });
+  addPickup('mana', TX - 9, 2.4, TZ - 7);
+  addPickup('maxhp', TX + 12, 4.8, TZ - 4); // Fragment de vitalité, sous le Titan
+  /* le Belvédère des étoiles : bivouac-sanctuaire du palier */
+  bivouac(TX - 5, 7.2, TZ - 22, 'le Belvédère des étoiles', 'belvedere', false);
+
+  /* ---- LE PONT DE CONSTELLATIONS (quête d'Orin) ----
+     Préconstruit mais éteint (pattern des colonnes du Chevalier) : les
+     dalles ne deviennent solides et visibles qu'une fois le pont retissé. */
+  [[TX - 3, 8.6, TZ - 30.5], [TX - 3, 10.8, TZ - 33.5], [TX - 3, 12.9, TZ - 36.5]].forEach(([bx, by, bz]) => {
+    const mesh = mkBox(3, 0.5, 4.4, bx, by, bz, 'slabW');
+    const col = colliders[colliders.length - 1];
+    const halo = glow(0xfff2b0, 2.6, 0.4);
+    halo.position.set(bx, by + 1, bz);
+    S.scene.add(halo);
+    if (!G.tower.bridge) { mesh.visible = false; col.on = false; halo.visible = false; }
+    bridgeParts.push({ mesh, col, halo });
+  });
+  addInter(TX - 3, 6.2, TZ - 27, 3, 'Scruter le gouffre d\'étoiles', () => {
+    showMsg(G.tower.bridge
+      ? 'Le pont de constellations scintille au-dessus du vide. Merci, Orin.'
+      : 'L\'île du Berger flotte bien trop haut, bien trop loin. Il faudrait un pont... ou un cartographe qui commande aux étoiles.', 3.5);
+  });
+
+  /* ---- étage 18 : l'île du Berger ---- */
+  mkBox(24, 1, 24, TX, 13, TZ - 40, 'slabW');
+  floorSign(18, 'La bergerie céleste. Il ne reste au Berger que des étoiles mordues.', TX - 9, 14, TZ - 32);
+  torch(TX - 9, 14, TZ - 47, 0xfff2b0, 1.2, 16);
+  torch(TX + 9, 14, TZ - 47, 0xfff2b0, 1.2, 16);
+  addPickup('heart', TX + 9, 14, TZ - 33);
+  mkEnemy(TX - 8, TZ - 33, 14, [[TX - 8, TZ - 32], [TX - 4, TZ - 32]], { type: 'seraph', lvl: 15 });
+
+  /* ---- BOSS (étage 18) : LE BERGER DES ÉTOILES ----
+     Séraphin géant : bordées d'étoiles filantes, PLUIE d'étoiles
+     télégraphiée sous les porteurs, invocation d'Échos de l'Aube. */
+  if (!G.tower.bosses.berger) {
+    boss = mkEnemy(TX, TZ - 42, 14, [[TX - 5, TZ - 42], [TX + 5, TZ - 42]], {
+      type: 'seraph', lvl: 15, hp: 1500, dmg: 30, scale: 2.6, speed: 1.6, chase: 2.6
+    });
+    boss.tName = 'Le Berger des Étoiles';
+    boss.fsm = { kind: 'berger', state: 'IDLE', t: 0, starT: 4, rainT: 7.5, summonT: 12 };
+    boss.onKilled = () => {
+      G.tower.bosses.berger = true;
+      G.tower.shortcuts.p6 = true;
+      showMsg('LE BERGER DES ÉTOILES s\'éteint constellation par constellation... La Clef d\'Astre scintille dans son troupeau, et le raccourci du Palier VI s\'éveille au vestibule.', 5);
+      mkTowerKey('astre', TX, 14, TZ - 40);
+      saveGame(true);
+      boss = null;
+    };
+  } else if (!G.tower.keys.astre) mkTowerKey('astre', TX, 14, TZ - 40);
+
+  // portails du palier
+  mkPortal(TX, 0, TZ + 23, 0x8fe8ff, 'Sas — revenir au vestibule', () => true, () => '', () => gotoPalier(0));
+  mkPortal(TX, 14, TZ - 49, 0x6a5aff, 'Sas — Palier VI : le Cœur de la Nuit sans lune',
+    () => G.tower.bosses.berger && G.tower.keys.astre,
+    () => G.tower.bosses.berger
+      ? 'Le portail réclame la Clef d\'Astre.'
+      : 'Le portail reste voilé : le Berger veille encore sur son troupeau.',
+    () => gotoPalier(6));
+}
+/* Le dialogue d'Orin — la quête des Éclats d'étoile (fetch-quest du v8). */
+function orinTalk(bridgeParts) {
+  if (!G.tower.met.orin) {
+    openDialog([
+      'Oh ! Un vivant ! Pardonnez le désordre — Orin, cartographe céleste de feu l\'Observatoire. Enfin, « feu »... comme moi, techniquement.',
+      'J\'ai cartographié l\'Outre-Ciel toute ma mort. Le pont de constellations qui menait à la bergerie du Berger s\'est effondré la Nuit sans lune : ses trois ÉCLATS D\'ÉTOILE se sont éparpillés sur les îles.',
+      'Rapportez-les-moi — trois éclats, pas un de moins — et je vous retisse le pont. Les étoiles m\'obéissent encore : c\'est bien le seul avantage d\'être mort ici.',
+      'Ma lunette a vu : un éclat près de mon île, un sous la garde d\'un Titan d\'obsidienne, un sur l\'île des Échos. Prudence avec les Échos — ils courent plus vite que le regret.'
+    ], () => { G.tower.met.orin = true; saveGame(true); }, 'ORIN, CARTOGRAPHE CÉLESTE');
+    return;
+  }
+  if (G.tower.bridge) {
+    openDialog(['« Mon plus beau pont. Filez — et si vous croisez la Grande Ourse là-haut, dites-lui qu\'elle me doit toujours une constellation. »'], null, 'ORIN, CARTOGRAPHE CÉLESTE');
+    return;
+  }
+  if (G.tower.shards >= 3) {
+    G.tower.shards -= 3; // les Éclats retournent au ciel : le pont se tisse
+    G.tower.bridge = true;
+    bridgeParts.forEach((bp, i) => {
+      bp.mesh.visible = true; bp.col.on = true; bp.halo.visible = true;
+      spawnBurst(bp.mesh.position.x, bp.mesh.position.y + 0.8, bp.mesh.position.z, 0xfff2b0, 18);
+      lightPillar(bp.mesh.position.x, bp.mesh.position.y, bp.mesh.position.z, 0xfff2b0, 1.2, 6 + i * 2, 0.9);
+    });
+    A.power();
+    showMsg('Orin lance les trois Éclats au ciel : LE PONT DE CONSTELLATIONS se retisse vers l\'île du Berger ! (sauvegarde automatique)', 5);
+    saveGame(true);
+  } else {
+    openDialog(['« Il me manque des Éclats d\'étoile : ' + G.tower.shards + ' / 3. Cherchez les lueurs qui chantent, sur les îles — et gare au Titan d\'obsidienne, si ma lunette ne ment pas. »'], null, 'ORIN, CARTOGRAPHE CÉLESTE');
+  }
+}
+
+/* ================================================================
+   PALIER VI — LE CŒUR DE LA NUIT SANS LUNE (étages 19-20) — v8
+   L'instant du désastre, figé depuis cent ans : la lune à demi avalée
+   pend au plafond, la nuit liquide ruisselle au sol. L'Astre d'Aube dort
+   à l'étage 19 ; le Veilleur sans Nom garde la porte de la Dernière
+   Nuit ; derrière, l'AVALE-LUNE. Récompense : la Couronne de l'Aube.
+   ================================================================ */
+function buildPalier6() {
+  // la salle figée : 42 × 62, murs de 16 m, plafond blindé (§3.2)
+  mkBox(42, 1, 62, TX, -1, TZ - 2, 'stoneD');
+  mkBox(1, 16, 62, TX - 21, 0, TZ - 2, 'iron');
+  mkBox(1, 16, 62, TX + 21, 0, TZ - 2, 'iron');
+  mkBox(42, 16, 1, TX, 0, TZ + 29, 'iron');
+  mkBox(42, 16, 1, TX, 0, TZ - 33, 'iron');
+  mkBox(44, 0.6, 64, TX, 16, TZ - 2, 'stoneD');
+  // sas d'entrée en « S »
+  mkBox(26, 6, 1, TX - 8, 0, TZ + 21, 'iron');
+  mkBox(26, 6, 1, TX + 8, 0, TZ + 17, 'iron');
+  torch(TX - 4, 0, TZ + 23, 0x6a5aff, 1.1, 14);
+
+  /* ---- étage 19 : la Veille du Bout de la Nuit ---- */
+  floorSign(19, 'Le Cœur de la Nuit sans lune. Ici, l\'instant du désastre n\'a jamais fini de tomber.', TX - 16, 0, TZ + 14);
+  /* la lune à demi avalée, suspendue — le décor raconte le crime */
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(3.4, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xcfd8ff, roughness: 0.9, emissive: 0x8fa8ff, emissiveIntensity: 0.35 }));
+  moon.position.set(TX, 10.5, TZ - 6);
+  moon.add(glow(0xbfd8ff, 8, 0.35));
+  S.scene.add(moon);
+  const bite = new THREE.Mesh(new THREE.SphereGeometry(2.6, 14, 14),
+    new THREE.MeshBasicMaterial({ color: 0x05030f }));
+  bite.position.set(TX + 2.4, 11.6, TZ - 6.8); // la morsure de l'Avale-Lune
+  S.scene.add(bite);
+  // débris de nuit en suspension (l'instant figé)
+  for (let i = 0; i < 10; i++) {
+    const d = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), matFor('stoneD', 1, 1));
+    d.position.set(TX - 16 + (i * 31) % 32, 4 + (i * 5) % 9, TZ + 12 - (i * 13) % 38);
+    S.scene.add(d); spinners.push(d);
+  }
+  /* la nuit liquide : des mares d'obscurité qui rongent la chair */
+  mkHazard(TX - 8, TZ + 7, 9, 5, 0, 1.6, 14, 0x4a2a8a, 'nuit liquide');
+  mkHazard(TX + 12, TZ + 2, 7, 5, 0, 1.6, 14, 0x4a2a8a, 'nuit liquide');
+  mkHazard(TX + 2, TZ - 6, 6, 4, 0, 1.6, 14, 0x4a2a8a, 'nuit liquide');
+  /* le piédestal de l'ASTRE D'AUBE (touche 8), gardé par deux Titans */
+  towerPedestal(TX + 8, TZ - 10, 0, 'meteor', 0xffe9a8,
+    'Astre d\'Aube appris ! (touche 8) Levez les yeux, visez : une étoile répond — et tombe où porte votre regard.');
+  mkEnemy(TX + 4, TZ - 12, 0, [[TX + 2, TZ - 12], [TX + 7, TZ - 12]], { type: 'obsidian', lvl: 15 });
+  mkEnemy(TX + 12, TZ - 12, 0, [[TX + 10, TZ - 12], [TX + 14, TZ - 10]], { type: 'obsidian', lvl: 15 });
+  mkEnemy(TX - 6, TZ + 2, 0, [[TX - 10, TZ + 2], [TX - 2, TZ + 2]], { type: 'echo', lvl: 15 });
+  mkEnemy(TX - 14, TZ - 8, 0, [[TX - 16, TZ - 8], [TX - 11, TZ - 6]], { type: 'seraph', lvl: 16 });
+  addPickup('herb', TX - 17, 0, TZ + 4);
+  addPickup('herb', TX + 17, 0, TZ + 8);
+  addPickup('mana', TX - 4, 0, TZ - 10);
+  /* le bivouac de la Veille : dernier feu avant la fin du monde */
+  bivouac(TX - 12, 0, TZ - 12, 'la Veille du Bout de la Nuit', 'veille', false);
+
+  /* ---- la porte de la Dernière Nuit + LE VEILLEUR SANS NOM ---- */
+  mkBox(17, 16, 1, TX - 12.5, 0, TZ - 18, 'iron');
+  mkBox(17, 16, 1, TX + 12.5, 0, TZ - 18, 'iron');
+  mkBox(8, 10, 1, TX, 6, TZ - 18, 'iron');
+  const gate = mkDoor(8, 6, 1, TX, 0, TZ - 18, 'iron');
+  if (G.tower.met.veilleur) openDoor(gate); // porte déjà accordée par le Veilleur
+  torch(TX - 4.8, 0, TZ - 16.8, 0xbfd8ff, 1.2, 14);
+  torch(TX + 4.8, 0, TZ - 16.8, 0xbfd8ff, 1.2, 14);
+  mkNpc(TX + 3.2, 0, TZ - 15, {
+    name: 'le Veilleur sans Nom', color: 0x14101f, eye: 0xbfd8ff,
+    halo: 0x3a3f6a, onTalk: () => veilleurTalk(gate)
+  });
+
+  /* ---- étage 20 : l'arène de l'AVALE-LUNE ---- */
+  floorSign(20, 'La Dernière Nuit. Ce qui a mangé la lune n\'a jamais quitté la table.', TX - 16, 0, TZ - 20);
+  /* quatre puits de lune : la seule lumière que la bête n'a pas bue */
+  [[-14, -22], [14, -22], [-14, -30], [14, -30]].forEach(([ox, oz]) => {
+    torch(TX + ox, 0, TZ + oz, 0xbfd8ff, 1.4, 18);
+  });
+  if (!G.tower.bosses.avale) {
+    boss = mkEnemy(TX, TZ - 26, 0, [[TX - 5, TZ - 26], [TX + 5, TZ - 26]], {
+      type: 'obsidian', lvl: 16, hp: 2400, dmg: 40, scale: 3, speed: 0.9, chase: 2.1, color: 0x060312
+    });
+    boss.tName = 'L\'Avale-Lune';
+    /* Le VOILE DE NUIT absorbe 90 % des dégâts. Seule la NOVA D'AURORE
+       (touche 7), prononcée tout contre la bête, le déchire 7 s — le
+       crochet S.onNova est l'exact pendant de S.onHeal (Racine). */
+    boss.fsm = { kind: 'avale', state: 'IDLE', t: 0, veilT: 0, msgT: 0, gustT: 5, crocT: 3.5, summonT: 14, active: false };
+    boss.onDamaged = (d) => {
+      if (boss.fsm.veilT > 0) return Math.round(d * 1.4);
+      if (boss.fsm.msgT <= 0) {
+        boss.fsm.msgT = 3;
+        showMsg('Le voile de la Nuit boit vos coups... La NOVA D\'AURORE (touche 7), prononcée tout contre lui, le déchirerait !', 3.2);
+      }
+      return Math.max(1, Math.round(d * 0.1));
+    };
+    boss.onKilled = () => {
+      G.tower.bosses.avale = true;
+      showMsg('L\'AVALE-LUNE se déchire d\'un bord à l\'autre — et recrache un siècle de nuit. Quelque chose de clair monte vers le plafond...', 5);
+      lightPillar(TX, 0, TZ - 26, 0xfff2c8, 4, 15, 1.4);
+      spawnBurst(TX, 3, TZ - 26, 0xbfd8ff, 36);
+      crownAltar();
+      saveGame(true);
+      boss = null;
+    };
+    S.onNova = (pl) => {
+      if (!boss || boss.dead || boss.fsm.kind !== 'avale') return;
+      const d = Math.hypot(pl.pos.x - boss.g.position.x, pl.pos.z - boss.g.position.z);
+      if (d < 11 && Math.abs(pl.pos.y - boss.floorY) < 4) {
+        boss.fsm.veilT = 7;
+        boss.stunT = Math.max(boss.stunT, 2.4);
+        spawnBurst(boss.g.position.x, boss.g.position.y + 1.4, boss.g.position.z, 0xffd97a, 34);
+        lightPillar(boss.g.position.x, boss.floorY, boss.g.position.z, 0xffd97a, 3.4, 14, 1);
+        showMsg('La Nova déchire le voile : l\'AVALE-LUNE saigne de lumière — frappez !', 3);
+      }
+    };
+  } else if (!G.tower.crown) crownAltar(); // la Couronne attend toujours son porteur
+
+  mkPortal(TX, 0, TZ + 26.5, 0x8fe8ff, 'Sas — revenir au vestibule', () => true, () => '', () => gotoPalier(0));
+}
+/* Le dialogue du Veilleur sans Nom — il ouvre la porte de la Dernière
+   Nuit et enseigne la mécanique du voile (Nova d'Aurore). */
+function veilleurTalk(gate) {
+  if (!G.tower.met.veilleur) {
+    openDialog([
+      'Halte. Pas par orgueil — par habitude. Je garde cette porte depuis cent ans, et je ne sais plus ni mon nom, ni pourquoi je la gardais.',
+      'Mon frère portait une armure comme la mienne, quatorze étages plus bas. Le Chevalier de l\'Éclipse, disent les échos. Si tu es arrivé jusqu\'ici, alors tu vaux d\'entendre ceci :',
+      'Derrière cette porte, la Nuit sans lune n\'est pas un souvenir. Elle TOMBE ENCORE. L\'Avale-Lune y digère la lune depuis cent ans, enroulée dans un voile qu\'aucune lame n\'entame.',
+      'Seule une aube portée à bout de bras — la NOVA D\'AURORE, prononcée tout contre elle — déchire ce voile. Frappe pendant qu\'il saigne de lumière. Puis recommence. Encore. Jusqu\'au bout.',
+      'Va. Et si tu croises mon nom là-dedans... garde-le. Il est mieux mort que moi.'
+    ], () => {
+      G.tower.met.veilleur = true;
+      openDoor(gate);
+      showMsg('Le Veilleur s\'écarte : la porte de la Dernière Nuit se lève. (sauvegarde automatique)', 4);
+      saveGame(true);
+    }, 'LE VEILLEUR SANS NOM');
+  } else if (!G.tower.bosses.avale) {
+    openDialog(['« Le voile ne craint que la Nova d\'Aurore, prononcée tout contre lui. Frappe quand il saigne de lumière — puis recommence. »'], null, 'LE VEILLEUR SANS NOM');
+  } else {
+    openDialog(['« C\'est donc fini. La nuit tombe... et s\'arrête enfin de tomber. Repose-toi, porteur d\'aube. Nous, on va pouvoir dormir. »'], null, 'LE VEILLEUR SANS NOM');
+  }
+}
+/* La Couronne de l'Aube : récompense du vrai final, matérialisée sur
+   l'arène une fois l'Avale-Lune déchirée. */
+function crownAltar() {
+  const x = TX, y = 0, z = TZ - 26;
+  const g = new THREE.Group();
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0xffe9a8, roughness: 0.25,
+    metalness: 0.8, emissive: 0xffd97a, emissiveIntensity: 0.5 });
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.07, 8, 18), crownMat);
+  band.rotation.x = Math.PI / 2;
+  g.add(band);
+  for (let k = 0; k < 5; k++) {
+    const a = k / 5 * Math.PI * 2;
+    const p = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 5), crownMat);
+    p.position.set(Math.cos(a) * 0.34, 0.2, Math.sin(a) * 0.34);
+    g.add(p);
+  }
+  g.add(glow(0xffe9a8, 3, 0.75));
+  g.position.set(x, y + 1.5, z);
+  S.scene.add(g); spinners.push(g);
+  addInter(x, y, z, 2.8, 'Recevoir la Couronne de l\'Aube', it => {
+    it.on = false;
+    S.scene.remove(g);
+    const i = spinners.indexOf(g); if (i >= 0) spinners.splice(i, 1);
+    G.tower.crown = true;
+    A.power();
+    spawnBurst(x, y + 1.6, z, 0xffe9a8, 36);
+    lightPillar(x, y, z, 0xffe9a8, 2.6, 12, 1.1);
+    const h = glow(0xfff2c8, 1.6, 0.5); // le diadème rejoint le porteur
+    h.position.y = 2.05;
+    player.mesh.add(h);
+    showMsg('LA COURONNE DE L\'AUBE est vôtre : +10 % de dégâts, et le foyer veille sur votre esprit. (sauvegarde automatique)', 5);
+    saveGame(true);
+    setTimeout(finalEpilogue, 1600);
+  });
+}
+/* Le vrai épilogue du v8 : la lune rendue au ciel. */
+function finalEpilogue() {
+  openDialog([
+    'Au-dessus des remparts, le voile de la Dernière Nuit se déchire d\'un bord à l\'autre du ciel — et la lune en tombe, immense, intacte, comme rendue par la marée.',
+    'Dans les jardins, dans l\'Ossuaire, au cœur de la Forêt de Nuit : partout, les ombres s\'arrêtent. Elles lèvent leurs yeux clairs vers la première vraie nuit depuis cent ans.',
+    '« La Nuit sans lune est finie, porteur de flamme. Il reste des ombres, oui — mais plus une seule qui soit orpheline du ciel. »',
+    'Et quelque part près du télescope, une ombre agenouillée sourit dans le noir : « Nous pouvons enfin dormir. Toi... toi, tu peux enfin veiller. »'
+  ], () => showMsg('La lune veille à nouveau sur Ombreciel.', 4));
 }
 
 /* ================================================================
@@ -706,6 +1162,9 @@ function inZone(pl, z) {
 }
 export function updateTower(dt) {
   if (!S.inTower) return;
+
+  /* respiration douce des PNJ (Maëla, Orin, le Veilleur) */
+  for (const n of npcs) n.g.position.y = n.y0 + Math.sin(G.time * 1.4 + n.seed) * 0.06;
 
   /* zones de danger : jets rythmés (period) ou permanents. hurt() respecte
      l'Égide et l'invulnérabilité — le tempo des dégâts reste équitable. */
@@ -722,17 +1181,21 @@ export function updateTower(dt) {
     if (S.COOP && p2.pos && inZone(p2, z)) hurtP2(z.dmg, null);
   }
 
-  /* télégraphes de pointes de la Racine */
+  /* télégraphes d'impact : pointes de la Racine (défauts verts), pluie
+     d'étoiles du Berger, crocs de nuit de l'Avale-Lune (dmg/col/r/pillar
+     paramétrés par le Maître d'Étage qui les invoque). */
   for (let i = spikes.length - 1; i >= 0; i--) {
     const sp = spikes[i];
     sp.t -= dt;
-    if (Math.random() < dt * 10) spawnBurst(sp.x, sp.y + 0.2, sp.z, 0x4ade5a, 1);
+    if (Math.random() < dt * 10) spawnBurst(sp.x, sp.y + 0.2, sp.z, sp.col || 0x4ade5a, 1);
     if (sp.t <= 0) {
-      spawnBurst(sp.x, sp.y + 0.6, sp.z, 0x7ade5a, 14);
+      spawnBurst(sp.x, sp.y + 0.6, sp.z, sp.col ? sp.col : 0x7ade5a, 14);
+      if (sp.pillar) lightPillar(sp.x, sp.y, sp.z, sp.col || 0xffe9a8, 1.4, 8, 0.5);
       A.impact();
-      const near = pl => Math.hypot(pl.pos.x - sp.x, pl.pos.z - sp.z) < 2.2 && Math.abs(pl.pos.y - sp.y) < 2;
-      if (near(player)) hurt(22, { x: sp.x, z: sp.z });
-      if (S.COOP && p2.pos && near(p2)) hurtP2(22, { x: sp.x, z: sp.z });
+      const R = sp.r || 2.2;
+      const near = pl => Math.hypot(pl.pos.x - sp.x, pl.pos.z - sp.z) < R && Math.abs(pl.pos.y - sp.y) < 2;
+      if (near(player)) hurt(sp.dmg || 22, { x: sp.x, z: sp.z });
+      if (S.COOP && p2.pos && near(p2)) hurtP2(sp.dmg || 22, { x: sp.x, z: sp.z });
       spikes.splice(i, 1);
     }
   }
@@ -843,6 +1306,106 @@ export function updateTower(dt) {
             Math.abs(p2.pos.y - boss.floorY) < 4) hurtP2(boss.dmg, bp);
       }
       if (f.t >= 1.8) { f.state = 'CHASE'; boss.state = 'chase'; f.t = 0; }
+    }
+  } else if (f.kind === 'berger') {
+    /* LE BERGER DES ÉTOILES (étage 18) : bordées d'étoiles filantes,
+       pluie d'étoiles télégraphiée, invocation d'Échos de l'Aube. */
+    if (f.state === 'IDLE') {
+      if (dP < 16 && sameY) {
+        f.state = 'CHASE'; boss.state = 'chase';
+        showMsg('— MAÎTRE D\'ÉTAGE : LE BERGER DES ÉTOILES — « Mon troupeau... tu marches sur mon troupeau. »', 4);
+      }
+      return;
+    }
+    f.starT -= dt; f.rainT -= dt; f.summonT -= dt;
+    if (f.starT <= 0) {
+      f.starT = 4.2;
+      spawnBurst(bp.x, bp.y + 1.4, bp.z, 0xfff2b0, 18);
+      radialBurst(boss, 11, boss.dmg, 11, 0xfff2b0); // bordée d'étoiles filantes
+    }
+    if (f.rainT <= 0 && dP < 22 && sameY) {
+      f.rainT = 8;
+      /* pluie d'étoiles : trois impacts dorés télégraphiés sous les porteurs */
+      for (let k = 0; k < 3; k++) {
+        const tgt = (S.COOP && p2.pos && k === 1) ? p2 : player;
+        spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 3.5, z: tgt.pos.z + (Math.random() - 0.5) * 3.5,
+          y: boss.floorY, t: 0.85 + k * 0.3, dmg: 30, col: 0xffe9a8, r: 2.6, pillar: true });
+      }
+      showMsg('Le Berger siffle : ses étoiles PLONGENT — fuyez les lueurs au sol !', 2.5);
+    }
+    if (f.summonT <= 0) {
+      f.summonT = 13;
+      let alive = 0;
+      for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
+      if (alive < 2) {
+        const sx = bp.x + (Math.random() - 0.5) * 8, sz = bp.z + (Math.random() - 0.5) * 8;
+        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'echo', lvl: 14, tag: 'summon', dyn: true });
+        w.state = 'chase'; w.alerted = true;
+        spawnBurst(sx, boss.floorY + 1, sz, 0xfff2b0, 16);
+        showMsg('Une étoile tombe du troupeau — un Écho de l\'Aube en jaillit !', 2.5);
+      }
+    }
+  } else if (f.kind === 'avale') {
+    /* L'AVALE-LUNE (étage 20) : voile de nuit quasi impénétrable (10 % des
+       dégâts) que seule la Nova d'Aurore déchire (S.onNova → veilT), voile
+       dévorant radial, crocs de nuit télégraphiés, Échos recrachés, et une
+       gueulée de zone façon Chevalier quand on colle. Sous 50 % de PV, la
+       bête s'enrage : tout s'accélère. */
+    if (f.veilT > 0) f.veilT -= dt;
+    boss.cloakMat.emissive.setHex(f.veilT > 0 ? 0x8a6a2a : 0x08041a);
+    if (f.state === 'IDLE') {
+      if (dP < 15 && sameY) {
+        f.state = 'CHASE'; boss.state = 'chase';
+        showMsg('— MAÎTRE D\'ÉTAGE : L\'AVALE-LUNE — Le noir au fond de la salle ouvre un œil. Puis deux. Puis la gueule.', 4.5);
+      }
+      return;
+    }
+    const enraged = boss.hp / boss.maxHp < 0.5;
+    f.gustT -= dt; f.crocT -= dt; f.summonT -= dt;
+    if (f.gustT <= 0) {
+      f.gustT = enraged ? 4.5 : 6;
+      spawnBurst(bp.x, bp.y + 1.2, bp.z, 0x6a5aff, 20);
+      radialBurst(boss, enraged ? 14 : 10, boss.dmg - 6, 10.5, 0x6a5aff); // voile dévorant
+    }
+    if (f.crocT <= 0 && dP < 20 && sameY) {
+      f.crocT = enraged ? 2.6 : 3.6;
+      const tgt = (S.COOP && p2.pos && Math.random() < 0.4) ? p2 : player;
+      spikes.push({ x: tgt.pos.x, z: tgt.pos.z, y: boss.floorY, t: 0.8, dmg: 36, col: 0x8a5aff, r: 2.4 });
+      if (enraged) spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 4, z: tgt.pos.z + (Math.random() - 0.5) * 4,
+        y: boss.floorY, t: 1.1, dmg: 36, col: 0x8a5aff, r: 2.4 });
+    }
+    if (f.summonT <= 0) {
+      f.summonT = 15;
+      let alive = 0;
+      for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
+      if (alive < 2) {
+        const sx = bp.x + (Math.random() - 0.5) * 7, sz = bp.z + (Math.random() - 0.5) * 7;
+        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'echo', lvl: 15, tag: 'summon', dyn: true });
+        w.state = 'chase'; w.alerted = true;
+        spawnBurst(sx, boss.floorY + 1, sz, 0x6a5aff, 14);
+        showMsg('L\'Avale-Lune recrache un morceau de nuit : un Écho jaillit !', 2.5);
+      }
+    }
+    if (f.state === 'CHASE') {
+      boss.state = 'chase';
+      if (dP < 4 && sameY) {
+        f.state = 'ATTACK_AOE'; f.t = 0; f.active = false;
+        spawnBurst(bp.x, bp.y + 0.5, bp.z, 0xff3a5a, 16); // télégraphe (la gueule s'ouvre)
+        A.alert();
+      }
+    } else if (f.state === 'ATTACK_AOE') {
+      boss.state = 'patrol'; boss.wps = [[bp.x, bp.z]]; // elle se plante pour mordre
+      if (f.t >= 0.9 && !f.active) {
+        /* ACTIVE FRAMES : la gueulée n'existe que dans cette fenêtre */
+        f.active = true;
+        spawnBurst(bp.x, bp.y + 0.3, bp.z, 0x8a5aff, 26);
+        A.impact();
+        const hitR = 5;
+        if (Math.hypot(player.pos.x - bp.x, player.pos.z - bp.z) < hitR && sameY) hurt(boss.dmg, bp);
+        if (S.COOP && p2.pos && Math.hypot(p2.pos.x - bp.x, p2.pos.z - bp.z) < hitR &&
+            Math.abs(p2.pos.y - boss.floorY) < 4) hurtP2(boss.dmg, bp);
+      }
+      if (f.t >= 1.6) { f.state = 'CHASE'; boss.state = 'chase'; f.t = 0; }
     }
   }
 }

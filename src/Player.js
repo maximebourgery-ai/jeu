@@ -32,6 +32,12 @@ export function mkClassBody(pathId, identity) {
     h.position.y = 1.1;
     g.add(h);
   }
+  // Couronne de l'Aube (v8) : le diadème de lumière des libérateurs de la lune
+  if (G.tower && G.tower.crown && identity !== 'p2') {
+    const c = glow(0xfff2c8, 1.6, 0.5);
+    c.position.y = 2.05;
+    g.add(c);
+  }
   /* Chaque voie porte son arme dans un groupe-pivot ancré à l'épaule
      droite (parts.arm) : les gestes d'attaque procéduraux (Animations.js)
      font tourner ce pivot — le coup part de l'épaule, comme un vrai bras.
@@ -415,6 +421,11 @@ export function updatePlayer(dt) {
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
   // Aura du Premier Foyer (Observatoire de l'Aube) : le foyer répare la chair
   if (G.tower.aura) G.hp = Math.min(G.maxHp, G.hp + 1.2 * dt);
+  // Couronne de l'Aube (v8) : le foyer veille aussi sur l'esprit
+  if (G.tower.crown) {
+    G.hp = Math.min(G.maxHp, G.hp + 0.8 * dt);
+    G.mana = Math.min(G.maxMana, G.mana + 3 * dt);
+  }
   // Sanctuaire d'un feu de bivouac : la chaleur régénère lentement le porteur
   if (safeZoneAt(p.pos)) G.hp = Math.min(G.maxHp, G.hp + 2.5 * dt);
   for (const k in G.cd) G.cd[k] = Math.max(0, G.cd[k] - dt);

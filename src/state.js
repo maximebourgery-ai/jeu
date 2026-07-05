@@ -13,9 +13,9 @@ export const IS_TOUCH = (typeof matchMedia === 'function' && matchMedia('(pointe
 export const G = {
   started: false, paused: false, over: false, inv: false, dialog: false,
   hp: 100, maxHp: 100, mana: 100, maxMana: 100,
-  powers: { bolt: true, dash: false, tk: false, shield: false, frost: false, heal: false },
+  powers: { bolt: true, dash: false, tk: false, shield: false, frost: false, heal: false, nova: false, meteor: false },
   sel: 'bolt',
-  cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0 },
+  cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0, nova: 0, meteor: 0 },
   crystals: 0, goldKey: false,
   items: ['Bâton de noviciat'],
   path: 'mage', herbs: 0, shadows: 0, orbes: 0, hasWings: false,
@@ -30,10 +30,17 @@ export const G = {
      L'ouverture des portails dépend de ces flags stricts (jamais de trigger
      physique) : « hasKilledBoss && hasFloorKey ». */
   tower: {
-    keys: { copper: false, sap: false, ether: false },
-    bosses: { archiviste: false, racine: false, chevalier: false },
-    shortcuts: { p2: false, p3: false, p4: false },
-    aura: false
+    keys: { copper: false, sap: false, ether: false, astre: false },
+    bosses: { archiviste: false, racine: false, chevalier: false, berger: false, avale: false },
+    shortcuts: { p2: false, p3: false, p4: false, p5: false, p6: false },
+    aura: false,
+    /* v8 — l'Outre-Ciel (étages 16-20) : les PNJ rencontrés (leurs dialogues
+       déverrouillent la progression), les Éclats d'étoile de la quête d'Orin,
+       le pont de constellations retissé et la Couronne de l'Aube (récompense
+       du vrai final, par-delà l'Observatoire). */
+    met: { maela: false, orin: false, veilleur: false },
+    shards: 0, shardsTaken: [false, false, false],
+    bridge: false, crown: false
   },
   camps: {},        // bivouacs découverts (matrice de voyage rapide)
   travelOpen: false, // matrice des Bivouacs à l'écran
@@ -73,7 +80,15 @@ export const ETYPES = {
   sentinel: { name: 'Ombre',    hp: 30,  dmg: 12, speed: 2.2,  chase: 4.4, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
   wraith:   { name: 'Traqueur', hp: 16,  dmg: 8,  speed: 3.9,  chase: 7.6, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
   brute:    { name: 'Colosse',  hp: 110, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
-  caster:   { name: 'Tisseur',  hp: 26,  dmg: 14, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true }
+  caster:   { name: 'Tisseur',  hp: 26,  dmg: 14, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
+  /* v8 — l'Outre-Ciel (étages 16-20 de l'Ascension) : trois archétypes de fin
+     de partie, plus forts que tout ce que le château connaît.
+     · seraph   → SÉRAPHIN DÉCHU  : garde ailée du Berger, bordées à distance
+     · echo     → ÉCHO DE L'AUBE  : la vitesse faite ombre, cœur incandescent
+     · obsidian → TITAN D'OBSIDIENNE : muraille de roche en fusion, très lent */
+  seraph:   { name: 'Séraphin déchu',     hp: 44,  dmg: 9,  speed: 2.4,  chase: 4.8, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
+  echo:     { name: 'Écho de l\'Aube',    hp: 26,  dmg: 7,  speed: 4.4,  chase: 8.6, scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
+  obsidian: { name: 'Titan d\'obsidienne', hp: 130, dmg: 13, speed: 1.05, chase: 2.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
 export const ZONES = [
@@ -159,13 +174,17 @@ export const POWERS = [
   { id: 'tk',     icon: '☄', name: 'Main céleste',  cost: 0,  cool: 0.35 },
   { id: 'shield', icon: '◎', name: 'Égide',         cost: 30, cool: 6 },
   { id: 'frost',  icon: '❄', name: 'Souffle glacé', cost: 22, cool: 3.2 },
-  { id: 'heal',   icon: '✚', name: 'Bénédiction',   cost: 38, cool: 9 }
+  { id: 'heal',   icon: '✚', name: 'Bénédiction',   cost: 38, cool: 9 },
+  /* v8 — les arts perdus de l'Outre-Ciel (étages 16-20 de l'Ascension) :
+     deux sorts de démonstration de puissance, aux effets très lumineux. */
+  { id: 'nova',   icon: '✹', name: 'Nova d\'Aurore', cost: 45, cool: 12 },
+  { id: 'meteor', icon: '✵', name: 'Astre d\'Aube',  cost: 60, cool: 16 }
 ];
 
 /* ---- Coop écran scindé : joueur 2 (manette) ---- */
 export const p2 = {
   path: 'mage', hp: 100, maxHp: 100, mana: 100, maxMana: 100, sel: 'bolt',
-  cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0 },
+  cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0, nova: 0, meteor: 0 },
   yaw: 0, pitch: -0.22, shieldT: 0, invuln: 0, dashT: 0, stepT: 0, walkT: 0,
   grounded: false, airJumped: false, jumpQ: 0,
   rage: 0, // jauge de rage du Guerrier quand le J2 incarne cette voie (voir Powers.js)
@@ -316,8 +335,10 @@ export const S = {
   /* dernier appui au sol du J1 (rubber-banding coop : le J2 tombé y est
      ramené « au bord du dernier saut réussi par le Joueur 1 ») */
   lastSafe: { x: 0, y: 0.2, z: 60 },
-  // Ascension de la Tour du Levant (paliers instanciés)
-  inTower: false, palier: 0, onHeal: null,
+  // Ascension de la Tour du Levant (paliers instanciés). onHeal / onNova :
+  // crochets des Maîtres d'Étage vulnérables à un art précis (Bénédiction
+  // pour la Racine Vengeresse, Nova d'Aurore pour l'Avale-Lune).
+  inTower: false, palier: 0, onHeal: null, onNova: null,
   // télékinésie
   tkHeld: null,
   // sauvegarde
