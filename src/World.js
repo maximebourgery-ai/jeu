@@ -15,7 +15,7 @@ import {
 import { assets, matFor, glow } from './AssetManager.js';
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, openTravel } from './UI.js';
-import { questReach, openDialog } from './Quests.js';
+import { questReach, openDialog, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt } from './Player.js'; // rideau de flammes (import cyclique sûr : usage différé)
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
@@ -333,8 +333,10 @@ export function updatePickups(dt) {
         G.crystals++; A.power();
         spawnBurst(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, 0xffd97a, 20);
         showMsg('Larme d\'Aube recueillie — ' + G.crystals + ' / 3', 4);
-        if (QUESTS[S.questI] && QUESTS[S.questI].id === 'tears')
-          $('objective').textContent = '✧ Objectif — Réunissez les 3 Larmes d\'Aube (' + G.crystals + ' / 3). Lumen connaît peut-être des secrets...';
+        if (QUESTS[S.questI] && QUESTS[S.questI].id === 'tears') {
+          if (G.crystals >= 3) applyQuest(); // la suite : l'Ascension, puis l'Outre-Ciel
+          else $('objective').textContent = '✧ Objectif — Réunissez les 3 Larmes d\'Aube (' + G.crystals + ' / 3). Lumen connaît peut-être des secrets...';
+        }
         if (G.crystals >= 3) setTimeout(winGame, 1400);
         G.checkpoint = { x: collector.pos.x, y: collector.pos.y, z: collector.pos.z };
       } else if (p.type === 'herb') {

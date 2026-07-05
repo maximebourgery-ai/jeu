@@ -40,6 +40,9 @@ export function saveGame(silent) {
       tk: tkCubes.map(c => [+c.mesh.position.x.toFixed(2), +c.mesh.position.y.toFixed(2), +c.mesh.position.z.toFixed(2)])
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+    /* chaque jalon du v8 (clefs, PNJ, pont, boss, Couronne) force une
+       sauvegarde : on en profite pour rafraîchir la ligne d'objectif */
+    applyQuest();
     if (!silent) showMsg('💾 Partie sauvegardée dans ce navigateur.', 2.5);
   } catch (e) {
     if (!silent) showMsg('Sauvegarde impossible : stockage local indisponible dans ce navigateur.', 3);
