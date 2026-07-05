@@ -42,7 +42,7 @@ export const G = {
   /* Guide du porteur : chaque découverte (ressource, arbre, bivouac...) ouvre
      UNE FOIS une page d'explication qui met le jeu en pause (voir guide, Quests.js) */
   seen: {},
-  xp: 0, level: 1, sp: 0, nodes: {}, treeOpen: false, openWorld: false,
+  xp: 0, level: 1, sp: 0, nodes: {}, treeOpen: false,
   furyT: 0, hasteT: 0, comboN: 0, comboT: 0,
   /* Enchaînement universel : chaque coup au but (toutes voies) empile le
      combo tant qu'on ne reste pas 2,2 s sans toucher — et encaisser un coup

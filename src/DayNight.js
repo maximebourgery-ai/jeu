@@ -19,7 +19,7 @@ import { $, showMsg } from './UI.js';
 const HOURS_PER_SEC = 24 / (16 * 60); // journée complète en 16 minutes réelles
 
 /* 0 = nuit noire, 1 = plein jour, transitions douces à l'aube et au crépuscule */
-export function dayFactor(h) {
+function dayFactor(h) {
   if (h >= 8 && h < 20) return 1;
   if (h >= 6 && h < 8) return (h - 6) / 2;        // aube
   if (h >= 20 && h < 22) return 1 - (h - 20) / 2; // crépuscule

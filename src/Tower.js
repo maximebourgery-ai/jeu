@@ -1201,6 +1201,10 @@ export function updateTower(dt) {
   }
 
   /* altération d'arène du Chevalier : des colonnes de feu montent par cycles */
+  if (S.palier === 3 && (!boss || boss.dead) && pillars.some(p => p.up)) {
+    // le Chevalier tombé, son arène s'apaise : plus aucune colonne dressée
+    for (const p of pillars) { p.mesh.visible = false; p.col.on = false; p.fl.visible = false; p.up = false; }
+  }
   if (S.palier === 3 && boss && !boss.dead) {
     pillarT -= dt;
     if (pillarT <= 0) {

@@ -175,9 +175,12 @@ export function castPowerP2() {
   }
   if (p2.mana < pw.cost) return;
   p2.mana -= pw.cost;
-  p2.cd[pw.id] = (pw.id === 'dash') ? PATHS[p2.path].dashCool : pw.cool;
+  /* mêmes règles que J1 : coolMul (arbre) + rangs de la Forge des Arts partagés */
+  let cool2 = ((pw.id === 'dash') ? PATHS[p2.path].dashCool : pw.cool) * coolMul();
+  if (pw.id === 'dash') cool2 *= 1 - 0.07 * (G.pupg.dash || 0);
+  p2.cd[pw.id] = cool2;
   if (pw.id === 'dash') doDashP2();
-  else if (pw.id === 'shield') { p2.shieldT = 4; A.shield(); }
+  else if (pw.id === 'shield') { p2.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield(); }
   else if (pw.id === 'frost') frostNova(p2);
   else if (pw.id === 'heal') healSelf(p2); // code unifié J1/J2 (Racine Vengeresse comprise)
   else if (pw.id === 'nova') dawnNova(p2); // le voile de l'Avale-Lune cède aux deux porteurs

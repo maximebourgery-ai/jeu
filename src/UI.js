@@ -6,6 +6,7 @@ import { xpNeed } from './SkillTree.js';
 import { nearInter, spawnBurst } from './World.js';
 import { lockPointer } from './Controls.js'; // cycle sûr : appel différé
 import { leaveTower } from './Tower.js';     // cycle sûr : appel différé
+import { closeMap } from './WorldMap.js';    // cycle sûr : appel différé
 
 export const $ = id => document.getElementById(id);
 export function showMsg(t, dur) { $('msg').textContent = t; $('msg').style.opacity = 1; G.msgT = dur || 3; }
@@ -76,7 +77,7 @@ export function gameOver() {
   G.inv = false; $('inv').classList.add('hidden');
   G.treeOpen = false; $('tree').classList.add('hidden');
   G.travelOpen = false; $('travel').classList.add('hidden');
-  G.mapOpen = false; const mp = $('map'); if (mp) mp.classList.add('hidden');
+  closeMap(); // referme la carte ET libère son minuteur de rafraîchissement
   G.paused = false; $('pause').classList.add('hidden');
   if (document.exitPointerLock) document.exitPointerLock();
   /* un bouton par feu découvert (à défaut : le dernier feu connu) */

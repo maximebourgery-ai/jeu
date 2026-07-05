@@ -294,6 +294,20 @@ export function killEnemy(e) {
   } else if (e.tKey === 'caster') {
     drop('thread', 0.5, 0.3);
     drop('mana', -0.5, 0.3);
+  } else if (e.tKey === 'echo') {
+    /* v8 — l'Outre-Ciel : la vitesse faite ombre lâche la ressource de vitesse */
+    drop('feather', 0.5, 0.2);
+    drop('mana', -0.5, 0.4);
+  } else if (e.tKey === 'seraph') {
+    /* v8 — garde ailée à distance : fils d'éther (build sorcier) */
+    drop('thread', 0.5, 0.3);
+    drop('mana', -0.5, 0.3);
+    if (Math.random() < 0.5) drop('shadow', 0, -0.7);
+  } else if (e.tKey === 'obsidian') {
+    /* v8 — muraille de roche : os (build bastion), généreux vu ses 130 PV */
+    drop('bone', 0.6, 0.3);
+    drop('bone', -0.6, -0.3);
+    drop('heart', -0.6, 0.2);
   } else {
     drop('mana', 0, 0.4);
     if (Math.random() < 0.7) drop('shadow', 0.7, 0.3);

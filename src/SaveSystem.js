@@ -3,9 +3,9 @@
    Enregistre : stats, ressources, sorts, quête, position, état du
    monde (portes, ennemis, objets ramassés, blocs runiques).
    Auto-sauvegarde toutes les 25 s + bouton dans le menu pause.
-   Clé et format identiques à la v6 d'origine (ombreciel_save_v6).
+   Clé v8 (ombreciel_save_v8) : les index d'objets/interactions ont changé.
    ================================================================ */
-import { G, S, SAVE_KEY, player, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, PLATES, applyPath } from './state.js';
+import { G, S, SAVE_KEY, player, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, PLATES, zoneSeen, applyPath } from './state.js';
 import { showMsg, buildPowersUI, refreshPowers } from './UI.js';
 import { openDoor, syncCube, runRestores } from './World.js';
 import { refreshPlayerVisual, addWingsToPlayer } from './Player.js';
@@ -19,7 +19,7 @@ export function saveGame(silent) {
        le joueur repart du portail, ses clefs/raccourcis (G.tower) en poche. */
     const inTw = S.inTower;
     const TER = { x: 58, y: 23.2, z: 46.8 };
-    const s = { v: 6, path: G.path, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
+    const s = { v: 8, path: G.path, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
       powers: G.powers, sel: G.sel,
       crystals: G.crystals, goldKey: G.goldKey, items: G.items,
       herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
@@ -33,7 +33,7 @@ export function saveGame(silent) {
       checkpoint: inTw ? TER : G.checkpoint,
       /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
          raccourcis, Aura) et la matrice des Bivouacs découverts */
-      tower: G.tower, camps: G.camps,
+      tower: G.tower, camps: G.camps, zoneSeen: Object.assign({}, zoneSeen),
       hour: G.hour, // horloge d'Ombreciel (cycle jour/nuit)
       xp: G.xp, level: G.level, sp: G.sp, nodes: G.nodes, maxMana: G.maxMana,
       shards: G.shards, pupg: G.pupg, // Forge des Arts (Éclats + rangs forgés)
@@ -86,6 +86,7 @@ export function loadGame() {
     G.tower.crown = !!s.tower.crown;
   }
   G.camps = s.camps || {};
+  Object.assign(zoneSeen, s.zoneSeen || {}); // noms de zones déjà révélés sur la carte
   G.hour = (typeof s.hour === 'number') ? s.hour : 9; // anciennes sauvegardes : reprise au matin
   G.xp = s.xp || 0; G.level = s.level || 1; G.sp = s.sp || 0;
   G.nodes = s.nodes || {};
