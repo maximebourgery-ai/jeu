@@ -350,7 +350,8 @@ export function updatePlayer(dt) {
   if (ml > 1) { vx /= ml; vz /= ml; }
   const tmSprint = Math.hypot(tmMove.x, tmMove.z) > 0.92; // joystick poussé à fond = sprint
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'] || S.gpSprint || tmSprint;
-  let speed = (sprint ? 9.5 : 5.8) * (PATHS[G.path].move || 1) * (G.hasteT > 0 ? 1.2 : 1);
+  // Danse des ombres (hasteT) et Élixir du Traqueur (buffSpeedT) ne se cumulent pas
+  let speed = (sprint ? 9.5 : 5.8) * (PATHS[G.path].move || 1) * (G.hasteT > 0 || G.buffSpeedT > 0 ? 1.2 : 1);
   if (p.dashT > 0) {
     p.dashT -= dt;
     vx = p.dashDir.x; vz = p.dashDir.z;

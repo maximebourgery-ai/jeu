@@ -15,7 +15,7 @@ import {
 import { assets, matFor, glow } from './AssetManager.js';
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, openTravel } from './UI.js';
-import { questReach, openDialog } from './Quests.js';
+import { questReach, openDialog, guide } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt } from './Player.js'; // rideau de flammes (import cyclique sûr : usage différé)
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
@@ -274,14 +274,29 @@ export function pedestal(x, z, y, powerId, color, lore, questId) {
     A.power(); refreshPowers();
     spawnBurst(x, y + 1.6, z, color, 18);
     showMsg(lore, 5.5);
+    guide('spell', [
+      'NOUVEL ART ANCIEN — chaque sort appris s\'ajoute à votre barre, en bas de l\'écran. Touches 1 à 6 pour le préparer, clic gauche pour le lancer (sur manette : X reste l\'attaque, les autres sorts se placent sur Y/LB/RB/LT/RT dans ⚙ Réglages).',
+      'Les sorts coûtent du MANA (barre bleue, elle se régénère seule) et ont un temps de recharge visible sur leur case. Chaque porte d\'Ombreciel n\'obéit qu\'à un art précis : un passage infranchissable aujourd\'hui attend simplement le bon sort.'
+    ]);
     if (questId) questReach(questId);
   });
 }
 
 /* ---------------- OBJETS À RAMASSER ----------------
+   Langage visuel de rareté : chaque type a une FORME reconnaissable
+   (plante, plume, os, fil, cœur...), et les objets rares ou uniques
+   portent une COLONNE DE LUMIÈRE verticale — quand un pilier brille au
+   loin, c'est que quelque chose d'important vous attend.
    hidden=true : l'objet existe dès la construction du monde (les index de
    sauvegarde restent stables) mais reste invisible et intouchable tant
    qu'une énigme ne l'a pas révélé (revealPickup). */
+function rareBeam(color, strong) {
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, strong ? 9 : 6, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: strong ? 0.22 : 0.14,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  b.position.y = strong ? 4.2 : 2.8;
+  return b;
+}
 export function addPickup(type, x, y, z, hidden) {
   let mesh;
   if (type === 'star') {
@@ -291,39 +306,100 @@ export function addPickup(type, x, y, z, hidden) {
     mesh.add(glow(0xfff1b8, 3, 0.75));
     const l = new THREE.PointLight(0xffe9a0, 0.8 * LIGHT_SCALE, 8, 2);
     mesh.add(l);
+    mesh.add(rareBeam(0xfff1b8, true));
   } else if (type === 'crystal') {
+    /* LARME D'AUBE — objectif : gros octaèdre doré + pilier de lumière */
     mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.42),
       new THREE.MeshBasicMaterial({ color: 0xffd97a }));
     mesh.add(glow(0xffd97a, 3.4, 0.7));
     const l = new THREE.PointLight(0xffc86a, 0.9 * LIGHT_SCALE, 9, 2);
     mesh.add(l);
+    mesh.add(rareBeam(0xffd97a, true));
   } else if (type === 'key') {
+    /* CLEF — anneau + tige d'or, pilier doré (unique) */
     const g = new THREE.Group();
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 6, 12), matFor('gold', 1, 1));
     const tige = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6), matFor('gold', 1, 1));
     tige.position.y = -0.35;
-    g.add(ring, tige, glow(0xffd97a, 1.8, 0.5));
+    g.add(ring, tige, glow(0xffd97a, 1.8, 0.5), rareBeam(0xffd97a, false));
     mesh = g;
   } else if (type === 'mana') {
+    /* commun : petite sphère bleue discrète */
     mesh = new THREE.Mesh(new THREE.SphereGeometry(0.19, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0x5fc8ff }));
     mesh.add(glow(0x5fc8ff, 1.7, 0.6));
   } else if (type === 'heart') {
+    /* commun : losange rouge */
     mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.24),
       new THREE.MeshBasicMaterial({ color: 0xff5566 }));
     mesh.add(glow(0xff5566, 1.6, 0.55));
   } else if (type === 'herb') {
-    mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 0),
-      new THREE.MeshBasicMaterial({ color: 0x6fe07a }));
-    mesh.add(glow(0x6fe07a, 1.6, 0.5));
+    /* HERBE LUNAIRE — une vraie petite plante : tige + trois feuilles */
+    const g = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.4, 5),
+      new THREE.MeshBasicMaterial({ color: 0x3d8a4a }));
+    for (let i = 0; i < 3; i++) {
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.34, 4),
+        new THREE.MeshBasicMaterial({ color: 0x6fe07a }));
+      const a = i * 2.1;
+      leaf.position.set(Math.cos(a) * 0.11, 0.24, Math.sin(a) * 0.11);
+      leaf.rotation.set(Math.sin(a) * 0.55, 0, Math.cos(a) * 0.55);
+      g.add(leaf);
+    }
+    g.add(stem, glow(0x6fe07a, 1.4, 0.45));
+    mesh = g;
   } else if (type === 'shadow') {
-    mesh = new THREE.Mesh(new THREE.TetrahedronGeometry(0.24),
+    /* ESSENCE D'OMBRE — tétraèdre sombre dans un anneau violet */
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.TetrahedronGeometry(0.22),
       new THREE.MeshBasicMaterial({ color: 0x9a6cff }));
-    mesh.add(glow(0x7a4cdd, 1.8, 0.55));
+    const ringE = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.025, 5, 14),
+      new THREE.MeshBasicMaterial({ color: 0x7a4cdd, transparent: true, opacity: 0.7 }));
+    ringE.rotation.x = 1.2;
+    g.add(core, ringE, glow(0x7a4cdd, 1.8, 0.55));
+    mesh = g;
+  } else if (type === 'feather') {
+    /* PLUME SPECTRALE (Traqueurs) — voile effilé penché, vert pâle */
+    const g = new THREE.Group();
+    const quill = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.62, 4),
+      new THREE.MeshBasicMaterial({ color: 0xa8ffd8 }));
+    quill.scale.z = 0.28; quill.rotation.z = 0.9;
+    g.add(quill, glow(0x5affc8, 1.6, 0.5));
+    mesh = g;
+  } else if (type === 'bone') {
+    /* OS DE COLOSSE (Colosses) — fémur ivoire : tige + deux condyles */
+    const g = new THREE.Group();
+    const boneMat = new THREE.MeshBasicMaterial({ color: 0xe8e2cc });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.44, 6), boneMat);
+    shaft.rotation.z = 0.7;
+    const b1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), boneMat);
+    b1.position.set(-0.17, 0.14, 0);
+    const b2 = b1.clone(); b2.position.set(0.17, -0.14, 0);
+    g.add(shaft, b1, b2, glow(0xffb86a, 1.5, 0.45));
+    mesh = g;
+  } else if (type === 'thread') {
+    /* FIL D'ÉTHER (Tisseurs) — nœud torsadé orange qui semble tissé */
+    mesh = new THREE.Mesh(new THREE.TorusKnotGeometry(0.16, 0.045, 36, 6),
+      new THREE.MeshBasicMaterial({ color: 0xffa04a }));
+    mesh.add(glow(0xff8a5a, 1.7, 0.55));
+  } else if (type === 'nightheart') {
+    /* CŒUR DE NUIT — RARE : cœur grenat, halo puissant et PILIER ROUGE
+       visible de loin. Quand vous voyez ça, courez le chercher. */
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.27, 0),
+      new THREE.MeshBasicMaterial({ color: 0xd81a44 }));
+    const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.36, 0),
+      new THREE.MeshBasicMaterial({ color: 0x5a0a20, transparent: true, opacity: 0.4, wireframe: true }));
+    g.add(core, shell, glow(0xff3a5a, 3, 0.8), rareBeam(0xff3a5a, true));
+    const l = new THREE.PointLight(0xff3a5a, 0.8 * LIGHT_SCALE, 8, 2);
+    g.add(l);
+    mesh = g;
   } else {
+    /* FRAGMENT DE VITALITÉ (secret) — octaèdre rose + pilier : rare */
     mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.36),
       new THREE.MeshBasicMaterial({ color: 0xff8899 }));
     mesh.add(glow(0xff8899, 2.4, 0.6));
+    mesh.add(rareBeam(0xff8899, false));
   }
   mesh.position.set(x, y + 0.9, z);
   mesh.visible = !hidden;
@@ -354,7 +430,6 @@ export function updatePickups(dt) {
     const byP1 = player.pos.distanceTo(p.mesh.position) < 1.6;
     const byP2 = S.COOP && p2.pos && p2.pos.distanceTo(p.mesh.position) < 1.6;
     if (byP1 || byP2) {
-      const collector = byP1 ? player : p2;
       p.taken = true; S.scene.remove(p.mesh);
       if (p.type === 'crystal') {
         G.crystals++; A.power();
@@ -363,13 +438,53 @@ export function updatePickups(dt) {
         if (QUESTS[S.questI] && QUESTS[S.questI].id === 'tears')
           $('objective').textContent = '✧ Objectif — Réunissez les 3 Larmes d\'Aube (' + G.crystals + ' / 3). Lumen connaît peut-être des secrets...';
         if (G.crystals >= 3) setTimeout(winGame, 1400);
-        G.checkpoint = { x: collector.pos.x, y: collector.pos.y, z: collector.pos.z };
+        /* (plus de point de contrôle gratuit ici : seuls les bivouacs,
+           volontairement rares, fixent votre point de renaissance) */
       } else if (p.type === 'herb') {
         G.herbs++; A.pickup();
-        showMsg('Herbe lunaire cueillie (☘ ' + G.herbs + '). H : potion de soin (2 herbes).', 2.2);
+        showMsg('Herbe lunaire cueillie (☘ ' + G.herbs + ').', 2.2);
+        guide('herb', [
+          'HERBE LUNAIRE ☘ — la ressource de SOIN. Elle pousse dans les jardins, la forêt et sur les paliers de la Tour.',
+          'Ouvrez votre SAC avec Tab (ou 🎒 sur mobile) : le jeu se met en PAUSE. Avec 2 herbes, fabriquez-y une Potion lunaire (+50 PV) que vous gardez pour plus tard — et buvez-la au meilleur moment avec H, même en plein combat.',
+          'Les herbes entrent aussi dans les philtres et élixirs plus puissants : n\'en gaspillez pas une seule.'
+        ]);
       } else if (p.type === 'shadow') {
         G.shadows++; A.pickup();
-        showMsg('Essence d\'ombre absorbée (● ' + G.shadows + '). O : forger un orbe (3 essences).', 2.2);
+        showMsg('Essence d\'ombre absorbée (● ' + G.shadows + ').', 2.2);
+        guide('shadow', [
+          'ESSENCE D\'OMBRE ● — lâchée par les Ombres ordinaires que vous terrassez.',
+          'Dans le SAC (Tab), 3 essences se condensent en un ORBE D\'OBSCURITÉ ◉. Les orbes sont la matière des deux transcendances : 2 orbes rendent votre attaque de base EXPLOSIVE (dégâts de zone), 3 orbes déploient les AILES d\'Ombreciel (double saut + plané).',
+          'Chaque archétype d\'ombre lâche SA ressource : observez ce que laissent les Traqueurs verts, les Colosses rouges et les Tisseurs... chacune ouvre une voie de build différente.'
+        ]);
+      } else if (p.type === 'feather') {
+        G.feathers++; A.pickup();
+        showMsg('Plume spectrale recueillie (➶ ' + G.feathers + ').', 2.2);
+        guide('feather', [
+          'PLUME SPECTRALE ➶ — arrachée aux TRAQUEURS, ces silhouettes vertes ultra-rapides.',
+          'Au SAC (Tab) : 2 plumes + 1 herbe = Élixir du Traqueur, +20 % de vitesse pendant 2 minutes. Parfait pour traverser une zone dangereuse, fuir un Colosse... ou foncer récupérer un objet gardé.'
+        ]);
+      } else if (p.type === 'bone') {
+        G.bones++; A.pickup();
+        showMsg('Os de Colosse ramassé (☗ ' + G.bones + ').', 2.2);
+        guide('bone', [
+          'OS DE COLOSSE ☗ — prélevé sur les COLOSSES, les masses rouges lentes et dévastatrices.',
+          'Au SAC (Tab) : 2 os + 1 herbe = Philtre de Colosse, +15 PV max PERMANENTS (cumulable 5 fois : jusqu\'à +75 PV). C\'est le build du bastion — chassez les Colosses si vous mourez trop souvent.'
+        ]);
+      } else if (p.type === 'thread') {
+        G.threads++; A.pickup();
+        showMsg('Fil d\'éther recueilli (∾ ' + G.threads + ').', 2.2);
+        guide('thread', [
+          'FIL D\'ÉTHER ∾ — tissé par les TISSEURS, les ombres qui vous bombardent à distance.',
+          'Au SAC (Tab) : 2 fils + 1 herbe = Élixir d\'Éther, +15 PM max PERMANENTS (cumulable 5 fois). Le build du sorcier : plus de mana, plus de sorts enchaînés sans attendre.'
+        ]);
+      } else if (p.type === 'nightheart') {
+        G.nightHearts++; A.power();
+        spawnBurst(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, 0xff3a5a, 24);
+        showMsg('♦ CŒUR DE NUIT — une ressource RARE bat entre vos mains (' + G.nightHearts + ') !', 4);
+        guide('nightheart', [
+          'CŒUR DE NUIT ♦ — la ressource la plus RARE du jeu. Certaines ombres vaincues, surtout les plus puissantes, en abandonnent un... parfois. Son pilier de lumière rouge se voit de loin : ne le laissez jamais derrière vous.',
+          'Au SAC (Tab), un Cœur se forge en SCEAU DU CŒUR DE NUIT : +10 % de dégâts PERMANENTS, sur tout, cumulable 3 fois. C\'est le boost le plus violent d\'Ombreciel — un porteur aux 3 sceaux frappe 30 % plus fort, pour toujours.'
+        ]);
       } else if (p.type === 'key') {
         G.goldKey = true; A.key();
         showMsg('Vous trouvez la Clef d\'or. Une serrure dorée l\'attend quelque part...', 4.5);
@@ -572,6 +687,10 @@ export function bivouac(x, y, z, label, id, travel) {
     const first = !G.camps[camp.id];
     G.camps[camp.id] = true;
     showMsg('Vous vous reposez près du feu' + (label ? ' — ' + label : '') + '. Vous renaîtrez ici.', 3.5);
+    guide('camp', [
+      'BIVOUAC 🔥 — votre seul point de renaissance. Se reposer soigne entièrement, fixe votre point de retour... et ouvre le voyage rapide entre les feux découverts.',
+      'Les bivouacs sont RARES à Ombreciel. Si les ombres vous submergent, vous rouvrirez les yeux au dernier feu où vous vous êtes reposé — tout le chemin parcouru depuis sera à refaire. Avancez prudemment, soignez-vous avant d\'être aux abois, et fabriquez des potions d\'avance au sac (Tab).'
+    ]);
     openTravel(camp);
     if (first) saveGame(true); // découvrir un feu vaut bien une sauvegarde
   });
@@ -1390,7 +1509,8 @@ export function buildOpenWorld() {
       showMsg('L\'arbre-sanctuaire est flétri, et la haie morte avec lui. Une Bénédiction dort dans l\'Ossuaire des catacombes...', 4);
     }
   });
-  bivouac(-39, 0, -81, 'le cœur de la forêt', 'foret');
+  /* (le bivouac du cœur de la forêt a été retiré : les feux sont rares —
+     entre les Terres Perdues et la Clairière du Cœur, la mort coûte cher) */
 
   /* canopée : des arbres plantés SUR les murs de haies (forêt dense) */
   const FTREES = [

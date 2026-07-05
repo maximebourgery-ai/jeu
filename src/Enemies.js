@@ -274,8 +274,32 @@ export function killEnemy(e) {
   if (e.dead) return;
   e.dead = true; A.die();
   spawnBurst(e.g.position.x, e.g.position.y, e.g.position.z, 0x7ef2ff, 18);
-  addPickup('mana', e.g.position.x, e.floorY, e.g.position.z);
-  addPickup('shadow', e.g.position.x + 0.7, e.floorY, e.g.position.z + 0.4);
+  /* ---- Butin par archétype : chaque famille d'ombre lâche SA ressource,
+     qui alimente une voie de build différente (voir RECIPES, Crafting.js).
+     · Ombre (sentinel)  → essence d'ombre (orbes, transcendances)
+     · Traqueur (wraith) → plume spectrale (élixir de vitesse)
+     · Colosse (brute)   → os de Colosse (+PV max) + cœur de soin
+     · Tisseur (caster)  → fil d'éther (+PM max)
+     Et pour toutes : une chance, RARE, de Cœur de nuit (+10 % dégâts
+     permanents au sac) — d'autant plus probable que l'ombre est haut niveau. */
+  const lx = e.g.position.x, lz = e.g.position.z, fy = e.floorY;
+  const drop = (t, dx, dz) => addPickup(t, lx + dx, fy, lz + dz);
+  if (e.tKey === 'wraith') {
+    drop('feather', 0.5, 0.2);
+    if (Math.random() < 0.5) drop('mana', -0.5, 0.4);
+  } else if (e.tKey === 'brute') {
+    drop('bone', 0.6, 0.3);
+    drop('heart', -0.6, 0.2);
+    if (Math.random() < 0.5) drop('shadow', 0, -0.7);
+  } else if (e.tKey === 'caster') {
+    drop('thread', 0.5, 0.3);
+    drop('mana', -0.5, 0.3);
+  } else {
+    drop('mana', 0, 0.4);
+    if (Math.random() < 0.7) drop('shadow', 0.7, 0.3);
+  }
+  /* les Maîtres d'Étage (Tour) lâchent TOUJOURS un Cœur de nuit : la récompense est garantie */
+  if (e.fsm || Math.random() < 0.03 + 0.01 * (e.lvl || 1)) drop('nightheart', 0, -0.9);
   S.scene.remove(e.g);
   // la nuit paie mieux : +50 % d'expérience au plus noir (risque → récompense)
   const xpGain = Math.round((e.xp || 12) * (1 + 0.5 * S.nightK));

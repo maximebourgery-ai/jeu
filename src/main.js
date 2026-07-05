@@ -35,7 +35,10 @@ function loop() {
   if (S.tmBoltHeld && canAct) castSpecific('bolt');
   // manette smartphone : flux historique ⟳ + attaque (lance le sort sélectionné)
   if (S.tmAttackHeld && canAct) castPower();
-  if (G.started && !G.paused && !G.over && !G.dialog) {
+  /* Le monde SE FIGE aussi sac ouvert (Tab), arbre des pouvoirs ouvert (K)
+     et matrice des Bivouacs ouverte : on fabrique, on consomme et on
+     apprend tranquille — aucune ombre ne frappe un joueur qui lit ses menus. */
+  if (G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) {
     G.time += dt;
     updateDayNight(dt); // horloge d'Ombreciel : ciel, lumières, force des ombres
     updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs

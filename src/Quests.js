@@ -14,6 +14,19 @@ export function openDialog(pages, after, name) {
   $('dlg-text').textContent = pages[0];
   A.talk();
 }
+
+/* ---- Guide du porteur ----
+   Première rencontre avec une mécanique (ressource inconnue, premier point
+   de pouvoir, premier bivouac...) : le jeu SE MET EN PAUSE (G.dialog gèle la
+   boucle, voir main.js) et une page du guide explique à quoi ça sert et
+   comment s'en servir. Chaque page ne s'affiche qu'une seule fois par partie
+   (G.seen, persisté dans la sauvegarde). */
+export function guide(id, pages) {
+  if (G.seen[id]) return false;
+  G.seen[id] = true;
+  openDialog(pages, null, '✦ GUIDE DU PORTEUR');
+  return true;
+}
 export function dlgNext() {
   if (!S.dlg) return;
   S.dlg.i++;

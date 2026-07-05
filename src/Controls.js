@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, refreshInv, closeTravel, updateTouchSlots } from './UI.js';
+import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
@@ -37,11 +37,12 @@ export function initControls() {
       if (G.mapOpen) { closeMap(); return; }
       if (G.travelOpen) { closeTravel(); return; }
       if (G.treeOpen) { toggleTree(); return; }
+      if (G.inv) { toggleInv(); return; }
       G.paused = !G.paused;
       $('pause').classList.toggle('hidden', !G.paused);
       return;
     }
-    if (e.code === 'Tab' && !G.paused) { G.inv = !G.inv; refreshInv(); $('inv').classList.toggle('hidden', !G.inv); }
+    if (e.code === 'Tab' && !G.paused) toggleInv();
     if (/^Digit[1-8]$/.test(e.code)) {
       const p = POWERS[+e.code.slice(5) - 1];
       if (G.powers[p.id]) { G.sel = p.id; refreshPowers(); showMsg(p.name + ' préparé.', 1); }
@@ -76,7 +77,7 @@ export function initControls() {
   addEventListener('mousedown', e => {
     if (!G.started || G.over) return;
     if (G.dialog) { dlgNext(); return; }
-    if (G.paused || G.treeOpen || G.travelOpen) return;
+    if (G.paused || G.inv || G.treeOpen || G.travelOpen) return; // clics réservés aux boutons de ces panneaux
     if (IS_TOUCH) return; // sur mobile, l'attaque passe par le bouton tactile
     if (document.pointerLockElement) {
       if (e.button === 0 && !G.inv) castPower();
@@ -94,7 +95,7 @@ export function initControls() {
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.treeOpen && !G.travelOpen && !G.mapOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -103,6 +104,7 @@ export function initControls() {
     showMsg('🎮 Manette détectée : ' + e.gamepad.id.slice(0, 40), 3);
   });
   $('btn-travelclose').addEventListener('click', closeTravel);
+  $('btn-invclose').addEventListener('click', () => { if (G.inv) toggleInv(); });
 }
 
 /* ================================================================
@@ -362,12 +364,9 @@ export function setupTouch() {
       try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
     });
   });
-  bind('t-craft', () => $('craftpanel').classList.toggle('hidden'));
+  bind('t-craft', () => toggleInv()); // 🎒 : le sac-atelier (met le jeu en pause)
   bind('t-tree', () => toggleTree());
   bind('t-map', () => toggleMap());
-  bind('cr-h', () => craftAction('H'));
-  bind('cr-o', () => craftAction('O'));
-  bind('cr-c', () => craftAction('C'));
   bind('t-pause', () => {
     if (!G.started || G.over || G.dialog) return;
     G.paused = !G.paused;

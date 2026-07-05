@@ -4,6 +4,7 @@ import { A } from './Audio.js';
 import { $, showMsg } from './UI.js';
 import { spawnBurst } from './World.js';
 import { lockPointer } from './Controls.js';
+import { guide } from './Quests.js';
 
 export function xpNeed(l) { return 40 + (l - 1) * 45 + (l - 1) * (l - 1) * 10; }
 export function gainXP(n) {
@@ -20,6 +21,11 @@ export function gainXP(n) {
     A.power();
     spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, 0xffd97a, 26);
     showMsg('✧ NIVEAU ' + G.level + ' ! +1 point de pouvoir, +1 Éclat de puissance — K (ou ✥) : arbre & Forge des Arts.', 4);
+    guide('tree', [
+      'NIVEAU SUPÉRIEUR ✧ — terrasser des ombres rapporte de l\'expérience (barre dorée). Chaque niveau vous rend +8 PV max, +6 PM max... et 1 POINT DE POUVOIR.',
+      'Ouvrez l\'ARBRE DES POUVOIRS avec K (ou ✥ sur mobile) : le jeu se met en pause. Chaque point achète un nœud — dégâts, zone, vitesse, vol de vie... Trois branches propres à votre voie, plus une branche commune (Vitalité, Sagesse, Célérité).',
+      'Les nœuds encadrés d\'or sont achetables maintenant ; les grisés demandent un niveau plus haut ou le nœud précédent de la même branche. À ne pas confondre avec les ORBES du sac (Tab) : les points de pouvoir viennent des niveaux, les orbes viennent des essences d\'ombre — deux chemins de progression différents.'
+    ]);
     if (G.treeOpen) buildTreeUI();
   }
 }
@@ -68,6 +74,8 @@ export function classAtk(path) {
   if (G.tower && G.tower.aura) P.dmg = Math.round(P.dmg * 1.15);
   // Couronne de l'Aube (Cœur de la Nuit sans lune, v8) : +10 % de plus, toutes voies
   if (G.tower && G.tower.crown) P.dmg = Math.round(P.dmg * 1.1);
+  // Sceaux du Cœur de nuit (sac) : +10 % de dégâts permanents chacun, max 3
+  if (G.nightSeals) P.dmg = Math.round(P.dmg * (1 + 0.1 * G.nightSeals));
   // Forge des Arts : chaque rang forgé de l'attaque principale = +10 % de dégâts
   P.dmg = Math.round(P.dmg * (1 + 0.10 * (G.pupg.bolt || 0)));
   return P;
@@ -159,6 +167,7 @@ export function toggleTree() {
 export function updateBuffs(dt) {
   if (G.furyT > 0) G.furyT -= dt;
   if (G.hasteT > 0) G.hasteT -= dt;
+  if (G.buffSpeedT > 0) G.buffSpeedT -= dt; // Élixir du Traqueur (sac)
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.comboN = 0; }
   // fenêtre de l'enchaînement universel : 2,2 s sans coup au but = combo brisé
   if (G.comboHitT > 0) { G.comboHitT -= dt; if (G.comboHitT <= 0) G.comboHits = 0; }
