@@ -12,7 +12,7 @@ import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
 import { initScene, setCamAspects, buildWorld, buildHerbs, updateDoors, updatePickups, updateParticles } from './World.js';
 import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
-import { castPower, updateProjectiles, updateTK, checkPlate } from './Powers.js';
+import { castPower, castSpecific, updateProjectiles, updateTK, checkPlate } from './Powers.js';
 import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad, initSettingsUI } from './Controls.js';
@@ -27,7 +27,11 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(S.clock.getDelta(), 0.05);
   updateGamepad(dt);
-  if (S.tmAttackHeld && G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) castPower();
+  const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen;
+  // ✦ tactile : toujours l'attaque de base (les autres sorts ont leurs boutons dédiés)
+  if (S.tmBoltHeld && canAct) castSpecific('bolt');
+  // manette smartphone : flux historique ⟳ + attaque (lance le sort sélectionné)
+  if (S.tmAttackHeld && canAct) castPower();
   if (G.started && !G.paused && !G.over && !G.dialog) {
     G.time += dt;
     updatePlayer(dt);

@@ -1,6 +1,6 @@
 /* ---------------- UI / HUD ---------------- */
 import * as THREE from 'three';
-import { G, S, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners } from './state.js';
+import { G, S, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners, settings } from './state.js';
 import { A } from './Audio.js';
 import { xpNeed } from './SkillTree.js';
 import { nearInter, spawnBurst } from './World.js';
@@ -64,6 +64,20 @@ export function refreshPowers() {
     d.classList.toggle('owned', !!G.powers[p.id]);
     d.classList.toggle('sel', G.sel === p.id);
   });
+  updateTouchSlots();
+}
+/* Boutons de sort de la manette tactile (t-s2…t-s6) : reflètent les
+   emplacements assignés dans ⚙ Réglages et restent masqués tant que le sort
+   n'est pas appris — l'écran ne se remplit qu'au rythme de la progression. */
+export function updateTouchSlots() {
+  for (let i = 0; i < 5; i++) {
+    const el = $('t-s' + (i + 2));
+    if (!el) continue;
+    const id = settings.slots[i];
+    const pw = id && POWERS.find(p => p.id === id);
+    el.classList.toggle('hidden', !(pw && G.powers[id]));
+    if (pw) el.textContent = pw.icon;
+  }
 }
 export function refreshInv() {
   const ul = $('invlist'); ul.innerHTML = '';

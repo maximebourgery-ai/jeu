@@ -60,13 +60,19 @@ canvas{display:block}
 .overlay .controls b{color:#cfd8f2}
 #title .glyph{font-size:44px;color:#8fb8e8;text-shadow:0 0 26px rgba(120,180,255,.8);margin-bottom:10px}
 /* ---------- Réglages (sensibilité, luminosité) ---------- */
-#settings{z-index:11}
+/* safe center : garde le haut du panneau accessible quand il dépasse (mobile paysage) */
+#settings{z-index:11;overflow-y:auto;justify-content:safe center}
 #settings .setrow{width:min(480px,86vw);display:flex;align-items:center;gap:14px;margin-bottom:16px;text-align:left}
 #settings .setrow label{flex:0 0 220px;font-size:13px;font-family:Verdana,sans-serif;color:#cfd8f2}
 #settings .setrow input[type=range]{flex:1;accent-color:#ffd97a}
 #settings .setrow .setval{flex:0 0 40px;font-size:12px;font-family:Verdana,sans-serif;color:#ffd97a;text-align:right}
 #settings .setrow.setcheck label{flex:1;display:flex;align-items:center;gap:8px}
 #settings .setrow.setcheck input{width:16px;height:16px;accent-color:#ffd97a}
+#settings .setsep{width:min(480px,86vw);text-align:left;font-size:12px;font-family:Verdana,sans-serif;color:#8fc8ff;
+  letter-spacing:1px;margin:14px 0 12px;padding-top:12px;border-top:1px solid rgba(232,224,204,.15)}
+#settings .setrow.setslot{margin-bottom:10px}
+#settings .setrow.setslot select{flex:1;background:#141a34;color:#e8e0cc;border:1px solid rgba(150,180,255,.35);
+  border-radius:7px;padding:6px 10px;font-family:Georgia,serif;font-size:13px}
 #settings button{margin-top:10px}
 #story .sub{font-size:21px;color:#cdd6ee;font-style:normal;max-width:700px;line-height:1.85;min-height:150px;display:flex;align-items:center}
 #story .pageno{color:#5f6b8c;font-family:Verdana,sans-serif;font-size:12px;margin-bottom:18px;letter-spacing:3px}
@@ -124,16 +130,16 @@ canvas{display:block}
 #t-attack{right:26px;bottom:36px;width:86px;height:86px;font-size:34px;border-color:rgba(255,170,110,.55)}
 #t-jump{right:128px;bottom:110px;width:66px;height:66px;font-size:26px}
 #t-act{right:34px;bottom:140px;width:56px;height:56px;font-size:22px}
-#t-spell{right:150px;bottom:34px;width:56px;height:56px;font-size:22px}
 #t-craft{left:26px;top:52%;width:48px;height:48px;font-size:20px}
 #t-pause{right:14px;top:14px;width:44px;height:44px;font-size:18px}
-/* Colonne de sorts dédiés (2-6), à gauche du reste des boutons d'action */
+/* Colonne d'emplacements de sort assignables, à gauche des boutons d'action
+   (décalée au-dessus de la barre de sorts du HUD pour ne pas la chevaucher) */
 .tspell{width:46px;height:46px;font-size:19px;border-color:rgba(140,200,255,.45)}
-#t-s2{right:230px;bottom:20px}
-#t-s3{right:230px;bottom:76px}
-#t-s4{right:230px;bottom:132px}
-#t-s5{right:230px;bottom:188px}
-#t-s6{right:230px;bottom:244px}
+#t-s2{right:230px;bottom:100px}
+#t-s3{right:230px;bottom:156px}
+#t-s4{right:230px;bottom:212px}
+#t-s5{right:230px;bottom:268px}
+#t-s6{right:230px;bottom:324px}
 #craftpanel{position:absolute;left:84px;top:46%;background:rgba(7,9,20,.92);border:1px solid rgba(150,180,255,.4);
   border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
 #craftpanel button{background:#1a2142;color:#e8e0cc;border:1px solid rgba(150,180,255,.35);border-radius:8px;
