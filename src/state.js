@@ -375,6 +375,10 @@ export const S = {
   plOK: true, mDown: false, dragDist: 0,
   // gamepad / tactile
   gpSprint: false, gpJumpHeld: false, gpPrev: {}, gpDisabled: false,
+  /* Manette principale à l'écran : marque détectée depuis son identifiant
+     ('xbox' | 'ps' | 'nin' | 'generic', null = aucune) et nom court —
+     posés par Controls.js, lus par la légende des boutons (UI.js). */
+  padBrand: null, padName: '',
   /* tmAttackHeld = manette smartphone (attaque du sort sélectionné, flux
      historique cycle+attaque) · tmBoltHeld = bouton ✦ tactile (toujours
      l'attaque de base, les autres sorts ayant leurs boutons dédiés) */

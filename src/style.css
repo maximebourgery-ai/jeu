@@ -206,6 +206,27 @@ canvas{display:block;touch-action:none}
    d'attaque (maintenir = enchaîner, glisser = viser en tirant) entouré
    d'un arc de sorts à lancement direct, recharge visible sur chaque
    bouton. Toucher un ennemi à l'écran le verrouille (marqueur ◈). */
+/* ---- Légende manette : bouton → action / sort (remplie par UI.js) ---- */
+#padlegend{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  z-index:5;max-width:260px;padding:8px 11px;border-radius:12px;border:1px solid rgba(150,180,255,.28);
+  background:rgba(8,10,20,.62);color:#e8e0cc;font-size:12.5px;line-height:1.55;pointer-events:none;
+  text-shadow:0 1px 4px #000;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+#padlegend .plname{font-size:11.5px;color:#9fb8ff;margin-bottom:5px;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#padlegend .plrow{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#padlegend .plbtn{display:inline-block;min-width:24px;text-align:center;margin-right:7px;padding:0 5px;
+  border:1px solid rgba(150,180,255,.5);border-radius:6px;background:rgba(40,54,100,.6);
+  font-weight:bold;font-size:10.5px;vertical-align:1px}
+#padlegend .plico{margin-right:4px}
+#padlegend .pllock{opacity:.7;font-size:10px}
+#padlegend small{color:#b9b09a}
+/* Sur écran tactile, la légende n'apparaît que pendant que la manette est
+   utilisée (les contrôles tactiles, eux, sont alors effacés — pas de
+   chevauchement avec le bouton d'attaque en bas à droite). */
+body.touchmode #padlegend{display:none}
+body.touchmode.gp-play #padlegend{display:block}
+/* Manette connectée (gp-on) : le rappel des touches CLAVIER s'efface,
+   la légende manette le remplace (ils se chevauchent en bas à droite). */
+body.gp-on #hint{display:none}
 #touch{position:fixed;inset:0;z-index:6;pointer-events:none;transition:opacity .35s}
 /* Manette physique (Bluetooth/USB) active : elle devient le contrôleur
    principal — les contrôles tactiles s'effacent, puis reviennent seuls

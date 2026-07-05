@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { G, S, IS_TOUCH, IS_IOS, IS_STANDALONE, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots } from './UI.js';
+import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots, updatePadLegend } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
@@ -161,17 +161,35 @@ export function initControls() {
 let gpPrimary = -1;        // index de la manette principale
 let gpUiT = 0;             // temps restant d'effacement des contrôles tactiles
 let gpUiHidden = false;
+let gpLegendKey = '';      // dernière manette affichée dans la légende des boutons
 const padMaps = new Map(); // clé index|id → disposition apprise
 const padSeen = new Set(); // annonces de connexion déjà faites
 
 function padKey(gp) { return gp.index + '|' + gp.id; }
+
+/* Marque de la manette, devinée depuis son identifiant (nom + vendor id
+   USB : 054c = Sony, 057e = Nintendo, 045e = Microsoft). Elle ne change
+   RIEN aux positions (mapping standard = positionnel), seulement les
+   libellés affichés dans la légende des boutons (UI.js). */
+function padBrand(gp) {
+  const id = (gp.id || '').toLowerCase();
+  if (/054c|sony|dual\s*shock|dualshock|dualsense|playstation|\bps[2-5]?\b/.test(id)) return 'ps';
+  if (/057e|nintendo|switch|joy-?con|pro controller/.test(id)) return 'nin';
+  if (/045e|xbox|xinput/.test(id)) return 'xbox';
+  return 'generic';
+}
+
+/* Nom court et lisible pour l'écran : sans les (Vendor: xxxx Product: xxxx). */
+function padShortName(gp) {
+  return (gp.id || 'Manette').replace(/\s*\(.*$/, '').slice(0, 34);
+}
 
 /* Apprend la disposition d'une manette à partir de ses axes AU REPOS :
    stick ≈ 0 · gâchette analogique ≈ -1 · chapeau (croix) hors [-1,1]. */
 function getMap(gp) {
   let m = padMaps.get(padKey(gp));
   if (m) return m;
-  m = { std: gp.mapping === 'standard', base: Array.from(gp.axes), camX: 2, camY: 3, hat: -1, trig: [] };
+  m = { std: gp.mapping === 'standard', brand: padBrand(gp), base: Array.from(gp.axes), camX: 2, camY: 3, hat: -1, trig: [] };
   if (!m.std) {
     const sticks = [];
     for (let i = 2; i < m.base.length; i++) {
@@ -218,6 +236,18 @@ function hatDirs(gp, m) {
   if (!(v >= -1.01 && v <= 1.01)) return { up: false, down: false };
   const d = Math.round((v + 1) * 3.5); // 0=haut,1=h-d,2=droite,3=b-d,4=bas,5=b-g,6=gauche,7=h-g
   return { up: d === 0 || d === 1 || d === 7, down: d >= 3 && d <= 5 };
+}
+
+/* Publie la manette principale vers la légende des boutons (UI.js) dès
+   qu'elle change — connexion, déconnexion, bascule solo/coop, démarrage. */
+function syncPadLegend(gp) {
+  const key = gp && G.started ? padKey(gp) + (S.COOP ? '|p2' : '') : '';
+  if (key === gpLegendKey) return;
+  gpLegendKey = key;
+  S.padBrand = key ? getMap(gp).brand : null;
+  S.padName = key ? padShortName(gp) : '';
+  document.body.classList.toggle('gp-on', !!key);
+  updatePadLegend();
 }
 
 /* Efface / réaffiche les contrôles tactiles selon l'activité manette. */
@@ -284,6 +314,7 @@ export function updateGamepad(dt) {
     break;
   }
   if (!gp) gp = pads[0] || null;
+  syncPadLegend(gp);
   syncTouchUi();
   if (!gp) { gpPrimary = -1; return; }
   gpPrimary = gp.index;
@@ -564,6 +595,7 @@ export function initSettingsUI() {
       settings.slots[i] = sel.value || null;
       saveSettings();
       updateTouchSlots();
+      updatePadLegend(); // la légende manette reflète la nouvelle assignation
     });
   }
   $('btn-settings').addEventListener('click', () => {
