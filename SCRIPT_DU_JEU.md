@@ -319,7 +319,14 @@ indice donné par Lumen si on retourne le voir.
   Bénédiction dort dans l'Ossuaire des catacombes... »* → *« La Bénédiction ranime
   l'arbre-sanctuaire : la haie s'écarte devant sa sève neuve. »*
 
-### 5.2 bis (v7.4) Les énigmes DURCIES
+### 5.2 bis (v7.4) Les énigmes DURCIES — *remplacées en v8*
+
+> **Note v8** : la refonte des salles instanciées (§9 bis) a rebâti les
+> intérieurs du château et **retiré ces trois énigmes durcies** au passage —
+> le grand hall est revenu au levier unique, l'aile est à la plaque unique,
+> et la Clef d'or se ramasse au fond de l'Ossuaire. Elles pourront revenir
+> dans les salles agrandies (« des énigmes plus ambitieuses », §9 bis).
+> Le texte ci-dessous est conservé comme référence de design.
 
 La v7.4 complexifie l'accès aux pouvoirs et aux objectifs-clefs :
 
