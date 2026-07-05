@@ -7,6 +7,7 @@ import { A } from './Audio.js';
 import { showMsg, dmgText } from './UI.js';
 import { spawnBurst, addPickup, pointSolid, openDoor, safeZoneAt } from './World.js';
 import { glow } from './AssetManager.js';
+import { groundRing, impactFlash } from './Animations.js';
 import { gainXP, hasN } from './SkillTree.js';
 import { hurt, hurtP2 } from './Player.js';
 import { questReach } from './Quests.js';
@@ -34,39 +35,78 @@ export function mkEnemy(x, z, floorY, wps, opt) {
      base. Halo de niveau conservé dans tous les cas. */
   const charMats = null, mixer = null;
   const tk = opt.type || 'sentinel';
+  const eyeCol = T.eye || 0x8ff4ff;
   const wFac = { brute: 1.3, wraith: 0.68, caster: 0.85, seraph: 0.9, echo: 0.6, obsidian: 1.45 }[tk] || 1;
+  /* Cape déchirée à deux couches : le voile extérieur, décalé et tourné,
+     casse la silhouette de cône parfait — l'ombre a l'air en lambeaux. */
   const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.55 * s * wFac, 1.5 * s, 8), cloakMat);
   cloak.castShadow = true;
+  const cloak2 = new THREE.Mesh(new THREE.ConeGeometry(0.64 * s * wFac, 1.15 * s, 7), cloakMat);
+  cloak2.position.y = -0.22 * s; cloak2.rotation.y = 0.45;
   const hood = new THREE.Mesh(new THREE.SphereGeometry(0.28 * s * (tk === 'wraith' ? 0.82 : 1), 8, 8), cloakMat);
   hood.position.y = 0.72 * s;
   hood.castShadow = true;
-  const eyeMat = new THREE.MeshBasicMaterial({ color: T.eye || 0x8ff4ff });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: eyeCol });
   const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.06 * s, 6, 6), eyeMat);
   e1.position.set(-0.11 * s, 0.74 * s, 0.22 * s);
   const e2 = e1.clone(); e2.position.x = 0.11 * s;
+  // lueur du regard : le danger se lit de loin, même dans la nuit noire
+  const gaze = glow(eyeCol, 0.8 * s, 0.35); gaze.position.set(0, 0.74 * s, 0.24 * s);
+  // cœur d'ombre : éclat spectral qui bat sous le voile, au centre de la masse
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11 * s, 0), eyeMat.clone());
+  core.position.y = 0.28 * s;
+  core.add(glow(eyeCol, 1.1 * s, 0.3));
   const wisp1 = new THREE.Mesh(new THREE.ConeGeometry(0.14 * s, 0.5 * s, 5), cloakMat);
   wisp1.position.set(0.3 * s, -0.85 * s, 0.1 * s);
   const wisp2 = wisp1.clone(); wisp2.position.set(-0.28 * s, -0.9 * s, -0.12 * s);
-  g.add(cloak, hood, e1, e2, wisp1, wisp2);
+  g.add(cloak, cloak2, hood, e1, e2, gaze, core, wisp1, wisp2);
+  let spinG = null;
   if (tk === 'brute') {
-    // Poings massifs du Colosse
-    const fist = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 7, 7), cloakMat);
-    fist.position.set(0.62 * s, 0.15 * s, 0.15 * s); fist.castShadow = true;
-    const fist2 = fist.clone(); fist2.position.x = -0.62 * s;
-    g.add(fist, fist2);
+    // Colosse : épaules monstrueuses, poings massifs, échine hérissée
+    for (const sx of [-1, 1]) {
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.3 * s, 7, 7), cloakMat);
+      shoulder.position.set(sx * 0.5 * s, 0.5 * s, 0); shoulder.castShadow = true;
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 7, 7), cloakMat);
+      fist.position.set(sx * 0.62 * s, 0.15 * s, 0.15 * s); fist.castShadow = true;
+      // jointures luisantes : les poings sont l'arme, ils doivent se lire
+      const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.07 * s, 5, 5), eyeMat);
+      knuckle.position.set(sx * 0.62 * s, 0.22 * s, 0.28 * s);
+      g.add(shoulder, fist, knuckle);
+    }
+    for (let i = 0; i < 3; i++) {
+      const spine = new THREE.Mesh(new THREE.ConeGeometry(0.08 * s, 0.4 * s, 5), cloakMat);
+      spine.position.set(0, (0.75 - i * 0.28) * s, -0.32 * s);
+      spine.rotation.x = -0.7;
+      g.add(spine);
+    }
   } else if (tk === 'wraith') {
-    // Traînée d'ombre du Traqueur (penché en avant, prêt à bondir)
+    // Traqueur : penché, griffes effilées, double traînée d'ombre
     const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12 * s, 0.9 * s, 5), cloakMat);
     tail.position.set(0, -0.2 * s, -0.45 * s); tail.rotation.x = 1.1;
-    g.add(tail);
+    const tail2 = new THREE.Mesh(new THREE.ConeGeometry(0.08 * s, 0.7 * s, 5), cloakMat);
+    tail2.position.set(0.14 * s, -0.3 * s, -0.5 * s); tail2.rotation.x = 1.25;
+    g.add(tail, tail2);
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.025 * s, 0.22 * s, 4), eyeMat);
+      claw.position.set(sx * (0.3 + i * 0.07) * s, 0.15 * s, 0.3 * s);
+      claw.rotation.x = 1.3;
+      g.add(claw);
+    }
     cloak.rotation.x = 0.18;
   } else if (tk === 'caster') {
-    // Éclat rituel en lévitation du Tisseur (signale le sort à distance)
-    const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.16 * s),
-      new THREE.MeshBasicMaterial({ color: T.eye || 0xff8a5a }));
+    // Tisseur : éclat rituel en lévitation + anneau de runes en rotation lente
+    const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.16 * s), eyeMat);
     shard.position.set(0, 1.05 * s, 0.3 * s);
-    shard.add(glow(T.eye || 0xff8a5a, 1.1 * s, 0.6));
+    shard.add(glow(eyeCol, 1.1 * s, 0.6));
     g.add(shard);
+    spinG = new THREE.Group(); spinG.position.y = 0.5 * s;
+    for (let i = 0; i < 4; i++) {
+      const rune = new THREE.Mesh(new THREE.TetrahedronGeometry(0.07 * s), eyeMat.clone());
+      const a = i / 4 * Math.PI * 2;
+      rune.position.set(Math.cos(a) * 0.68 * s, 0, Math.sin(a) * 0.68 * s);
+      spinG.add(rune);
+    }
+    g.add(spinG);
   } else if (tk === 'seraph') {
     // Séraphin déchu : deux ailes de lumière fanée + anneau brisé au-dessus du capuchon
     const wingMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.5,
@@ -102,6 +142,14 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     const s2 = s1.clone(); s2.position.x = -0.34 * s; s2.rotation.z = 0.5;
     const s3 = s1.clone(); s3.position.set(0, 0.52 * s, -0.3 * s); s3.rotation.set(-0.6, 0, 0);
     g.add(fist, fist2, s1, s2, s3);
+  } else {
+    // Ombre : deux cornes voûtées — la sentinelle de base a un vrai visage
+    for (const sx of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.05 * s, 0.3 * s, 5), cloakMat);
+      horn.position.set(sx * 0.16 * s, 0.95 * s, 0);
+      horn.rotation.z = -sx * 0.55;
+      g.add(horn);
+    }
   }
   if (elite) {
     // Couronne d'épines de l'Alpha : la menace se lit de loin
@@ -125,7 +173,7 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   /* opt.hpMul : les renforts invoqués la nuit sont plus coriaces (directeur) */
   const hp0 = opt.hp || Math.round(T.hp * mul * (opt.hpMul || 1) * sizeK * (elite ? 2.2 : 1));
   const en = {
-    g, cloakMat, charMats, mixer, floorY, wps, wi: 0, state: 'patrol',
+    g, cloakMat, charMats, mixer, spinG, floorY, wps, wi: 0, state: 'patrol',
     hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul * (elite ? 1.35 : 1)),
     speed: opt.speed || T.speed, chaseSpeed: opt.chase || T.chase,
     atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '', elite,
@@ -239,6 +287,8 @@ export function updateEnemies(dt) {
       e.g.rotation.y = Math.atan2(mdx, mdz);
     }
     e.g.position.y = e.floorY + 0.95 + Math.sin(G.time * 3 + e.spawn.x) * 0.12;
+    // anneau de runes du Tisseur : rotation rituelle permanente
+    if (e.spinG) e.spinG.rotation.y += dt * 1.7;
     // la nuit, les ombres luisent d'une braise sanguine : le danger se voit
     const baseEm = S.nightK > 0.5 ? 0x2a0a18 : 0x0d0820;
     e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : baseEm);
@@ -273,7 +323,10 @@ export function damageEnemy(e, d, knock, opts) {
 export function killEnemy(e) {
   if (e.dead) return;
   e.dead = true; A.die();
+  // l'ombre se dissipe : éclat spectral + onde au sol proportionnés à sa taille
   spawnBurst(e.g.position.x, e.g.position.y, e.g.position.z, 0x7ef2ff, 18);
+  impactFlash(e.g.position.x, e.g.position.y + 0.3 * e.s, e.g.position.z, 0xb08cff, 1.4 * e.s);
+  groundRing(e.g.position.x, e.floorY, e.g.position.z, 0x8a6ade, 2.4 * e.s);
   /* ---- Butin par archétype : chaque famille d'ombre lâche SA ressource,
      qui alimente une voie de build différente (voir RECIPES, Crafting.js).
      · Ombre (sentinel)  → essence d'ombre (orbes, transcendances)

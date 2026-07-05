@@ -45,7 +45,7 @@ export function initScene() {
      dépassent 1.0 en HDR) brillent — la pierre en couleur plate ne « bave » pas. */
   S.composer = new EffectComposer(S.renderer);
   S.renderPass = new RenderPass(S.scene, S.camera);
-  S.bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.35, 0.95);
+  S.bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.62, 0.42, 0.95);
   S.composer.addPass(S.renderPass);
   S.composer.addPass(S.bloomPass);
   S.composer.addPass(new OutputPass());
@@ -559,22 +559,45 @@ export function tryInteract() {
 }
 
 /* ---------------- PARTICULES ---------------- */
+/* Réservoir partagé d'éclats (bursts + sillages) : réutilise les morts,
+   plafonné pour la fluidité. Octaèdres plutôt que cubes : les éclats
+   accrochent la lumière comme des éclats de cristal. */
+function takePart() {
+  let p = parts.find(q => q.life <= 0);
+  if (!p) {
+    if (parts.length > 240) return null;
+    p = { mesh: new THREE.Mesh(new THREE.OctahedronGeometry(0.095, 0),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })), vel: new THREE.Vector3(), life: 0 };
+    S.scene.add(p.mesh); parts.push(p);
+  }
+  return p;
+}
 export function spawnBurst(x, y, z, color, n) {
   for (let i = 0; i < n; i++) {
-    let p = parts.find(q => q.life <= 0);
-    if (!p) {
-      if (parts.length > 160) break; // rendu simplifié (sans textures) : marge de reste pour des effets plus généreux
-      p = { mesh: new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.13),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })), vel: new THREE.Vector3(), life: 0 };
-      S.scene.add(p.mesh); parts.push(p);
-    }
+    const p = takePart();
+    if (!p) break;
     p.mesh.material.color.setHex(color);
     p.mesh.position.set(x, y, z);
+    p.mesh.rotation.set(Math.random() * 2, Math.random() * 2, 0);
     p.mesh.visible = true;
     p.mesh.scale.setScalar(1);
     p.vel.set((Math.random() - 0.5) * 7, Math.random() * 5 + 1.5, (Math.random() - 0.5) * 7);
     p.life = 0.55 + Math.random() * 0.25;
   }
+}
+/* Sillage de projectile : éclat quasi immobile à courte vie, semé chaque
+   frame le long de la trajectoire — le tir laisse une queue de comète. */
+export function spawnTrail(x, y, z, color) {
+  const p = takePart();
+  if (!p) return;
+  p.mesh.material.color.setHex(color);
+  p.mesh.position.set(x + (Math.random() - 0.5) * 0.14, y + (Math.random() - 0.5) * 0.14,
+    z + (Math.random() - 0.5) * 0.14);
+  p.mesh.rotation.set(Math.random() * 2, Math.random() * 2, 0);
+  p.mesh.visible = true;
+  p.mesh.scale.setScalar(0.6);
+  p.vel.set((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5 + 0.6, (Math.random() - 0.5) * 0.5);
+  p.life = 0.2 + Math.random() * 0.12;
 }
 export function updateParticles(dt) {
   for (const p of parts) {
