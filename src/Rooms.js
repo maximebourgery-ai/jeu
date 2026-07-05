@@ -16,7 +16,8 @@
    de flammes levé, passage scellé ouvert...), les objets UNIQUES déjà
    ramassés (par id : Larmes, Clef d'or, Fragments de vitalité) et la
    position du bloc runique. Les ennemis et consommables (mana, cœurs)
-   renaissent à chaque visite, comme dans les paliers de la Tour.
+   renaissent à chaque visite — mais dès la DEUXIÈME visite, les ombres
+   reviennent moins nombreuses (une sur deux, voir rEnemy).
    ================================================================ */
 import * as THREE from 'three';
 import {
@@ -56,6 +57,15 @@ function rPickup(type, x, y, z, pid) {
 function rPedestal(x, z, y, powerId, color, lore, questId) {
   if (G.powers[powerId]) { mkBox(1.3, 1.1, 1.3, x, y, z, 'stoneR'); return; }
   pedestal(x, z, y, powerId, color, lore, questId);
+}
+/* Ombre de salle : population complète à la PREMIÈRE visite ; ensuite les
+   ombres reviennent MOINS NOMBREUSES (une sur deux, déterministe — pas de
+   re-farm complet à chaque porte, mais la salle ne reste jamais vide). */
+let enemySeq = 0;
+function rEnemy(x, z, floorY, wps, opt) {
+  enemySeq++;
+  if (flag(S.buildingRoom, 'visited') && enemySeq % 2 === 0) return null;
+  return mkEnemy(x, z, floorY, wps, opt);
 }
 /* Porte déjà ouverte par un flag : posée en position haute, sans son. */
 function presetOpen(dr) {
@@ -133,8 +143,10 @@ export function loadRoom(id, spawn) {
   if (!def) return false;
   if (S.roomId) unloadRoom();
   S.buildingRoom = id;
+  enemySeq = 0;
   beginBuild();
   try { def.build(); } finally { endBuild(); S.buildingRoom = null; }
+  setFlag(id, 'visited'); // les prochaines visites seront moins peuplées
   S.roomId = id;
   const e = spawn || def.entry;
   player.pos.set(e.x, e.y, e.z); player.vel.set(0, 0, 0);
@@ -269,10 +281,10 @@ function buildHall() {
   rPickup('mana', RX - 10, 0, RZ - 18);
   rPickup('heart', RX + 22, 0, RZ - 17);
 
-  mkEnemy(RX, RZ + 6, 0, [[RX - 12, RZ + 6], [RX + 12, RZ + 6], [RX + 12, RZ - 8], [RX - 12, RZ - 8]], { type: 'sentinel', lvl: 2 });
-  mkEnemy(RX - 14, RZ - 14, 0, [[RX - 14, RZ - 14], [RX + 14, RZ - 14]], { type: 'sentinel', lvl: 2 });
-  mkEnemy(RX + 6, RZ + 12, 0, [[RX + 6, RZ + 12], [RX - 4, RZ + 16], [RX + 8, RZ + 18]], { type: 'wraith', lvl: 2 });
-  mkEnemy(RX - 18, RZ + 2, 0, [[RX - 18, RZ + 8], [RX - 18, RZ - 8]], { type: 'sentinel', lvl: 2 });
+  rEnemy(RX, RZ + 6, 0, [[RX - 12, RZ + 6], [RX + 12, RZ + 6], [RX + 12, RZ - 8], [RX - 12, RZ - 8]], { type: 'sentinel', lvl: 2 });
+  rEnemy(RX - 14, RZ - 14, 0, [[RX - 14, RZ - 14], [RX + 14, RZ - 14]], { type: 'sentinel', lvl: 2 });
+  rEnemy(RX + 6, RZ + 12, 0, [[RX + 6, RZ + 12], [RX - 4, RZ + 16], [RX + 8, RZ + 18]], { type: 'wraith', lvl: 2 });
+  rEnemy(RX - 18, RZ + 2, 0, [[RX - 18, RZ + 8], [RX - 18, RZ - 8]], { type: 'sentinel', lvl: 2 });
 }
 
 /* ================================================================
@@ -338,10 +350,10 @@ function buildBiblio() {
     gotoRoom('hall', { x: RX - 23.5, y: 0.2, z: RZ, yaw: Math.PI / 2 });
   });
 
-  mkEnemy(RX - 8, RZ + 10, 0, [[RX - 16, RZ + 10], [RX - 2, RZ + 10]], { type: 'sentinel', lvl: 2 });
-  mkEnemy(RX - 16, RZ - 6, 0, [[RX - 22, RZ - 6], [RX - 10, RZ - 6]], { type: 'wraith', lvl: 2 });
-  mkEnemy(RX + 14, RZ + 10, 0, [[RX + 14, RZ + 10], [RX + 14, RZ - 6]], { type: 'caster', lvl: 2 });
-  mkEnemy(RX + 4, RZ - 14, 0, [[RX - 6, RZ - 14], [RX + 12, RZ - 14]], { type: 'sentinel', lvl: 2 });
+  rEnemy(RX - 8, RZ + 10, 0, [[RX - 16, RZ + 10], [RX - 2, RZ + 10]], { type: 'sentinel', lvl: 2 });
+  rEnemy(RX - 16, RZ - 6, 0, [[RX - 22, RZ - 6], [RX - 10, RZ - 6]], { type: 'wraith', lvl: 2 });
+  rEnemy(RX + 14, RZ + 10, 0, [[RX + 14, RZ + 10], [RX + 14, RZ - 6]], { type: 'caster', lvl: 2 });
+  rEnemy(RX + 4, RZ - 14, 0, [[RX - 6, RZ - 14], [RX + 12, RZ - 14]], { type: 'sentinel', lvl: 2 });
 }
 
 /* ================================================================
@@ -420,9 +432,9 @@ function buildAile() {
   rPickup('mana', RX + 22, 0, RZ + 16);
   rPickup('mana', RX + 20, 0, RZ - 16);
 
-  mkEnemy(RX - 14, RZ + 6, 0, [[RX - 14, RZ + 6], [RX - 8, RZ - 12]], { type: 'sentinel', lvl: 3 });
-  mkEnemy(RX + 16, RZ + 12, 0, [[RX + 16, RZ + 12], [RX + 10, RZ - 10]], { type: 'brute', lvl: 3, dmg: 28 });
-  mkEnemy(RX + 20, RZ - 8, 0, [[RX + 24, RZ - 8], [RX + 8, RZ - 8]], { type: 'sentinel', lvl: 3 });
+  rEnemy(RX - 14, RZ + 6, 0, [[RX - 14, RZ + 6], [RX - 8, RZ - 12]], { type: 'sentinel', lvl: 3 });
+  rEnemy(RX + 16, RZ + 12, 0, [[RX + 16, RZ + 12], [RX + 10, RZ - 10]], { type: 'brute', lvl: 3, dmg: 28 });
+  rEnemy(RX + 20, RZ - 8, 0, [[RX + 24, RZ - 8], [RX + 8, RZ - 8]], { type: 'sentinel', lvl: 3 });
 }
 
 /* ================================================================
@@ -491,11 +503,11 @@ function buildTrone() {
     gotoRoom('hall', { x: RX, y: 0.2, z: RZ - 18.5, yaw: 0 });
   });
 
-  mkEnemy(RX - 8, RZ - 4, 0, [[RX - 8, RZ + 2], [RX - 8, RZ - 12]], { type: 'brute', lvl: 6 });
-  mkEnemy(RX + 8, RZ - 4, 0, [[RX + 8, RZ - 12], [RX + 8, RZ + 2]], { type: 'brute', lvl: 6 });
-  mkEnemy(RX, RZ - 10, 0, [[RX, RZ - 10], [RX + 6, RZ - 2], [RX - 6, RZ - 2]], { type: 'caster', lvl: 6 });
-  mkEnemy(RX, RZ + 8, 0, [[RX - 12, RZ + 8], [RX + 12, RZ + 8]], { type: 'sentinel', lvl: 6 });
-  mkEnemy(RX + 16, RZ + 2, 0, [[RX + 16, RZ + 12], [RX + 16, RZ - 8]], { type: 'wraith', lvl: 6 });
+  rEnemy(RX - 8, RZ - 4, 0, [[RX - 8, RZ + 2], [RX - 8, RZ - 12]], { type: 'brute', lvl: 6 });
+  rEnemy(RX + 8, RZ - 4, 0, [[RX + 8, RZ - 12], [RX + 8, RZ + 2]], { type: 'brute', lvl: 6 });
+  rEnemy(RX, RZ - 10, 0, [[RX, RZ - 10], [RX + 6, RZ - 2], [RX - 6, RZ - 2]], { type: 'caster', lvl: 6 });
+  rEnemy(RX, RZ + 8, 0, [[RX - 12, RZ + 8], [RX + 12, RZ + 8]], { type: 'sentinel', lvl: 6 });
+  rEnemy(RX + 16, RZ + 2, 0, [[RX + 16, RZ + 12], [RX + 16, RZ - 8]], { type: 'wraith', lvl: 6 });
 }
 
 /* ================================================================
@@ -548,10 +560,10 @@ function buildCata() {
   addInter(RX, 0, RZ + 2.6, 2.6, 'Lire le fronton de l\'Ossuaire', () => {
     showMsg('« Ici dorment les gardiens d\'Ombreciel. Que celui qui cherche la Clef longe le couchant. »', 4);
   });
-  mkEnemy(RX - 6, RZ + 10, 0, [[RX - 9, RZ + 8], [RX + 9, RZ + 10]], { type: 'sentinel', lvl: 4 });
-  mkEnemy(RX + 6, RZ + 18, 0, [[RX + 6, RZ + 18], [RX - 6, RZ + 18]], { type: 'sentinel', lvl: 4 });
-  mkEnemy(RX, RZ + 14, 0, [[RX, RZ + 14], [RX + 9, RZ + 20]], { type: 'brute', lvl: 4 });
-  mkEnemy(RX + 9, RZ + 6, 0, [[RX + 9, RZ + 6], [RX + 9, RZ + 20]], { type: 'caster', lvl: 4 });
+  rEnemy(RX - 6, RZ + 10, 0, [[RX - 9, RZ + 8], [RX + 9, RZ + 10]], { type: 'sentinel', lvl: 4 });
+  rEnemy(RX + 6, RZ + 18, 0, [[RX + 6, RZ + 18], [RX - 6, RZ + 18]], { type: 'sentinel', lvl: 4 });
+  rEnemy(RX, RZ + 14, 0, [[RX, RZ + 14], [RX + 9, RZ + 20]], { type: 'brute', lvl: 4 });
+  rEnemy(RX + 9, RZ + 6, 0, [[RX + 9, RZ + 6], [RX + 9, RZ + 20]], { type: 'caster', lvl: 4 });
 
   /* ---- couloir gardes → Ossuaire (z -3..1) ---- */
   mkBox(6, 1, 4, RX, -1, RZ - 1, 'slab');
@@ -595,10 +607,10 @@ function buildCata() {
     b.rotation.set(i, i * 2, 0);
     S.scene.add(b);
   }
-  mkEnemy(RX - 0.25, RZ - 9.75, 0, [[RX - 2, RZ - 9.75], [RX + 2, RZ - 9.75]], { type: 'wraith', lvl: 5 });
-  mkEnemy(RX - 13.75, RZ - 23, 0, [[RX - 13.75, RZ - 27], [RX - 13.75, RZ - 14]], { type: 'sentinel', lvl: 5 });
-  mkEnemy(RX - 9, RZ - 32.25, 0, [[RX - 15, RZ - 32.25], [RX - 4, RZ - 32.25]], { type: 'wraith', lvl: 5 });
-  mkEnemy(RX + 13.25, RZ - 30, 0, [[RX + 13.25, RZ - 25], [RX + 13.25, RZ - 34]], { type: 'caster', lvl: 5 });
+  rEnemy(RX - 0.25, RZ - 9.75, 0, [[RX - 2, RZ - 9.75], [RX + 2, RZ - 9.75]], { type: 'wraith', lvl: 5 });
+  rEnemy(RX - 13.75, RZ - 23, 0, [[RX - 13.75, RZ - 27], [RX - 13.75, RZ - 14]], { type: 'sentinel', lvl: 5 });
+  rEnemy(RX - 9, RZ - 32.25, 0, [[RX - 15, RZ - 32.25], [RX - 4, RZ - 32.25]], { type: 'wraith', lvl: 5 });
+  rEnemy(RX + 13.25, RZ - 30, 0, [[RX + 13.25, RZ - 25], [RX + 13.25, RZ - 34]], { type: 'caster', lvl: 5 });
 
   /* ---- GOUFFRE DES MORTS — x 14..47, z 2..26, brèche de 11,5 m ---- */
   mkBox(5, 8, 24, RX + 16.5, -8, RZ + 14, 'stoneD');   // rive ouest (bloc plein)
@@ -629,8 +641,8 @@ function buildCata() {
   rPickup('maxhp', RX + 24, -7, RZ + 20, 'cata_pit_vit');
   rPickup('shadow', RX + 27, -7, RZ + 8);
   rPickup('shadow', RX + 22, -7, RZ + 16);
-  mkEnemy(RX + 24, RZ + 10, -7, [[RX + 21, RZ + 8], [RX + 28, RZ + 14]], { type: 'brute', lvl: 5 });
-  mkEnemy(RX + 40, RZ + 18, 0, [[RX + 38, RZ + 18], [RX + 42, RZ + 6]], { type: 'sentinel', lvl: 5 });
+  rEnemy(RX + 24, RZ + 10, -7, [[RX + 21, RZ + 8], [RX + 28, RZ + 14]], { type: 'brute', lvl: 5 });
+  rEnemy(RX + 40, RZ + 18, 0, [[RX + 38, RZ + 18], [RX + 42, RZ + 6]], { type: 'sentinel', lvl: 5 });
 
   /* ---- rideau de flammes & chambre de la Première Larme ---- */
   const flameDoor = mkDoor(1, 4.5, 4, RX + 47, 0, RZ + 14, 'iron');
