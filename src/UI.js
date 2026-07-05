@@ -4,11 +4,50 @@ import { G, S, IS_TOUCH, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spin
 import { A } from './Audio.js';
 import { xpNeed } from './SkillTree.js';
 import { nearInter, spawnBurst } from './World.js';
-import { lockPointer } from './Controls.js'; // cycle sûr : appel différé
-import { leaveTower } from './Tower.js';     // cycle sûr : appel différé
+import { lockPointer } from './Controls.js';          // cycle sûr : appel différé
+import { leaveTower, enterPalier } from './Tower.js'; // cycle sûr : appel différé
+import { loadRoom, unloadRoom } from './Rooms.js';    // cycle sûr : appel différé
 
 export const $ = id => document.getElementById(id);
 export function showMsg(t, dur) { $('msg').textContent = t; $('msg').style.opacity = 1; G.msgT = dur || 3; }
+
+/* ---------------- ÉCRAN DE CHARGEMENT (transitions de salle) ----------------
+   Fondu vers le noir → bascule d'instance (déchargement/chargement synchrone
+   de la salle) → fondu retour. La coupure est le CONTRAT du level streaming :
+   un seul espace existe en mémoire à la fois, tout le budget de calcul se
+   concentre sur la salle courante. S.transitioning verrouille les
+   interactions pendant le voile (anti double-déclenchement). */
+const LOADTIPS = [
+  'Les ombres reprennent leurs postes quand une salle se vide de votre lumière.',
+  'Chaque porte d\'Ombreciel n\'obéit qu\'à un art ancien — ou à une clef.',
+  'Les feux de bivouac sont des sanctuaires : aucune ombre n\'ose leur lueur.',
+  'La nuit, les ombres frappent plus fort... mais leur chute paie davantage.',
+  'Un mur trop haut pour un saut cache souvent un mécanisme, jamais un cul-de-sac.',
+  'Reposez-vous aux bivouacs : la matrice des feux permet le voyage rapide.'
+];
+let tipI = Math.floor(Math.random() * LOADTIPS.length);
+export function withLoading(title, fn) {
+  if (S.transitioning) return;
+  S.transitioning = true;
+  const ov = $('transition');
+  $('trans-title').textContent = title || 'Ombreciel';
+  tipI = (tipI + 1) % LOADTIPS.length;
+  $('trans-tip').textContent = LOADTIPS[tipI];
+  ov.classList.remove('hidden');
+  // reflow pour que la transition CSS parte bien de opacity:0
+  void ov.offsetHeight;
+  ov.classList.add('on');
+  setTimeout(() => {
+    try { fn(); } catch (e) { console.error('Transition de salle :', e); }
+    setTimeout(() => {
+      ov.classList.remove('on');
+      setTimeout(() => {
+        ov.classList.add('hidden');
+        S.transitioning = false;
+      }, 460);
+    }, 620);
+  }, 460);
+}
 
 /* ---------------- VOYAGE RAPIDE — MATRICE DES BIVOUACS ----------------
    Ouverte au repos à un feu de bivouac. Fast-travel INTERDIT si le joueur
@@ -38,13 +77,22 @@ export function closeTravel() {
 export function travelTo(c) {
   if (S.combatT > 0) { showMsg('Les ombres vous traquent : impossible de voyager en plein combat.', 3); return; }
   closeTravel();
-  if (S.inTower) leaveTower(true); // quitter l'instance de la Tour avant le saut
-  player.pos.set(c.x, c.y, c.z); player.vel.set(0, 0, 0);
-  if (S.COOP && p2.pos) { p2.pos.set(c.x + 1.5, c.y, c.z + 0.8); p2.vel.set(0, 0, 0); }
-  G.checkpoint = { x: c.x, y: c.y, z: c.z };
-  A.dash();
-  spawnBurst(c.x, c.y + 1, c.z, 0xffc06a, 20);
-  showMsg('Le feu appelle le feu... Vous rouvrez les yeux près du bivouac — ' + c.label + '.', 3.5);
+  /* Le voyage rapide passe TOUJOURS par l'écran de chargement : on décharge
+     l'instance courante (salle ou palier), on charge celle du feu visé
+     (c.room = salle instanciée, c.palier = palier de la Tour), puis on pose
+     le voyageur près du bivouac. */
+  withLoading('🔥 ' + c.label, () => {
+    if (S.roomId) unloadRoom();
+    if (S.inTower) leaveTower(true);
+    if (c.palier) enterPalier(c.palier);
+    else if (c.room) loadRoom(c.room);
+    player.pos.set(c.x, c.y, c.z); player.vel.set(0, 0, 0);
+    if (S.COOP && p2.pos) { p2.pos.set(c.x + 1.5, c.y, c.z + 0.8); p2.vel.set(0, 0, 0); }
+    G.checkpoint = { x: c.x, y: c.y, z: c.z };
+    A.dash();
+    spawnBurst(c.x, c.y + 1, c.z, 0xffc06a, 20);
+    showMsg('Le feu appelle le feu... Vous rouvrez les yeux près du bivouac — ' + c.label + '.', 3.5);
+  });
 }
 
 export function buildPowersUI() {

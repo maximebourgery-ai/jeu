@@ -21,7 +21,7 @@ import {
   spinners, flames, player, p2
 } from './state.js';
 import { A } from './Audio.js';
-import { showMsg } from './UI.js';
+import { showMsg, withLoading } from './UI.js';
 import {
   mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube
 } from './World.js';
@@ -122,7 +122,10 @@ function mkPortal(x, y, z, color, label, canOpen, lockedMsg, onEnter) {
     if (!canOpen()) { showMsg(lockedMsg(), 3.2); return; }
     A.door();
     spawnBurst(x, y + 1.8, z, color, 22);
-    onEnter();
+    /* v8 : franchir un portail passe par l'écran de chargement — la coupure
+       masque le déchargement/reconstruction du palier (même contrat que les
+       salles instanciées du château, voir UI.withLoading). */
+    withLoading(label, onEnter);
   });
   return ring;
 }
@@ -195,6 +198,9 @@ export function leaveTower(silent) {
   G.checkpoint = { x: TERRACE.x, y: TERRACE.y, z: TERRACE.z };
   if (!silent) showMsg('Le sas vous rend à la terrasse de la Tour du Levant.', 3);
 }
+/* Rebâtit un palier donné SANS fondu (le voyage rapide, déjà sous écran de
+   chargement, s'en sert pour rejoindre un bivouac de la Tour). */
+export function enterPalier(n) { gotoPalier(n); }
 function gotoPalier(n) {
   unloadPalier();
   beginBuild();

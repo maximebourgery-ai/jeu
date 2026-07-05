@@ -475,6 +475,49 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
 
 ---
 
+## 9 bis. v8 — Salles instanciées, château agrandi, monde plus lumineux
+
+- **Level streaming généralisé** (le contrat §3.1 de la Tour s'étend au château) :
+  les cinq intérieurs — grand hall, bibliothèque, aile est, salle du trône,
+  catacombes (gardes + Ossuaire + Gouffre + chambre de la Larme) — sont des
+  **salles instanciées** (`Rooms.js`, site x ≈ -400, à l'opposé de la Tour).
+  Une seule salle existe en mémoire à la fois : franchir une porte affiche un
+  **écran de chargement noir** (fondu ~0,5 s, astuce de jeu, verrou
+  anti-double-déclenchement), décharge la salle quittée et bâtit la suivante.
+  Tout le budget de calcul (lumières, colliders, IA) se concentre sur l'espace
+  courant — ce qui autorise des salles bien plus vastes et, plus tard, des
+  énigmes plus ambitieuses. Le **monde ouvert** (jardins, parvis, Terres
+  Perdues, Forêt de Nuit, Clairière) reste en balade libre sans coupure ;
+  les portails de la Tour passent désormais eux aussi par l'écran de
+  chargement.
+- **Salles agrandies (+40 à +60 %)** : grand hall 52×42 (36×31 avant, plafond
+  12 m, double colonnade), bibliothèque 56×42, aile est 56×42, salle du trône
+  48×40 (plafond 14 m), Ossuaire 49×45 (cellules de 4,5 m). Les invariants de
+  game design sont préservés : brèche du Gouffre toujours à **11,5 m** (Pas du
+  vent obligatoire), rayonnages 3,6 m infranchissables, escalier d'étagères en
+  pas de 1,55 m, murs de labyrinthe 5,2 m sous plafond.
+- **Persistance par salle** (`G.rooms`, sauvegarde v8) : flags de progression
+  nommés (levier, plaque runique, rideau de flammes, passage scellé, serrure
+  d'or), objets uniques par id (Larmes, Clef d'or, Fragments de vitalité),
+  position du bloc runique. Ennemis et consommables renaissent à chaque
+  visite, comme dans la Tour. La sauvegarde en salle restaure salle + position
+  exacte ; le voyage rapide recharge la salle du bivouac visé (catacombes).
+- **Le château scellé** : dans le monde, le château n'est plus qu'une masse
+  extérieure close (toiture comprise) percée de deux seuils — la herse au sud
+  (grand hall) et le passage scellé au nord (salle du trône, à double sens une
+  fois ouvert). Des « fonds de sas » sombres derrière chaque embrasure
+  empêchent de marcher dans le vide du site et se lisent comme des passages
+  obscurs.
+- **Un poil plus lumineux** : palette nocturne remontée (lumières +10-15 %,
+  exposition 1,25 → 1,32, brouillard plus lointain), jour légèrement plus
+  franc (exposition 1,12 → 1,18). Et surtout : **plancher d'éclairage
+  intérieur** — dans une salle ou un palier de la Tour, le facteur visuel du
+  cycle jour/nuit ne descend jamais sous 0,5 (on est sous plafond, aux
+  torches) tandis que le gameplay nocturne (dégâts ×1,8, renforts) garde la
+  vraie heure du monde.
+
+---
+
 ## 10. Résumé du fil rouge en une ligne par étape
 
 Réveil aux jardins → Lumen raconte la Nuit sans lune → purger les jardins (herse) →

@@ -45,6 +45,14 @@ export const G = {
   },
   camps: {},        // bivouacs découverts (matrice de voyage rapide)
   travelOpen: false, // matrice des Bivouacs à l'écran
+  /* v8 — SALLES INSTANCIÉES : chaque intérieur du château (grand hall,
+     bibliothèque, aile est, salle du trône, catacombes) est chargé seul en
+     mémoire derrière un écran de chargement (voir Rooms.js). On ne garde ici
+     que ce qui doit SURVIVRE au déchargement : flags de progression nommés
+     (levier tiré, plaque activée...), objets uniques ramassés (par id) et
+     position du bloc runique. Les ennemis d'une salle renaissent à chaque
+     visite (comme dans la Tour) — les ombres reprennent leurs postes. */
+  rooms: {},
   /* v7.3 — Horloge d'Ombreciel : heure du monde (0-24, sauvegardée). La
      partie commence à 9 h du matin : les premières quêtes se vivent de
      jour. Une journée complète dure 16 minutes réelles (voir DayNight.js). */
@@ -84,16 +92,20 @@ export const ETYPES = {
   caster:   { name: 'Tisseur',  hp: 26,  dmg: 14, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true }
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
+/* Les zones marquées `room` vivent dans une SALLE INSTANCIÉE (site x -400,
+   voir Rooms.js) : le directeur n'y invoque des renforts que si la salle
+   correspondante est chargée (S.roomId). Les coordonnées sont celles du
+   site d'instance. Les zones sans `room` exigent d'être en monde ouvert. */
 export const ZONES = [
   { id: 'jardins',   name: 'Jardins du Crépuscule', x: 0,   z: 54,  y: 0,   r: 28, lvl: 1,  cap: 3, types: ['sentinel', 'sentinel', 'wraith'] },
   { id: 'parvis',    name: 'Parvis du Levant',      x: 55,  z: 60,  y: 0,   r: 18, lvl: 3,  cap: 3, types: ['sentinel', 'wraith'] },
-  { id: 'hall',      name: 'Grand hall',            x: 0,   z: 16,  y: 0,   r: 16, lvl: 2,  cap: 3, types: ['sentinel', 'wraith'] },
-  { id: 'biblio',    name: 'Bibliothèque',          x: -38, z: 15,  y: 0,   r: 17, lvl: 2,  cap: 3, types: ['sentinel', 'wraith', 'caster'] },
-  { id: 'aile',      name: 'Aile est',              x: 38,  z: 15,  y: 0,   r: 17, lvl: 3,  cap: 3, types: ['sentinel', 'brute'] },
-  { id: 'gardes',    name: 'Salle des gardes',      x: 82,  z: 10,  y: -8,  r: 14, lvl: 4,  cap: 4, types: ['sentinel', 'brute', 'caster'] },
-  { id: 'ossuaire',  name: 'Ossuaire',              x: 84,  z: -18, y: -8,  r: 22, lvl: 5,  cap: 5, types: ['wraith', 'sentinel', 'caster'] },
-  { id: 'gouffre',   name: 'Gouffre des Morts',     x: 105, z: 10,  y: -8,  r: 16, lvl: 5,  cap: 3, types: ['sentinel', 'caster'] },
-  { id: 'trone',     name: 'Salle du trône',        x: 0,   z: -14, y: 0,   r: 15, lvl: 6,  cap: 4, types: ['brute', 'caster', 'wraith'] },
+  { id: 'hall',      name: 'Grand hall',            room: 'hall',   x: -400, z: 0,   y: 0, r: 30, lvl: 2,  cap: 3, types: ['sentinel', 'wraith'] },
+  { id: 'biblio',    name: 'Bibliothèque',          room: 'biblio', x: -400, z: 0,   y: 0, r: 32, lvl: 2,  cap: 3, types: ['sentinel', 'wraith', 'caster'] },
+  { id: 'aile',      name: 'Aile est',              room: 'aile',   x: -400, z: 0,   y: 0, r: 32, lvl: 3,  cap: 3, types: ['sentinel', 'brute'] },
+  { id: 'gardes',    name: 'Salle des gardes',      room: 'cata',   x: -400, z: 14,  y: 0, r: 17, lvl: 4,  cap: 4, types: ['sentinel', 'brute', 'caster'] },
+  { id: 'ossuaire',  name: 'Ossuaire',              room: 'cata',   x: -400, z: -26, y: 0, r: 26, lvl: 5,  cap: 5, types: ['wraith', 'sentinel', 'caster'] },
+  { id: 'gouffre',   name: 'Gouffre des Morts',     room: 'cata',   x: -368, z: 14,  y: 0, r: 18, lvl: 5,  cap: 3, types: ['sentinel', 'caster'] },
+  { id: 'trone',     name: 'Salle du trône',        room: 'trone',  x: -400, z: 0,   y: 0, r: 26, lvl: 6,  cap: 4, types: ['brute', 'caster', 'wraith'] },
   { id: 'ruines',    name: 'Ruines des Terres Perdues', x: 0, z: -38, y: 0, r: 20, lvl: 7,  cap: 5, types: ['sentinel', 'brute', 'caster'] },
   { id: 'foret',     name: 'Forêt de Nuit',         x: 0,   z: -70, y: 0,   r: 30, lvl: 8,  cap: 6, types: ['wraith', 'sentinel', 'wraith', 'caster'] },
   { id: 'clairiere', name: 'Clairière du Cœur',     x: 0,   z: -95, y: 0,   r: 12, lvl: 10, cap: 4, types: ['brute', 'caster', 'wraith'] }
@@ -199,16 +211,18 @@ export const QUESTS = [
   { id: 'jump',    text: 'Sautez avec Espace, puis sprintez avec Shift.' },
   { id: 'lumen',   text: 'Rejoignez la petite lueur bleue près de la fontaine et parlez-lui (E).', pos: [2.5, 1, 44.5] },
   { id: 'garden',  text: 'Repoussez les 2 Ombres des jardins : la herse du château se lèvera. (clic gauche : attaque)' },
-  { id: 'hall',    text: 'Franchissez la herse et entrez dans le grand hall.', pos: [0, 1, 16] },
-  { id: 'lever',   text: 'Trouvez le mécanisme qui ouvre la bibliothèque.', pos: [15, 1, 27] },
-  { id: 'dash',    text: 'Grimpez les étagères de la bibliothèque jusqu\'à la passerelle : le Pas du vent y sommeille.', pos: [-55, 8.4, 5] },
+  /* Les objectifs d'intérieur n'ont pas de balise-monde : la salle est une
+     instance (site x -400) — le texte et les indices de Lumen guident. */
+  { id: 'hall',    text: 'Franchissez la herse et entrez dans le grand hall.', pos: [0, 1, 33] },
+  { id: 'lever',   text: 'Trouvez le mécanisme qui ouvre la bibliothèque.' },
+  { id: 'dash',    text: 'Grimpez les étagères de la bibliothèque jusqu\'à la passerelle : le Pas du vent y sommeille.' },
   { id: 'tower',   text: 'Avec le Pas du vent (touche 2), franchissez le pont brisé du parvis est et gagnez le sommet de la Tour du Levant.', pos: [58, 23.8, 46] },
-  { id: 'plate',   text: 'Avec la Main céleste (touche 3), posez le bloc runique de l\'armurerie sur la plaque gravée de l\'aile est.', pos: [48, 1, 16] },
-  { id: 'crypt',   text: 'Descendez aux catacombes : la Clef d\'or et la Bénédiction sont perdues dans l\'Ossuaire.', pos: [86, -7, -30] },
-  { id: 'gouffre', text: 'Franchissez le Gouffre des Morts d\'un Pas du vent : l\'Égide veille sur l\'autre rive.', pos: [113, -7, 10] },
-  { id: 'flamme',  text: 'L\'Égide activée (touche 4), traversez le rideau de flammes : la première Larme est derrière.', pos: [123, -7, 10] },
-  { id: 'throne',  text: 'Ouvrez la salle du trône avec la Clef d\'or, au nord du grand hall : la deuxième Larme y est gardée.', pos: [0, 1, 1] },
-  { id: 'lost',    text: 'Avec deux Larmes en main, franchissez le passage scellé derrière le trône, vers les Terres Perdues.', pos: [0, 1, -26] },
+  { id: 'plate',   text: 'Avec la Main céleste (touche 3), posez le bloc runique de l\'armurerie sur la plaque gravée de l\'aile est.' },
+  { id: 'crypt',   text: 'Descendez aux catacombes : la Clef d\'or et la Bénédiction sont perdues dans l\'Ossuaire.' },
+  { id: 'gouffre', text: 'Franchissez le Gouffre des Morts d\'un Pas du vent : l\'Égide veille sur l\'autre rive.' },
+  { id: 'flamme',  text: 'L\'Égide activée (touche 4), traversez le rideau de flammes : la première Larme est derrière.' },
+  { id: 'throne',  text: 'Ouvrez la salle du trône avec la Clef d\'or, au nord du grand hall : la deuxième Larme y est gardée.' },
+  { id: 'lost',    text: 'Avec deux Larmes en main, franchissez le passage scellé derrière le trône, vers les Terres Perdues.' },
   { id: 'frost',   text: 'Trouvez le Souffle glacé dans les ruines et éteignez les ronces ardentes qui ferment la Forêt de Nuit.', pos: [12, 1, -42] },
   { id: 'grove',   text: 'Traversez le labyrinthe de la Forêt de Nuit. Un arbre-sanctuaire flétri bloque la voie : la Bénédiction (touche 6) le ranimera.', pos: [-39, 1, -75] },
   { id: 'tears',   text: 'Atteignez la Clairière du Cœur et arrachez la dernière Larme d\'Aube à ses gardiens.', pos: [0, 2.6, -95] }
@@ -250,9 +264,10 @@ export const gpMove = { x: 0, z: 0 };
 export const tmMove = { x: 0, z: 0 };
 
 export const STEP_HEIGHT = 0.62; // hauteur de rebord franchissable automatiquement (marche/mantle)
-/* v7 : refonte totale des niveaux (le monde, les portes et les objets ont
-   changé de place — les sauvegardes v6 seraient incohérentes, on repart). */
-export const SAVE_KEY = 'ombreciel_save_v7';
+/* v8 : les intérieurs du château deviennent des salles instanciées, agrandies
+   et chargées à la demande (Rooms.js) — les index de portes/objets/ennemis du
+   monde changent, les sauvegardes v7 seraient incohérentes, on repart. */
+export const SAVE_KEY = 'ombreciel_save_v8';
 
 /* ---- Réglages joueur (visée, luminosité) — persistés indépendamment de la
    sauvegarde de partie, façon menu Options d'un FPS (sensibilité, zone
@@ -326,6 +341,10 @@ export const S = {
   lastSafe: { x: 0, y: 0.2, z: 60 },
   // Ascension de la Tour du Levant (paliers instanciés)
   inTower: false, palier: 0, onHeal: null,
+  /* Salles instanciées du château (Rooms.js) : id de la salle chargée
+     (null = monde ouvert) et verrou d'écran de chargement (aucune
+     interaction pendant le fondu noir — anti double-déclenchement). */
+  roomId: null, transitioning: false,
   // télékinésie
   tkHeld: null,
   // sauvegarde

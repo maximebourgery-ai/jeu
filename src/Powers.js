@@ -508,6 +508,7 @@ export function checkPlate() {
         P.glow.material.color.setHex(0x4ae08a);
         showMsg(P.msg || 'La plaque s\'enfonce sous le bloc : une porte coulisse dans la pierre.', 4);
         if (P.questId) questReach(P.questId);
+        if (P.onOpen) P.onOpen(); // salles instanciées : persiste le flag (Rooms.js)
       }
     }
     /* Énigme à poids synchronisée (coop) : Joueur 1 + Joueur 2 réunis sur la
@@ -520,6 +521,7 @@ export function checkPlate() {
         P.glow.material.color.setHex(0x4ae08a);
         showMsg('Le poids des deux porteurs réunis vaut celui d\'un Colosse : la plaque s\'enfonce !', 4);
         if (P.questId) questReach(P.questId);
+        if (P.onOpen) P.onOpen(); // salles instanciées : persiste le flag (Rooms.js)
       }
     }
   }

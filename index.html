@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
-<title>Les Tours d'Ombreciel — v6</title>
+<title>Les Tours d'Ombreciel — v8</title>
 </head>
 <body>
 <div id="hud">
@@ -186,6 +186,14 @@
   <div class="glyph">✦</div>
   <h2>LES TOURS D'OMBRECIEL</h2>
   <p class="sub" id="loading-status">Éveil des Larmes d'Aube…</p>
+</div>
+
+<!-- Écran de chargement des salles instanciées (fondu noir, voir UI.withLoading) -->
+<div id="transition" class="hidden">
+  <div class="glyph">✦</div>
+  <h2 id="trans-title">Ombreciel</h2>
+  <p class="tip" id="trans-tip"></p>
+  <div class="ldots"><span></span><span></span><span></span></div>
 </div>
 
 <script type="module" src="/src/main.js"></script>

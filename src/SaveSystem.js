@@ -10,16 +10,21 @@ import { showMsg, buildPowersUI, refreshPowers } from './UI.js';
 import { openDoor, syncCube } from './World.js';
 import { refreshPlayerVisual, addWingsToPlayer } from './Player.js';
 import { applyQuest } from './Quests.js';
+import { syncRoomState, loadRoom } from './Rooms.js'; // cycle sûr : appels différés
 
 export function saveGame(silent) {
   if (!G.started || G.over) return;
   try {
     /* Dans la Tour (palier instancié), la position enregistrée est ramenée à
        la terrasse : au chargement, le monde existe mais pas l'instance —
-       le joueur repart du portail, ses clefs/raccourcis (G.tower) en poche. */
+       le joueur repart du portail, ses clefs/raccourcis (G.tower) en poche.
+       Dans une SALLE instanciée (Rooms.js) en revanche, on sauvegarde la
+       salle (s.room) et la position réelle : le chargement rebâtit la salle
+       et y repose le joueur exactement où il était. */
+    syncRoomState(); // recopie objets uniques ramassés + bloc runique dans G.rooms
     const inTw = S.inTower;
     const TER = { x: 58, y: 23.2, z: 46.8 };
-    const s = { v: 6, path: G.path, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
+    const s = { v: 8, path: G.path, hp: G.hp, maxHp: G.maxHp, mana: G.mana,
       powers: G.powers, sel: G.sel,
       crystals: G.crystals, goldKey: G.goldKey, items: G.items,
       herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
@@ -28,6 +33,9 @@ export function saveGame(silent) {
       /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
          raccourcis, Aura) et la matrice des Bivouacs découverts */
       tower: G.tower, camps: G.camps,
+      /* v8 : salles instanciées — flags de progression, objets uniques
+         ramassés, bloc runique (G.rooms) + salle où le joueur se trouve */
+      rooms: G.rooms, room: S.roomId,
       hour: G.hour, // horloge d'Ombreciel (cycle jour/nuit)
       xp: G.xp, level: G.level, sp: G.sp, nodes: G.nodes, maxMana: G.maxMana,
       questI: S.questI, tut: Object.assign({}, tut),
@@ -68,6 +76,7 @@ export function loadGame() {
     G.tower.aura = !!s.tower.aura;
   }
   G.camps = s.camps || {};
+  G.rooms = s.rooms || {}; // v8 : progression des salles instanciées
   G.hour = (typeof s.hour === 'number') ? s.hour : 9; // anciennes sauvegardes : reprise au matin
   G.xp = s.xp || 0; G.level = s.level || 1; G.sp = s.sp || 0;
   G.nodes = s.nodes || {};
@@ -93,6 +102,18 @@ export function loadGame() {
   Object.assign(tut, s.tut || {});
   player.pos.set(s.px, s.py, s.pz); player.vel.set(0, 0, 0);
   S.yaw = s.yaw || 0; S.pitch = (typeof s.pitch === 'number') ? s.pitch : -0.22;
+  /* v8 : sauvegarde prise dans une salle instanciée → on la rebâtit et on y
+     repose le joueur exactement où il était (loadRoom pose l'entrée par
+     défaut, la position exacte est restaurée juste après). */
+  if (s.room) {
+    if (loadRoom(s.room)) {
+      player.pos.set(s.px, s.py, s.pz); player.vel.set(0, 0, 0);
+    } else {
+      // salle inconnue (sauvegarde d'une autre version) : repli à la fontaine
+      player.pos.set(0, 0.2, 60);
+      G.checkpoint = { x: 0, y: 0.2, z: 60 };
+    }
+  }
   if (G.hasWings) addWingsToPlayer();
   buildPowersUI(); refreshPowers(); applyQuest();
   return true;

@@ -30,19 +30,22 @@ export function dayFactor(h) {
    « visibility-aiming » : l'ambiance reste nocturne mais le décor proche se
    lit toujours — et le curseur « Luminosité nocturne » des Réglages module
    encore ces valeurs (voir settings.brightness ci-dessous). */
+/* v8 : tout est remonté « d'un poil » — nuits un peu moins denses (lumières
+   +10-15 %, exposition +6 %, brouillard plus lointain) et jours légèrement
+   plus francs. Le curseur « Luminosité nocturne » continue de moduler. */
 const NIGHT = {
-  fog: new THREE.Color(0x141b34), fogD: 0.0082,
-  hemiSky: new THREE.Color(0x3a5088), hemiGnd: new THREE.Color(0x141a2c), hemiI: 1.3,
-  amb: new THREE.Color(0x232b4a), ambI: 1.15,
-  dir: new THREE.Color(0x9fb4f0), dirI: 1.0,
-  expo: 1.25
+  fog: new THREE.Color(0x18203c), fogD: 0.0076,
+  hemiSky: new THREE.Color(0x3a5088), hemiGnd: new THREE.Color(0x161d30), hemiI: 1.45,
+  amb: new THREE.Color(0x262f52), ambI: 1.3,
+  dir: new THREE.Color(0x9fb4f0), dirI: 1.1,
+  expo: 1.32
 };
 const DAY = {
-  fog: new THREE.Color(0x93a8cf), fogD: 0.0085,
-  hemiSky: new THREE.Color(0xbdd2f5), hemiGnd: new THREE.Color(0x55606e), hemiI: 1.15,
-  amb: new THREE.Color(0x707c96), ambI: 0.9,
+  fog: new THREE.Color(0x93a8cf), fogD: 0.008,
+  hemiSky: new THREE.Color(0xbdd2f5), hemiGnd: new THREE.Color(0x5a6674), hemiI: 1.25,
+  amb: new THREE.Color(0x76829c), ambI: 1.0,
   dir: new THREE.Color(0xffe9c0), dirI: 2.0,
-  expo: 1.12
+  expo: 1.18
 };
 const _c = new THREE.Color();
 const lerpC = (a, b, f) => _c.copy(a).lerp(b, f);
@@ -57,6 +60,12 @@ export function updateDayNight(dt) {
   S.nightMul = 1 + 0.8 * S.nightK;
 
   /* ---- Visuel ---- */
+  /* PLANCHER D'ÉCLAIRAGE INTÉRIEUR : dans une salle instanciée ou un palier
+     de la Tour, on est sous plafond, éclairé aux torches — la nuit du monde
+     n'a pas à y plonger l'écran dans le noir. Le facteur VISUEL ne descend
+     jamais sous 0,5 en intérieur ; le gameplay (S.nightK, dégâts nocturnes)
+     garde, lui, la vraie heure du monde. */
+  const fv = (S.inTower || S.roomId) ? Math.max(f, 0.5) : f;
   /* « Luminosité nocturne » des Réglages : remonte lumières, exposition et
      portée du brouillard ensemble côté NUIT (un vrai gain de visibilité,
      pas un simple filtre) — le plein jour n'en a pas besoin. */
@@ -66,23 +75,23 @@ export function updateDayNight(dt) {
   const nExpo = NIGHT.expo * (0.75 + 0.25 * b);
   const nFogD = NIGHT.fogD / b;
   if (S.scene && S.scene.fog) {
-    S.scene.fog.color.copy(lerpC(NIGHT.fog, DAY.fog, f));
-    S.scene.fog.density = nFogD + (DAY.fogD - nFogD) * f;
+    S.scene.fog.color.copy(lerpC(NIGHT.fog, DAY.fog, fv));
+    S.scene.fog.density = nFogD + (DAY.fogD - nFogD) * fv;
   }
   if (S.hemi) {
-    S.hemi.color.copy(lerpC(NIGHT.hemiSky, DAY.hemiSky, f));
-    S.hemi.groundColor.copy(lerpC(NIGHT.hemiGnd, DAY.hemiGnd, f));
-    S.hemi.intensity = nHemiI + (DAY.hemiI - nHemiI) * f;
+    S.hemi.color.copy(lerpC(NIGHT.hemiSky, DAY.hemiSky, fv));
+    S.hemi.groundColor.copy(lerpC(NIGHT.hemiGnd, DAY.hemiGnd, fv));
+    S.hemi.intensity = nHemiI + (DAY.hemiI - nHemiI) * fv;
   }
   if (S.amb) {
-    S.amb.color.copy(lerpC(NIGHT.amb, DAY.amb, f));
-    S.amb.intensity = nAmbI + (DAY.ambI - nAmbI) * f;
+    S.amb.color.copy(lerpC(NIGHT.amb, DAY.amb, fv));
+    S.amb.intensity = nAmbI + (DAY.ambI - nAmbI) * fv;
   }
   if (S.dirLight) {
-    S.dirLight.color.copy(lerpC(NIGHT.dir, DAY.dir, f));
-    S.dirLight.intensity = nDirI + (DAY.dirI - nDirI) * f;
+    S.dirLight.color.copy(lerpC(NIGHT.dir, DAY.dir, fv));
+    S.dirLight.intensity = nDirI + (DAY.dirI - nDirI) * fv;
   }
-  if (S.renderer) S.renderer.toneMappingExposure = nExpo + (DAY.expo - nExpo) * f;
+  if (S.renderer) S.renderer.toneMappingExposure = nExpo + (DAY.expo - nExpo) * fv;
   if (S.skyDay) S.skyDay.material.opacity = f;
   if (S.stars) S.stars.material.opacity = 0.9 * (1 - f);
   if (S.moon) S.moon.visible = f < 0.85;

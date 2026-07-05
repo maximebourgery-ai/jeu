@@ -1,5 +1,5 @@
 /* ---------------- HISTOIRE, DIALOGUES, OBJECTIFS & TUTORIEL ---------------- */
-import { G, S, QUESTS, player, tut } from './state.js';
+import { G, S, QUESTS, tut } from './state.js';
 import { A } from './Audio.js';
 import { $ } from './UI.js';
 
@@ -49,7 +49,7 @@ export function updateTutorial() {
   else if (q.id === 'look' && tut.looked > 1.6) questReach('look');
   else if (q.id === 'jump' && tut.jumped && tut.sprinted) questReach('jump');
   else if (q.id === 'hall') {
-    const p = player.pos;
-    if (p.x > -17 && p.x < 17 && p.z > 1 && p.z < 30) questReach('hall');
+    // le grand hall est une salle instanciée : y être suffit (Rooms.js)
+    if (S.roomId === 'hall') questReach('hall');
   }
 }
