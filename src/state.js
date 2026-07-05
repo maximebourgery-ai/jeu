@@ -256,13 +256,20 @@ export const settings = {
   padSens: 1,        // manette Xbox/PS + manette smartphone
   invertY: false,
   deadzone: 0.2,     // zone morte des sticks analogiques
-  brightness: 1      // luminosité NOCTURNE (le jour n'en a pas besoin)
+  brightness: 1,     // luminosité NOCTURNE (le jour n'en a pas besoin)
+  /* Sorts assignés aux 5 boutons dédiés (Y/LB/RB/LT/RT sur manette,
+     colonne de boutons sur la manette tactile). null = emplacement vide.
+     L'attaque de base (X/✦) n'est pas assignable : elle reste l'attaque. */
+  slots: ['dash', 'tk', 'shield', 'frost', 'heal']
 };
 export function loadSettings() {
   try {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY));
     if (raw) Object.assign(settings, raw);
   } catch (e) { /* réglages par défaut si stockage indisponible/corrompu */ }
+  // réglages enregistrés avant l'ajout des slots (ou corrompus) : 5 emplacements requis
+  if (!Array.isArray(settings.slots) || settings.slots.length !== 5)
+    settings.slots = ['dash', 'tk', 'shield', 'frost', 'heal'];
 }
 export function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
@@ -287,7 +294,10 @@ export const S = {
   plOK: true, mDown: false, dragDist: 0,
   // gamepad / tactile
   gpSprint: false, gpJumpHeld: false, gpPrev: {}, gpDisabled: false,
-  tmJumpHeld: false, tmAttackHeld: false,
+  /* tmAttackHeld = manette smartphone (attaque du sort sélectionné, flux
+     historique cycle+attaque) · tmBoltHeld = bouton ✦ tactile (toujours
+     l'attaque de base, les autres sorts ayant leurs boutons dédiés) */
+  tmJumpHeld: false, tmAttackHeld: false, tmBoltHeld: false,
   /* Visée assistée (tactile & manette) : cible douce choisie dans le cône
      de regard (aimTarget), cible verrouillée à la main d'un simple toucher
      sur l'ennemi (aimManual, expire après aimManualT secondes), activité

@@ -1,6 +1,6 @@
 /* ---------------- UI / HUD ---------------- */
 import * as THREE from 'three';
-import { G, S, IS_TOUCH, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners } from './state.js';
+import { G, S, IS_TOUCH, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners, settings } from './state.js';
 import { A } from './Audio.js';
 import { xpNeed } from './SkillTree.js';
 import { nearInter, spawnBurst } from './World.js';
@@ -66,9 +66,16 @@ export function refreshPowers() {
     const d = $('pw-' + p.id);
     d.classList.toggle('owned', !!G.powers[p.id]);
     d.classList.toggle('sel', G.sel === p.id);
-    // boutons tactiles dédiés : n'apparaissent qu'une fois l'art appris
+  });
+  updateTouchSlots();
+}
+/* Boutons de sort tactiles (ts-*) : un bouton n'apparaît que si l'art est
+   appris ET assigné à un emplacement dans ⚙ Réglages — retirer un sort de
+   la manette le retire aussi du pouce droit, l'écran reste dégagé. */
+export function updateTouchSlots() {
+  POWERS.forEach(p => {
     const b = $('ts-' + p.id);
-    if (b) b.classList.toggle('owned', !!G.powers[p.id]);
+    if (b) b.classList.toggle('owned', !!G.powers[p.id] && settings.slots.includes(p.id));
   });
 }
 export function refreshInv() {
