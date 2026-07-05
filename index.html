@@ -216,7 +216,10 @@
   catacombes, sur le Gouffre des Morts, sur la Forêt de Nuit dont le labyrinthe se couvre de fleurs.
   Quelque part près de la fontaine, une petite lueur bleue vous murmure : « Merci, porteur de flamme. »<br/><br/>
   Ombreciel est à vous, du sommet de la Tour du Levant au fond de l'Ossuaire. Les ombres qui restent,
-  elles, n'ont plus nulle part où fuir.</p>
+  elles, n'ont plus nulle part où fuir.<br/><br/>
+  Mais sur la terrasse de la Tour du Levant, un portail doré s'est éveillé. Vingt étages. Quatre clefs.
+  Et l'on murmure que le ciel n'est pas le sommet — que la Nuit sans lune, quelque part là-haut,
+  n'a jamais fini de tomber…</p>
   <button id="btn-explore">Poursuivre l'aventure — exploration libre</button>
   <button id="btn-again">Recommencer depuis le début</button>
 </div>
@@ -225,6 +228,14 @@
   <div class="glyph">✦</div>
   <h2>LES TOURS D'OMBRECIEL</h2>
   <p class="sub" id="loading-status">Éveil des Larmes d'Aube…</p>
+</div>
+
+<!-- Écran de chargement des salles instanciées (fondu noir, voir UI.withLoading) -->
+<div id="transition" class="hidden">
+  <div class="glyph">✦</div>
+  <h2 id="trans-title">Ombreciel</h2>
+  <p class="tip" id="trans-tip"></p>
+  <div class="ldots"><span></span><span></span><span></span></div>
 </div>
 
 <script type="module" src="/src/main.js"></script>

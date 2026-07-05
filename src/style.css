@@ -157,6 +157,21 @@ canvas{display:block;touch-action:none}
 #loading .glyph{font-size:44px;color:#8fb8e8;text-shadow:0 0 26px rgba(120,180,255,.8);margin-bottom:10px}
 #loading .sub{animation:loadpulse 1.6s ease-in-out infinite}
 @keyframes loadpulse{0%,100%{opacity:.45}50%{opacity:1}}
+/* ---------- Transition de salle (fondu noir, salles instanciées) ---------- */
+#transition{position:fixed;inset:0;z-index:28;background:#04050c;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:0 24px;
+  opacity:0;transition:opacity .45s ease;pointer-events:none}
+#transition.on{opacity:1;pointer-events:auto}
+#transition.hidden{display:none}
+#transition .glyph{font-size:38px;color:#8fb8e8;text-shadow:0 0 26px rgba(120,180,255,.8);margin-bottom:12px;
+  animation:loadpulse 1.4s ease-in-out infinite}
+#transition h2{font-size:30px;letter-spacing:5px;color:#ffd97a;font-weight:normal;margin-bottom:14px}
+#transition .tip{font-size:14px;font-style:italic;color:#8892b0;max-width:560px;line-height:1.7}
+#transition .ldots{margin-top:26px;display:flex;gap:10px}
+#transition .ldots span{width:8px;height:8px;border-radius:50%;background:#ffd97a;opacity:.25;
+  animation:loadpulse 1.2s ease-in-out infinite}
+#transition .ldots span:nth-child(2){animation-delay:.2s}
+#transition .ldots span:nth-child(3){animation-delay:.4s}
 /* ---------- Voies (classes) ---------- */
 #classes{display:flex;gap:14px;margin:22px 0 4px;flex-wrap:wrap;justify-content:center}
 .classbtn{width:190px;background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:12px;padding:14px 12px;cursor:pointer;color:#e8e0cc;font-family:Georgia,serif;transition:all .18s}

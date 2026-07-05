@@ -33,7 +33,7 @@ import {
   spinners, flames, pedestals, player, p2
 } from './state.js';
 import { A } from './Audio.js';
-import { showMsg } from './UI.js';
+import { showMsg, withLoading } from './UI.js';
 import {
   mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube,
   pedestal, mkDoor, openDoor
@@ -141,7 +141,10 @@ function mkPortal(x, y, z, color, label, canOpen, lockedMsg, onEnter) {
     if (!canOpen()) { showMsg(lockedMsg(), 3.2); return; }
     A.door();
     spawnBurst(x, y + 1.8, z, color, 22);
-    onEnter();
+    /* v8 : franchir un portail passe par l'écran de chargement — la coupure
+       masque le déchargement/reconstruction du palier (même contrat que les
+       salles instanciées du château, voir UI.withLoading). */
+    withLoading(label, onEnter);
   });
   return ring;
 }
@@ -263,6 +266,9 @@ export function leaveTower(silent) {
   G.checkpoint = { x: TERRACE.x, y: TERRACE.y, z: TERRACE.z };
   if (!silent) showMsg('Le sas vous rend à la terrasse de la Tour du Levant.', 3);
 }
+/* Rebâtit un palier donné SANS fondu (le voyage rapide, déjà sous écran de
+   chargement, s'en sert pour rejoindre un bivouac de la Tour). */
+export function enterPalier(n) { gotoPalier(n); }
 function gotoPalier(n) {
   unloadPalier();
   beginBuild();
@@ -1255,7 +1261,12 @@ export function updateTower(dt) {
       }
     }
   } else if (f.kind === 'racine') {
-    if (f.vulnT > 0) f.vulnT -= dt;
+    if (f.vulnT > 0) {
+      f.vulnT -= dt;
+      // la sève embrasée goutte : la fenêtre de vulnérabilité se voit aussi
+      if (Math.random() < dt * 7)
+        spawnBurst(bp.x + (Math.random() - 0.5) * 1.6, bp.y + 0.8, bp.z + (Math.random() - 0.5) * 1.6, 0x9fffb0, 2);
+    }
     boss.cloakMat.emissive.setHex(f.vulnT > 0 ? 0x2a6a2a : 0x0d0820);
     f.spikeT -= dt;
     if (f.spikeT <= 0 && dP < 16 && sameY) {
@@ -1355,7 +1366,12 @@ export function updateTower(dt) {
        dévorant radial, crocs de nuit télégraphiés, Échos recrachés, et une
        gueulée de zone façon Chevalier quand on colle. Sous 50 % de PV, la
        bête s'enrage : tout s'accélère. */
-    if (f.veilT > 0) f.veilT -= dt;
+    if (f.veilT > 0) {
+      f.veilT -= dt;
+      /* le voile déchiré SAIGNE de lumière : la fenêtre de dégâts se voit */
+      if (Math.random() < dt * 9)
+        spawnBurst(bp.x + (Math.random() - 0.5) * 2, bp.y + 0.6 + Math.random() * 1.6, bp.z + (Math.random() - 0.5) * 2, 0xffd97a, 2);
+    }
     boss.cloakMat.emissive.setHex(f.veilT > 0 ? 0x8a6a2a : 0x08041a);
     if (f.state === 'IDLE') {
       if (dP < 15 && sameY) {
