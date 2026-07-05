@@ -23,6 +23,11 @@ export function saveGame(silent) {
       powers: G.powers, sel: G.sel,
       crystals: G.crystals, goldKey: G.goldKey, items: G.items,
       herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
+      /* v8 : butin par archétype, consommables du sac, boosts forgés, guide */
+      feathers: G.feathers, bones: G.bones, threads: G.threads,
+      nightHearts: G.nightHearts, potions: G.potions,
+      forgeHp: G.forgeHp, forgeMana: G.forgeMana, nightSeals: G.nightSeals,
+      seen: G.seen,
       hasWings: G.hasWings, upgrades: G.upgrades,
       checkpoint: inTw ? TER : G.checkpoint,
       /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
@@ -58,6 +63,10 @@ export function loadGame() {
   G.crystals = s.crystals || 0; G.goldKey = !!s.goldKey;
   if (Array.isArray(s.items)) G.items = s.items;
   G.herbs = s.herbs || 0; G.shadows = s.shadows || 0; G.orbes = s.orbes || 0;
+  G.feathers = s.feathers || 0; G.bones = s.bones || 0; G.threads = s.threads || 0;
+  G.nightHearts = s.nightHearts || 0; G.potions = s.potions || 0;
+  G.forgeHp = s.forgeHp || 0; G.forgeMana = s.forgeMana || 0; G.nightSeals = s.nightSeals || 0;
+  G.seen = s.seen || {};
   G.hasWings = !!s.hasWings; Object.assign(G.upgrades, s.upgrades || {});
   // v7.1 : Ascension de la Tour + bivouacs découverts (fusion tolérante)
   if (s.tower) {

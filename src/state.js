@@ -19,6 +19,17 @@ export const G = {
   crystals: 0, goldKey: false,
   items: ['Bâton de noviciat'],
   path: 'mage', herbs: 0, shadows: 0, orbes: 0, hasWings: false,
+  /* Butin différencié par archétype d'ombre (voir killEnemy, Enemies.js) :
+     plumes (Traqueurs), os (Colosses), fils (Tisseurs) — et le Cœur de nuit,
+     ressource RARE qui forge les plus gros boosts du jeu. */
+  feathers: 0, bones: 0, threads: 0, nightHearts: 0,
+  /* Consommables gardés dans le sac (fabriqués à l'avance, bus quand on veut) */
+  potions: 0, buffSpeedT: 0,
+  /* Boosts permanents forgés au sac (plafonnés, voir RECIPES/Crafting.js) */
+  forgeHp: 0, forgeMana: 0, nightSeals: 0,
+  /* Guide du porteur : chaque découverte (ressource, arbre, bivouac...) ouvre
+     UNE FOIS une page d'explication qui met le jeu en pause (voir guide, Quests.js) */
+  seen: {},
   xp: 0, level: 1, sp: 0, nodes: {}, treeOpen: false, openWorld: false,
   furyT: 0, hasteT: 0, comboN: 0, comboT: 0,
   rage: 0, maxRage: 100, // jauge de rage du Guerrier (voir Powers.js / UI.js)
@@ -238,9 +249,9 @@ export const gpMove = { x: 0, z: 0 };
 export const tmMove = { x: 0, z: 0 };
 
 export const STEP_HEIGHT = 0.62; // hauteur de rebord franchissable automatiquement (marche/mantle)
-/* v7 : refonte totale des niveaux (le monde, les portes et les objets ont
-   changé de place — les sauvegardes v6 seraient incohérentes, on repart). */
-export const SAVE_KEY = 'ombreciel_save_v7';
+/* v8 : butin par archétype, sac-atelier, guide du porteur, bivouacs raréfiés
+   (les index de pickups/interactions ont changé — on repart des v7). */
+export const SAVE_KEY = 'ombreciel_save_v8';
 
 /* ---- Réglages joueur (visée, luminosité) — persistés indépendamment de la
    sauvegarde de partie, façon menu Options d'un FPS (sensibilité, zone

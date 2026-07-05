@@ -5,7 +5,7 @@
    ================================================================ */
 import { G, S, IS_TOUCH, POWERS, keys, p2, tut, gpMove, tmMove, settings, saveSettings } from './state.js';
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, refreshInv, closeTravel, updateTouchSlots } from './UI.js';
+import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
@@ -33,11 +33,12 @@ export function initControls() {
     if (e.code === 'Escape' && !document.pointerLockElement) {
       if (G.travelOpen) { closeTravel(); return; }
       if (G.treeOpen) { toggleTree(); return; }
+      if (G.inv) { toggleInv(); return; }
       G.paused = !G.paused;
       $('pause').classList.toggle('hidden', !G.paused);
       return;
     }
-    if (e.code === 'Tab' && !G.paused) { G.inv = !G.inv; refreshInv(); $('inv').classList.toggle('hidden', !G.inv); }
+    if (e.code === 'Tab' && !G.paused) toggleInv();
     if (/^Digit[1-6]$/.test(e.code)) {
       const p = POWERS[+e.code.slice(5) - 1];
       if (G.powers[p.id]) { G.sel = p.id; refreshPowers(); showMsg(p.name + ' préparé.', 1); }
@@ -71,7 +72,7 @@ export function initControls() {
   addEventListener('mousedown', e => {
     if (!G.started || G.over) return;
     if (G.dialog) { dlgNext(); return; }
-    if (G.paused || G.treeOpen || G.travelOpen) return;
+    if (G.paused || G.inv || G.treeOpen || G.travelOpen) return; // clics réservés aux boutons de ces panneaux
     if (IS_TOUCH) return; // sur mobile, l'attaque passe par le bouton tactile
     if (document.pointerLockElement) {
       if (e.button === 0 && !G.inv) castPower();
@@ -89,7 +90,7 @@ export function initControls() {
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.treeOpen && !G.travelOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -98,6 +99,7 @@ export function initControls() {
     showMsg('🎮 Manette détectée : ' + e.gamepad.id.slice(0, 40), 3);
   });
   $('btn-travelclose').addEventListener('click', closeTravel);
+  $('btn-invclose').addEventListener('click', () => { if (G.inv) toggleInv(); });
 }
 
 /* ================================================================
@@ -281,11 +283,8 @@ export function setupTouch() {
      Assignation dans ⚙ Réglages ; masqués tant que le sort n'est pas appris
      (voir updateTouchSlots, UI.js) pour ne pas surcharger l'écran. */
   for (let i = 0; i < 5; i++) bind('t-s' + (i + 2), () => { if (!G.dialog && !G.paused) castSlot(i); });
-  bind('t-craft', () => $('craftpanel').classList.toggle('hidden'));
+  bind('t-craft', () => toggleInv()); // 🎒 : le sac-atelier (met le jeu en pause)
   bind('t-tree', () => toggleTree());
-  bind('cr-h', () => craftAction('H'));
-  bind('cr-o', () => craftAction('O'));
-  bind('cr-c', () => craftAction('C'));
   bind('t-pause', () => {
     if (!G.started || G.over || G.dialog) return;
     G.paused = !G.paused;

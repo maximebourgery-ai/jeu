@@ -29,6 +29,20 @@ export function openTravel(fromCamp) {
   $('travel').classList.remove('hidden');
   if (document.exitPointerLock) document.exitPointerLock();
 }
+/* Ouvre/ferme le sac-atelier : le monde se fige (voir loop, main.js), la
+   souris est libérée pour cliquer les boutons, puis re-capturée en sortie. */
+export function toggleInv() {
+  if (!G.started || G.over || G.dialog || G.paused) return;
+  G.inv = !G.inv;
+  if (G.inv) {
+    refreshInv();
+    if (document.exitPointerLock) document.exitPointerLock();
+  } else if (!G.treeOpen && !G.travelOpen) {
+    lockPointer();
+  }
+  $('inv').classList.toggle('hidden', !G.inv);
+}
+
 export function closeTravel() {
   if (!G.travelOpen) return;
   G.travelOpen = false;
@@ -79,14 +93,35 @@ export function updateTouchSlots() {
     if (pw) el.textContent = pw.icon;
   }
 }
+/* ---------------- LE SAC-ATELIER (Tab — met le jeu en pause) ----------------
+   Quatre volets : ressources (avec leur provenance), consommables à boire,
+   fabrication (toutes les recettes, boutons grisés si coût non couvert),
+   et objets/clefs. Fabriquer NE consomme plus à l'aveugle : les potions se
+   gardent et se boivent quand le joueur le décide. */
+/* cycle sûr UI ↔ Crafting : module pré-chargé au démarrage via import()
+   différé, puis rafraîchissements SYNCHRONES (les boutons du sac ne bougent
+   jamais sous le curseur au moment d'un clic). */
+let CraftMod = null;
+import('./Crafting.js').then(m => { CraftMod = m; });
 export function refreshInv() {
-  const ul = $('invlist'); ul.innerHTML = '';
-  const rows = [];
-  rows.push('Voie : ' + PATHS[G.path].name);
-  rows.push('Larmes d\'Aube : ' + G.crystals + ' / 3');
-  rows.push('Herbes lunaires : ' + G.herbs + '  (H : potion, 2 herbes = +30 PV)');
-  rows.push('Essences d\'ombre : ' + G.shadows + '  (O : 3 essences = 1 orbe)');
-  rows.push('Orbes d\'obscurité : ' + G.orbes + '  (C : transcender)');
+  if (CraftMod) buildInvHTML(CraftMod);
+  else import('./Crafting.js').then(m => { CraftMod = m; buildInvHTML(m); });
+}
+function buildInvHTML(C) {
+  const box = $('invbody'); if (!box) return;
+  let h = '';
+  h += '<div class="invcol">';
+  h += '<div class="invsec">RESSOURCES <small>— qui lâche quoi</small></div>';
+  for (const k of ['herbs', 'shadows', 'orbes', 'feathers', 'bones', 'threads', 'nightHearts']) {
+    const r = C.RES[k];
+    h += '<div class="invres' + (k === 'nightHearts' ? ' rare' : '') + '"><span class="ri">' + r.icon + '</span><b>' + (G[k] || 0) + '</b> ' + r.name
+      + '<small>' + r.src + '</small></div>';
+  }
+  h += '<div class="invsec">CONSOMMABLES</div>';
+  h += '<div class="invres"><span class="ri">🧪</span><b>' + G.potions + '</b> Potion lunaire <button class="invuse" data-use="potion"' + (G.potions > 0 ? '' : ' disabled') + '>Boire (+50 PV)</button></div>';
+  if (G.buffSpeedT > 0) h += '<div class="invres"><span class="ri">➶</span>Élixir du Traqueur actif — ' + Math.ceil(G.buffSpeedT) + ' s</div>';
+  h += '<div class="invsec">OBJETS & CLEFS</div><ul class="invitems">';
+  const rows = ['Voie : ' + PATHS[G.path].name, 'Larmes d\'Aube : ' + G.crystals + ' / 3'];
   if (G.goldKey) rows.push('Clef d\'or de la salle du trône');
   if (G.tower.keys.copper) rows.push('Clef de Cuivre — Ascension, Palier I');
   if (G.tower.keys.sap) rows.push('Clef de Sève — Ascension, Palier II');
@@ -94,7 +129,23 @@ export function refreshInv() {
   if (G.tower.aura) rows.push('Aura du Premier Foyer (+15 % dégâts, régénération)');
   POWERS.forEach(p => { if (G.powers[p.id]) rows.push('Sort — ' + p.name); });
   G.items.forEach(i => rows.push(i));
-  rows.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+  rows.forEach(r => { h += '<li>' + r + '</li>'; });
+  h += '</ul></div>';
+  h += '<div class="invcol">';
+  h += '<div class="invsec">FABRICATION <small>— le jeu est en pause, prenez votre temps</small></div>';
+  for (const r of C.RECIPES) {
+    const done = (r.id === 'transcend' || r.id === 'ailes') ? C.craftCount(r.id) >= 1 : (r.max && C.craftCount(r.id) >= r.max);
+    const ok = C.canCraft(r);
+    h += '<div class="recipe' + (done ? ' done' : ok ? ' ok' : '') + '">'
+      + '<div class="rn">' + r.icon + ' ' + r.name + (r.max ? ' <em>' + C.craftCount(r.id) + '/' + r.max + '</em>' : '') + (done ? ' ✓' : '') + '</div>'
+      + '<div class="rd">' + r.desc + '</div>'
+      + '<div class="rc">' + (done ? 'Forgé' : C.costText(r)) + (done ? '' : ' <button class="invcraft" data-craft="' + r.id + '"' + (ok ? '' : ' disabled') + '>Fabriquer</button>') + '</div>'
+      + '</div>';
+  }
+  h += '</div>';
+  box.innerHTML = h;
+  box.querySelectorAll('[data-craft]').forEach(b => b.addEventListener('click', () => C.craftRecipe(b.dataset.craft)));
+  box.querySelectorAll('[data-use]').forEach(b => b.addEventListener('click', () => C.usePotion()));
 }
 
 /* ---------------- BARRES DE VIE DES ENNEMIS ---------------- */
@@ -150,7 +201,7 @@ export function updateHUD(dt) {
     rb.classList.toggle('full', full);
   }
   $('lvltxt').innerHTML = 'Niveau <b>' + G.level + '</b> — ' + PATHS[G.path].name + (G.sp > 0 ? ' · <b>' + G.sp + ' point' + (G.sp > 1 ? 's' : '') + ' de pouvoir (K / ✥)</b>' : '');
-  $('crystals').textContent = '✦ ' + G.crystals + '/3  ☘' + G.herbs + '  ●' + G.shadows + '  ◉' + G.orbes;
+  $('crystals').textContent = '✦ ' + G.crystals + '/3  ☘' + G.herbs + '  ●' + G.shadows + '  ◉' + G.orbes + (G.potions ? '  🧪' + G.potions : '');
   if (S.COOP) {
     $('hp2fill').style.width = Math.max(0, p2.hp / p2.maxHp * 100) + '%';
     $('mp2fill').style.width = Math.max(0, p2.mana / p2.maxMana * 100) + '%';
