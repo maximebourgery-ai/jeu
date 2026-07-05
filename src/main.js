@@ -9,7 +9,7 @@ import { G, S, CTRL_ID, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, pla
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, setCamAspects, buildWorld, buildHerbs, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
+import { initScene, setCamAspects, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
 import { updateDayNight } from './DayNight.js';
 import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
@@ -209,6 +209,9 @@ async function initGame() {
      pour souffler, forger et dépenser ses points. Ajouté EN DERNIER pour ne
      pas décaler les index d'interactions des sauvegardes existantes. */
   bivouac(-3.5, 0, 57, 'la fontaine des Jardins', 'fontaine');
+  /* Patrouilles v8.1 : ajoutées APRÈS tout le reste (comme le bivouac
+     ci-dessus) pour préserver les index d'ennemis des sauvegardes. */
+  buildExtraPatrols();
   S.BASE_PICKUPS = pickups.length;   // référence stable pour la sauvegarde
   S.STATIC_ENEMIES = enemies.length; // les renforts dynamiques ne sont pas sauvegardés
   updateDayNight(0); // pose l'éclairage/ciel du matin avant la première frame

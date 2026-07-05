@@ -116,39 +116,43 @@ export function applyPath(id) {
    · brute    → COLOSSE   : très lent, dévastateur (masse rouge sombre, yeux braise)
    · wraith   → TRAQUEUR  : ultra-rapide, fragile (silhouette fine verte, yeux acides)
    · caster   → TISSEUR   : rare, projectiles hostiles à distance (inchangé) */
-/* v7.4 — les ombres du début mordent un peu plus fort (PV et dégâts de
-   base +10~15 %) : le tutoriel reste clément (voir les stats dédiées des
-   ombres 'garden' dans World.js) mais dès le grand hall, baisser sa garde
-   se paie. La courbe par niveau (mul/dmul dans Enemies.js) est inchangée. */
+/* v8.1 — PV de base relevés de ~50 % sur toute la ligne : plus aucune ombre
+   « standard » ne tombe d'un seul coup à niveau égal (même le Traqueur, le
+   plus fragile, encaisse désormais la Frappe lourde du Guerrier). Le
+   tutoriel reste clément (stats dédiées des ombres 'garden', World.js).
+   La courbe par niveau (mul/dmul dans Enemies.js) est inchangée. */
 export const ETYPES = {
-  sentinel: { name: 'Ombre',    hp: 34,  dmg: 14, speed: 2.2,  chase: 4.6, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
-  wraith:   { name: 'Traqueur', hp: 19,  dmg: 9,  speed: 3.9,  chase: 7.8, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
-  brute:    { name: 'Colosse',  hp: 118, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
-  caster:   { name: 'Tisseur',  hp: 30,  dmg: 15, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
+  sentinel: { name: 'Ombre',    hp: 52,  dmg: 14, speed: 2.2,  chase: 4.6, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
+  wraith:   { name: 'Traqueur', hp: 36,  dmg: 9,  speed: 3.9,  chase: 7.8, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
+  brute:    { name: 'Colosse',  hp: 165, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
+  caster:   { name: 'Tisseur',  hp: 46,  dmg: 15, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
   /* v8 — l'Outre-Ciel (étages 16-20 de l'Ascension) : trois archétypes de fin
      de partie, plus forts que tout ce que le château connaît.
      · seraph   → SÉRAPHIN DÉCHU  : garde ailée du Berger, bordées à distance
      · echo     → ÉCHO DE L'AUBE  : la vitesse faite ombre, cœur incandescent
      · obsidian → TITAN D'OBSIDIENNE : muraille de roche en fusion, très lent */
-  seraph:   { name: 'Séraphin déchu',     hp: 44,  dmg: 9,  speed: 2.4,  chase: 4.8, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
-  echo:     { name: 'Écho de l\'Aube',    hp: 26,  dmg: 7,  speed: 4.4,  chase: 8.6, scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
-  obsidian: { name: 'Titan d\'obsidienne', hp: 130, dmg: 13, speed: 1.05, chase: 2.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
+  seraph:   { name: 'Séraphin déchu',     hp: 66,  dmg: 9,  speed: 2.4,  chase: 4.8, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
+  echo:     { name: 'Écho de l\'Aube',    hp: 42,  dmg: 7,  speed: 4.4,  chase: 8.6, scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
+  obsidian: { name: 'Titan d\'obsidienne', hp: 185, dmg: 13, speed: 1.05, chase: 2.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
 /* Les zones marquées `room` vivent dans une SALLE INSTANCIÉE (site x -400,
    voir Rooms.js) : le directeur n'y invoque des renforts que si la salle
    correspondante est chargée (S.roomId). Les coordonnées sont celles du
-   site d'instance. Les zones sans `room` exigent d'être en monde ouvert. */
+   site d'instance. Les zones sans `room` exigent d'être en monde ouvert.
+   v8.1 (fusion combat) : caps relevés d'un cran dans le château — les
+   salles se vidaient trop vite, certaines étaient des couloirs sans
+   opposition. */
 export const ZONES = [
-  { id: 'jardins',   name: 'Jardins du Crépuscule', x: 0,   z: 54,  y: 0,   r: 28, lvl: 1,  cap: 3, types: ['sentinel', 'sentinel', 'wraith'] },
-  { id: 'parvis',    name: 'Parvis du Levant',      x: 55,  z: 60,  y: 0,   r: 18, lvl: 3,  cap: 3, types: ['sentinel', 'wraith'] },
-  { id: 'hall',      name: 'Grand hall',            room: 'hall',   x: -400, z: 0,   y: 0, r: 30, lvl: 2,  cap: 3, types: ['sentinel', 'wraith'] },
-  { id: 'biblio',    name: 'Bibliothèque',          room: 'biblio', x: -400, z: 0,   y: 0, r: 32, lvl: 2,  cap: 3, types: ['sentinel', 'wraith', 'caster'] },
-  { id: 'aile',      name: 'Aile est',              room: 'aile',   x: -400, z: 0,   y: 0, r: 32, lvl: 3,  cap: 3, types: ['sentinel', 'brute'] },
-  { id: 'gardes',    name: 'Salle des gardes',      room: 'cata',   x: -400, z: 14,  y: 0, r: 17, lvl: 4,  cap: 4, types: ['sentinel', 'brute', 'caster'] },
+  { id: 'jardins',   name: 'Jardins du Crépuscule', x: 0,   z: 54,  y: 0,   r: 28, lvl: 1,  cap: 4, types: ['sentinel', 'sentinel', 'wraith'] },
+  { id: 'parvis',    name: 'Parvis du Levant',      x: 55,  z: 60,  y: 0,   r: 18, lvl: 3,  cap: 4, types: ['sentinel', 'wraith'] },
+  { id: 'hall',      name: 'Grand hall',            room: 'hall',   x: -400, z: 0,   y: 0, r: 30, lvl: 2,  cap: 4, types: ['sentinel', 'wraith'] },
+  { id: 'biblio',    name: 'Bibliothèque',          room: 'biblio', x: -400, z: 0,   y: 0, r: 32, lvl: 2,  cap: 4, types: ['sentinel', 'wraith', 'caster'] },
+  { id: 'aile',      name: 'Aile est',              room: 'aile',   x: -400, z: 0,   y: 0, r: 32, lvl: 3,  cap: 4, types: ['sentinel', 'brute'] },
+  { id: 'gardes',    name: 'Salle des gardes',      room: 'cata',   x: -400, z: 14,  y: 0, r: 17, lvl: 4,  cap: 5, types: ['sentinel', 'brute', 'caster'] },
   { id: 'ossuaire',  name: 'Ossuaire',              room: 'cata',   x: -400, z: -26, y: 0, r: 26, lvl: 5,  cap: 5, types: ['wraith', 'sentinel', 'caster'] },
-  { id: 'gouffre',   name: 'Gouffre des Morts',     room: 'cata',   x: -368, z: 14,  y: 0, r: 18, lvl: 5,  cap: 3, types: ['sentinel', 'caster'] },
-  { id: 'trone',     name: 'Salle du trône',        room: 'trone',  x: -400, z: 0,   y: 0, r: 26, lvl: 6,  cap: 4, types: ['brute', 'caster', 'wraith'] },
+  { id: 'gouffre',   name: 'Gouffre des Morts',     room: 'cata',   x: -368, z: 14,  y: 0, r: 18, lvl: 5,  cap: 4, types: ['sentinel', 'caster'] },
+  { id: 'trone',     name: 'Salle du trône',        room: 'trone',  x: -400, z: 0,   y: 0, r: 26, lvl: 6,  cap: 5, types: ['brute', 'caster', 'wraith'] },
   { id: 'ruines',    name: 'Ruines des Terres Perdues', x: 0, z: -38, y: 0, r: 20, lvl: 7,  cap: 5, types: ['sentinel', 'brute', 'caster'] },
   { id: 'foret',     name: 'Forêt de Nuit',         x: 0,   z: -70, y: 0,   r: 30, lvl: 8,  cap: 6, types: ['wraith', 'sentinel', 'wraith', 'caster'] },
   { id: 'clairiere', name: 'Clairière du Cœur',     x: 0,   z: -95, y: 0,   r: 12, lvl: 10, cap: 4, types: ['brute', 'caster', 'wraith'] }
