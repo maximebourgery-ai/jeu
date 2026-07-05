@@ -513,6 +513,7 @@ export function hurt(d, src) {
   player.invuln = 0.5;
   if (G.path === 'paladin' && hasN('p_guard')) d = Math.round(d * 0.75); // Peau de pierre
   G.hp -= d; G.vig = 1;
+  G.comboHits = 0; G.comboHitT = 0; // encaisser un coup brise l'enchaînement
   gainRage(d * 0.5); // Guerrier : la douleur nourrit la rage (+50 % des dégâts subis)
   if (G.path === 'paladin' && hasN('p_retal') && src) {
     // Représailles : un éclat d'aube blesse les ombres proches
@@ -566,8 +567,9 @@ export function hurtP2(d, src) {
 export function healSelf(pl) {
   pl = pl || player;
   A.pickup();
-  if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + 40);
-  else G.hp = Math.min(G.maxHp, G.hp + 40);
+  const heal = 40 + 12 * (G.pupg.heal || 0); // Forge des Arts : rangs de Bénédiction
+  if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + heal);
+  else G.hp = Math.min(G.maxHp, G.hp + heal);
   spawnBurst(pl.pos.x, pl.pos.y + 1.2, pl.pos.z, 0x9fffb0, 16);
   // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction,
   // quel que soit le porteur de flamme qui la lance

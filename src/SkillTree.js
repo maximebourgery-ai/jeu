@@ -1,5 +1,5 @@
 /* ---------------- XP, NIVEAUX & ARBRE DES POUVOIRS ---------------- */
-import { G, S, IS_TOUCH, PATHS, TREE_COMMON, TREES, player } from './state.js';
+import { G, S, IS_TOUCH, PATHS, TREE_COMMON, TREES, POWERS, PUPG, player } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg } from './UI.js';
 import { spawnBurst } from './World.js';
@@ -11,6 +11,7 @@ export function gainXP(n) {
   let up = false;
   while (G.xp >= xpNeed(G.level)) {
     G.xp -= xpNeed(G.level); G.level++; G.sp++; up = true;
+    G.shards++; // Forge des Arts : 1 Éclat de puissance par niveau gagné
     G.maxHp += 8; G.maxMana += 6;
     G.hp = Math.min(G.maxHp, G.hp + Math.round(G.maxHp * 0.4));
     G.mana = G.maxMana;
@@ -18,7 +19,7 @@ export function gainXP(n) {
   if (up) {
     A.power();
     spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, 0xffd97a, 26);
-    showMsg('✧ NIVEAU ' + G.level + ' ! +1 point de pouvoir — K (ou ✥) : arbre des pouvoirs.', 4);
+    showMsg('✧ NIVEAU ' + G.level + ' ! +1 point de pouvoir, +1 Éclat de puissance — K (ou ✥) : arbre & Forge des Arts.', 4);
     if (G.treeOpen) buildTreeUI();
   }
 }
@@ -63,7 +64,22 @@ export function classAtk(path) {
   if (G.upgrades.boltAoE) P.aoe = true; // Transcendance (artisanat) : compatible
   // Aura du Premier Foyer (Observatoire de l'Aube) : +15 % de dégâts, toutes voies
   if (G.tower && G.tower.aura) P.dmg = Math.round(P.dmg * 1.15);
+  // Forge des Arts : chaque rang forgé de l'attaque principale = +10 % de dégâts
+  P.dmg = Math.round(P.dmg * (1 + 0.10 * (G.pupg.bolt || 0)));
   return P;
+}
+/* ---- Forge des Arts : dépenser un Éclat de puissance pour forger un rang ---- */
+export function upgradePower(id) {
+  const U = PUPG[id]; if (!U) return;
+  if (!G.powers[id]) { showMsg('Cet art sommeille encore quelque part dans Ombreciel...', 2.2); return; }
+  const cur = G.pupg[id] || 0;
+  if (cur >= U.max) return;
+  if (G.shards < 1) { showMsg('Aucun Éclat de puissance. Gagnez un niveau pour en forger un.', 2.4); return; }
+  G.shards--; G.pupg[id] = cur + 1; A.power();
+  const pw = POWERS.find(p => p.id === id);
+  spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, 0x8feaff, 18);
+  showMsg('✧ ' + (id === 'bolt' ? PATHS[G.path].boltName : pw.name) + ' — rang ' + (cur + 1) + ' forgé !', 2.4);
+  buildTreeUI();
 }
 export function nodeById(id) {
   const all = [TREE_COMMON].concat(TREES[G.path] || []);
@@ -104,9 +120,24 @@ export function buildTreeUI() {
     }
     h += '</div></div>';
   }
+  /* ---- Forge des Arts : l'AUTRE voie de puissance (Éclats de niveau) ---- */
+  h += '<div class="tbranch"><div class="bt">⚒ FORGE DES ARTS — Éclats de puissance : <b>'
+    + G.shards + '</b> <small>(1 Éclat par niveau gagné · 1 Éclat par rang)</small></div><div class="tnodes">';
+  for (const id in PUPG) {
+    const U = PUPG[id], pw = POWERS.find(p => p.id === id);
+    const cur = G.pupg[id] || 0, owned = !!G.powers[id], maxed = cur >= U.max;
+    const stars = '◆'.repeat(cur) + '◇'.repeat(U.max - cur);
+    h += '<div class="tnode ' + (!owned ? 'locked' : maxed ? 'owned' : (G.shards > 0 ? 'buyable' : '')) + '" data-upg="' + id + '">'
+      + '<div class="tn">' + pw.icon + ' ' + (id === 'bolt' ? PATHS[G.path].boltName : pw.name)
+      + ' <span class="stars">' + stars + '</span></div>'
+      + '<div class="td">' + U.desc + '</div>'
+      + '<div class="tr">' + (!owned ? 'Art non encore appris' : maxed ? 'Rang maximal atteint' : 'Forger le rang ' + (cur + 1) + ' · 1 Éclat') + '</div></div>';
+  }
+  h += '</div></div>';
   h += '<button id="treeclose">Fermer (K)</button>';
   t.innerHTML = h;
-  t.querySelectorAll('.tnode').forEach(el => el.addEventListener('click', () => buyNode(el.dataset.node)));
+  t.querySelectorAll('.tnode[data-node]').forEach(el => el.addEventListener('click', () => buyNode(el.dataset.node)));
+  t.querySelectorAll('.tnode[data-upg]').forEach(el => el.addEventListener('click', () => upgradePower(el.dataset.upg)));
   const bc = t.querySelector('#treeclose');
   if (bc) bc.addEventListener('click', toggleTree);
 }
@@ -125,4 +156,6 @@ export function updateBuffs(dt) {
   if (G.furyT > 0) G.furyT -= dt;
   if (G.hasteT > 0) G.hasteT -= dt;
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.comboN = 0; }
+  // fenêtre de l'enchaînement universel : 2,2 s sans coup au but = combo brisé
+  if (G.comboHitT > 0) { G.comboHitT -= dt; if (G.comboHitT <= 0) G.comboHits = 0; }
 }

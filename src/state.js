@@ -21,6 +21,13 @@ export const G = {
   path: 'mage', herbs: 0, shadows: 0, orbes: 0, hasWings: false,
   xp: 0, level: 1, sp: 0, nodes: {}, treeOpen: false, openWorld: false,
   furyT: 0, hasteT: 0, comboN: 0, comboT: 0,
+  /* Enchaînement universel : chaque coup au but (toutes voies) empile le
+     combo tant qu'on ne reste pas 2,2 s sans toucher — et encaisser un coup
+     le brise. Bonus de dégâts +5 %/coup (plafonné à +40 %). */
+  comboHits: 0, comboHitT: 0,
+  /* Forge des Arts : 1 Éclat de puissance par niveau gagné, à dépenser pour
+     forger des rangs d'amélioration de chaque sort (voir PUPG / SkillTree). */
+  shards: 0, pupg: { bolt: 0, dash: 0, shield: 0, frost: 0, heal: 0 },
   rage: 0, maxRage: 100, // jauge de rage du Guerrier (voir Powers.js / UI.js)
   upgrades: { boltAoE: false }, firstPerson: false,
   checkpoint: { x: 0, y: 0.2, z: 60 },
@@ -161,6 +168,18 @@ export const POWERS = [
   { id: 'frost',  icon: '❄', name: 'Souffle glacé', cost: 22, cool: 3.2 },
   { id: 'heal',   icon: '✚', name: 'Bénédiction',   cost: 38, cool: 9 }
 ];
+
+/* ---- Forge des Arts : rangs d'amélioration des sorts (Éclats de puissance).
+   L'AUTRE façon de devenir puissant, en parallèle de l'arbre des pouvoirs :
+   chaque niveau gagné forge 1 Éclat, chaque rang coûte 1 Éclat (5 rangs max
+   par art → impossible de tout maximiser en une partie : il faut choisir). ---- */
+export const PUPG = {
+  bolt:   { max: 5, desc: '+10 % de dégâts de l\'attaque principale par rang.' },
+  dash:   { max: 5, desc: 'Récupération du Pas du vent réduite de 7 % par rang.' },
+  shield: { max: 5, desc: 'Égide : +0,8 s de protection par rang.' },
+  frost:  { max: 5, desc: 'Souffle glacé : +18 % de dégâts et zone +0,5 m par rang.' },
+  heal:   { max: 5, desc: 'Bénédiction : +12 PV rendus par rang.' }
+};
 
 /* ---- Coop écran scindé : joueur 2 (manette) ---- */
 export const p2 = {

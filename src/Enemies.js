@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, zoneSeen } from './state.js';
 import { A } from './Audio.js';
-import { showMsg } from './UI.js';
+import { showMsg, dmgText } from './UI.js';
 import { spawnBurst, addPickup, pointSolid, openDoor, safeZoneAt } from './World.js';
 import { glow } from './AssetManager.js';
 import { gainXP, hasN } from './SkillTree.js';
@@ -15,7 +15,16 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   opt = opt || {};
   const T = ETYPES[opt.type || 'sentinel'] || ETYPES.sentinel;
   const lvl = opt.lvl || 1;
-  const s = opt.scale || T.scale || 1;
+  /* Variété des silhouettes : chaque ombre « standard » naît avec sa propre
+     carrure (±15 %, les grandes sont plus coriaces) et les renforts peuvent
+     naître ALPHA — géants dorés, 2× plus durs, 2,5× plus généreux en XP.
+     Les boss et ennemis calibrés à la main (opt.hp / opt.scale) sont exclus. */
+  let sizeK = 1, elite = false;
+  if (!opt.hp && !opt.scale) {
+    sizeK = 0.85 + Math.random() * 0.3;
+    if (opt.dyn && lvl >= 2 && Math.random() < 0.14) elite = true;
+  }
+  const s = (opt.scale || T.scale || 1) * sizeK * (elite ? 1.35 : 1);
   const g = new THREE.Group();
   const cloakMat = new THREE.MeshStandardMaterial({
     color: opt.color || T.color, roughness: 1, emissive: 0x0d0820 });
@@ -59,6 +68,16 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     shard.add(glow(T.eye || 0xff8a5a, 1.1 * s, 0.6));
     g.add(shard);
   }
+  if (elite) {
+    // Couronne d'épines de l'Alpha : la menace se lit de loin
+    for (let i = 0; i < 3; i++) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07 * s, 0.36 * s, 5), cloakMat);
+      spike.position.set((i - 1) * 0.17 * s, 0.95 * s, 0);
+      spike.rotation.z = (1 - i) * 0.5;
+      g.add(spike);
+    }
+    g.add(glow(0xffd97a, 2.8 * s, 0.35));
+  }
   const halo = glow(LVL_HALO[Math.min(lvl - 1, LVL_HALO.length - 1)], 2.2 * s, 0.3);
   g.add(halo);
   g.position.set(x, floorY + 0.95, z);
@@ -69,15 +88,16 @@ export function mkEnemy(x, z, floorY, wps, opt) {
      que la fin de partie reste dure sans one-shots injustes. */
   const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.22 * (lvl - 1);
   /* opt.hpMul : les renforts invoqués la nuit sont plus coriaces (directeur) */
-  const hp0 = opt.hp || Math.round(T.hp * mul * (opt.hpMul || 1));
+  const hp0 = opt.hp || Math.round(T.hp * mul * (opt.hpMul || 1) * sizeK * (elite ? 2.2 : 1));
   const en = {
     g, cloakMat, charMats, mixer, floorY, wps, wi: 0, state: 'patrol',
-    hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul),
+    hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul * (elite ? 1.35 : 1)),
     speed: opt.speed || T.speed, chaseSpeed: opt.chase || T.chase,
-    atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '',
+    atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '', elite,
     spawn: { x, z }, alerted: false,
     lvl: lvl, ranged: !!T.ranged, shot: 1.2, windup: false, stunT: 0, dotT: 0, dotDps: 0, dotCol: 0, dyn: !!opt.dyn,
-    xp: Math.round((T.xp || 12) * (1 + 0.5 * (lvl - 1))), tKey: opt.type || 'sentinel', tName: T.name
+    xp: Math.round((T.xp || 12) * (1 + 0.5 * (lvl - 1)) * (elite ? 2.5 : 1)),
+    tKey: opt.type || 'sentinel', tName: elite ? T.name + ' Alpha' : T.name
   };
   enemies.push(en);
   return en;
@@ -190,16 +210,23 @@ export function updateEnemies(dt) {
     setCharEmissive(e, e.hitT > 0 ? 0x992233 : null);
   }
 }
-export function damageEnemy(e, d, knock) {
+export function damageEnemy(e, d, knock, opts) {
   if (e.dead) return;
   /* Hitboxes asymétriques des Maîtres d'Étage : le boss peut moduler les
      dégâts selon son état (armure de face, os exposés dans le dos, fenêtre
      de vulnérabilité...) — voir les contrôleurs FSM dans Tower.js. */
   if (e.onDamaged) d = e.onDamaged(d, knock);
   e.hp -= d; e.hitT = 0.15;
+  /* Chiffres de dégâts : petit nombre au point d'impact, doré et grossi sur
+     critique, avec son étiquette (« DANS LE DOS ! », « EN PLEINE TÊTE ! »). */
+  const crit = opts && opts.crit;
+  dmgText(e.g.position.x, e.g.position.y + 0.9 * e.s, e.g.position.z,
+    Math.round(d), crit ? 'crit' : '');
+  if (opts && opts.label)
+    dmgText(e.g.position.x, e.g.position.y + 1.35 * e.s, e.g.position.z, opts.label, 'label');
   if (e.state !== 'chase') e.state = 'chase';
   A.impact();
-  spawnBurst(e.g.position.x, e.g.position.y, e.g.position.z, 0xb08cff, 12);
+  spawnBurst(e.g.position.x, e.g.position.y, e.g.position.z, 0xb08cff, crit ? 20 : 12);
   if (knock) {
     const l = Math.hypot(knock.x, knock.z) || 1;
     const kx = e.g.position.x + knock.x / l * 0.4, kz = e.g.position.z + knock.z / l * 0.4;
@@ -216,7 +243,9 @@ export function killEnemy(e) {
   addPickup('shadow', e.g.position.x + 0.7, e.floorY, e.g.position.z + 0.4);
   S.scene.remove(e.g);
   // la nuit paie mieux : +50 % d'expérience au plus noir (risque → récompense)
-  gainXP(Math.round((e.xp || 12) * (1 + 0.5 * S.nightK)));
+  const xpGain = Math.round((e.xp || 12) * (1 + 0.5 * S.nightK));
+  gainXP(xpGain);
+  dmgText(e.g.position.x, e.g.position.y + 1.4 * e.s, e.g.position.z, '+' + xpGain + ' XP', 'xp');
   if (e.onKilled) e.onKilled(e); // Maîtres d'Étage : clef, portail, raccourci
   if (hasN('a_dance')) {
     G.cd.dash = Math.max(0, G.cd.dash - 0.8);

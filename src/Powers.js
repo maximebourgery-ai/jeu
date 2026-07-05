@@ -3,7 +3,7 @@
    ================================================================ */
 import * as THREE from 'three';
 import { G, S, IS_TOUCH, PATHS, POWERS, keys, gpMove, tmMove, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
-import { playAttack, slashArc, groundRing } from './Animations.js';
+import { playAttack, slashArc, groundRing, impactFlash, lightPillar } from './Animations.js';
 import { A } from './Audio.js';
 import { showMsg, refreshPowers } from './UI.js';
 import { spawnBurst, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
@@ -116,6 +116,7 @@ export function castPower() {
   G.mana -= pw.cost;
   let cool = pw.cool * coolMul();
   if (pw.id === 'bolt' && G.furyT > 0) cool *= 0.6;
+  if (pw.id === 'dash') cool *= 1 - 0.07 * (G.pupg.dash || 0); // Forge des Arts
   G.cd[pw.id] = cool;
   if (pw.id === 'bolt') {
     const P = classAtk(G.path);
@@ -123,7 +124,7 @@ export function castPower() {
     if (P.melee) meleeStrike(P); else fireBolt(P);
   }
   else if (pw.id === 'dash') doDash();
-  else if (pw.id === 'shield') { G.shieldT = 4; A.shield(); }
+  else if (pw.id === 'shield') { G.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield(); }
   else if (pw.id === 'frost') frostNova();
   else if (pw.id === 'heal') healSelf();
 }
@@ -142,13 +143,16 @@ export function castSpecific(id, pl) {
 export function frostNova(pl) {
   pl = pl || player;
   A.shield();
+  /* Forge des Arts : chaque rang élargit la nova et mord plus fort */
+  const uLvl = G.pupg.frost || 0;
+  const R = 6.5 + 0.5 * uLvl, dmgF = Math.round(14 * (1 + 0.18 * uLvl));
   spawnBurst(pl.pos.x, pl.pos.y + 1, pl.pos.z, 0xbfe8ff, 20);
-  groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xbfe8ff, 6.5); // onde de givre lisible au sol
+  groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xbfe8ff, R); // onde de givre lisible au sol
   if (pl === player) S.camKick = 0.14;
   for (const e of enemies) {
     if (e.dead) continue;
     const dx = e.g.position.x - pl.pos.x, dz = e.g.position.z - pl.pos.z;
-    if (Math.hypot(dx, dz) < 6.5) damageEnemy(e, 14, { x: pl.pos.x, z: pl.pos.z });
+    if (Math.hypot(dx, dz) < R) damageEnemy(e, dmgF, { x: pl.pos.x, z: pl.pos.z });
   }
 }
 /* ---- Sorts du Joueur 2 (manette, coop) ---- */
@@ -246,12 +250,18 @@ export function meleeStrike(P, pl, f) {
   if (pl === player) S.camKick = 0.2;
   const arcCol = path === 'paladin' ? 0xffd97a : 0xffaa3a;
   slashArc(pl.pos.x + f.x * 1.1, pl.pos.y + 1.05, pl.pos.z + f.z * 1.1, f, arcCol, P.aoe ? P.range + 1.4 : P.range);
+  // Guerrier : double croissant (haut + bas) — la taillade remplit l'écran
+  if (path === 'warrior')
+    slashArc(pl.pos.x + f.x * 1.0, pl.pos.y + 1.35, pl.pos.z + f.z * 1.0, f, 0xffd97a, (P.aoe ? P.range + 1.4 : P.range) * 0.72);
   spawnBurst(pl.pos.x + f.x * 1.5, pl.pos.y + 1.1, pl.pos.z + f.z * 1.5, 0xffaa00, 18);
   const rageReady = pl === player
     ? (G.path === 'warrior' && G.rage >= G.maxRage)
     : (p2.path === 'warrior' && p2.rage >= G.maxRage);
   const R = P.aoe ? P.range + 1.4 : P.range; // transcendance : arc élargi
   let dmg = P.dmg, finisher = false;
+  /* Enchaînement universel (J1) : les coups au but consécutifs mordent de
+     plus en plus fort (+5 %/coup, plafonné à +40 % — voir G.comboHits). */
+  if (pl === player) dmg *= 1 + Math.min(0.4, 0.05 * G.comboHits);
   if (P.combo && pl === player) {
     G.comboN++; G.comboT = 1.8;
     if (G.comboN >= 3) { dmg *= 2; finisher = true; G.comboN = 0; }
@@ -264,19 +274,33 @@ export function meleeStrike(P, pl, f) {
     if (d < R && Math.abs(e.g.position.y - (pl.pos.y + 1)) < 2.8) {
       const dot = (dx * f.x + dz * f.z) / (d || 1);
       if (dot > 0.3 || d < 1.3) {
-        damageEnemy(e, Math.round(dmg), { x: dx, z: dz }); touched++; dealt += dmg;
+        /* Coup critique de mêlée — TOUTES les voies : frapper une ombre qui
+           vous tourne le dos (elle ne vous voit pas venir) inflige ×1,75. */
+        const fwx = Math.sin(e.g.rotation.y), fwz = Math.cos(e.g.rotation.y);
+        const behind = (fwx * -dx + fwz * -dz) / (d || 1) < -0.35;
+        const mult = behind ? 1.75 : 1;
+        const hitDmg = Math.round(dmg * mult);
+        damageEnemy(e, hitDmg, { x: dx, z: dz },
+          { crit: behind || finisher, label: behind ? 'DANS LE DOS !' : null });
+        touched++; dealt += hitDmg;
+        // « punch » visuel par voie : pilier d'aube du Paladin, flash sinon
+        if (path === 'paladin') lightPillar(e.g.position.x, e.g.position.y - 0.8, e.g.position.z, 0xffd97a);
+        else impactFlash(e.g.position.x, e.g.position.y + 0.4, e.g.position.z,
+          path === 'warrior' ? 0xffaa3a : 0xffe9a8, (behind || finisher) ? 1.6 : 0.9);
         if (P.holyburn && !e.dead) { e.dotT = 3; e.dotDps = 7; e.dotCol = 0xffd97a; } // Consécration
         if (P.exec && !e.dead && e.hp / e.maxHp < P.exec) {
           spawnBurst(e.g.position.x, e.g.position.y + 0.5, e.g.position.z, 0xff3a3a, 20);
           showMsg('EXÉCUTION !', 0.9);
-          damageEnemy(e, e.hp + 1, { x: dx, z: dz });
+          damageEnemy(e, e.hp + 1, { x: dx, z: dz }, { crit: true, label: 'EXÉCUTION !' });
         }
       }
     }
   }
+  if (pl === player && touched) { G.comboHits++; G.comboHitT = 2.2; }
   if (finisher && touched) {
     S.camKick = 0.36; A.impact();
     spawnBurst(pl.pos.x + f.x * 1.8, pl.pos.y + 1.1, pl.pos.z + f.z * 1.8, 0xff5a2a, 32);
+    groundRing(pl.pos.x + f.x * 1.2, pl.pos.y, pl.pos.z + f.z * 1.2, 0xff5a2a, 3.5);
   }
   if (rageReady) rageBurst(P, pl);
   else if (touched) gainRage(12 + 3 * (touched - 1), pl);
@@ -311,8 +335,19 @@ export function fireBolt(P, pl, dirO, target) {
     pl.pos.x + originDir.x * 0.9,
     pl.pos.y + 1.45 + originDir.y * 0.9,
     pl.pos.z + originDir.z * 0.9);
-  const baseDir = target.clone().sub(start).normalize();
   const isAss = (pl === player ? G.path : p2.path) === 'assassin';
+  /* Vraie balistique : les projectiles RETOMBENT en vol. À la souris, il
+     faut viser au-dessus de la cible lointaine et gérer sa distance ; les
+     dagues de l'Assassin, plus véloces, sont plus tendues que le trait du
+     Mage. La visée aimantée (tactile/manette) compense automatiquement la
+     chute — le mobile n'est pas puni par la physique. */
+  const grav = isAss ? 3.4 : 5.2;
+  if (pl === player && assistTarget()) {
+    const tof = start.distanceTo(target) / (P.pSpeed || 26);
+    target = target.clone();
+    target.y += 0.5 * grav * tof * tof;
+  }
+  const baseDir = target.clone().sub(start).normalize();
   const col = P.pierce ? 0xffe9a8 : (isAss ? 0xd8ffe8 : 0x8feaff);
   const count = P.count || 1;
   const spreadTot = count > 1 ? (count === 2 ? 0.1 : 0.42) : 0;
@@ -324,13 +359,17 @@ export function fireBolt(P, pl, dirO, target) {
       const nx = dir.x * ca - dir.z * sa, nz = dir.x * sa + dir.z * ca;
       dir.x = nx; dir.z = nz;
     }
-    const m = new THREE.Mesh(new THREE.SphereGeometry(isAss ? 0.11 : 0.15, 8, 8),
-      new THREE.MeshBasicMaterial({ color: col }));
+    // Assassin : vraie dague effilée orientée dans le sens du vol (et non
+    // une bille) — la classe se reconnaît à la seule silhouette de ses tirs
+    const m = isAss
+      ? new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.46, 6), new THREE.MeshBasicMaterial({ color: col }))
+      : new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), new THREE.MeshBasicMaterial({ color: col }));
     m.add(glow(col, 2.1, 0.8));
     m.position.copy(start);
     S.scene.add(m);
     projectiles.push({ mesh: m, vel: dir.multiplyScalar(P.pSpeed || 26),
-      life: P.pierce ? 3.2 : 2.2, dmg: P.dmg,
+      life: P.pierce ? 3.2 : 2.2, dmg: P.dmg, grav, orient: isAss,
+      owner: pl === player ? 1 : 2,
       aoe: !!P.aoe, aoeR: P.aoeR || 3.4, burn: !!P.burn,
       pierce: !!P.pierce, hits: 0, chain: P.chain || 0, stun: P.stun || 0,
       sniper: !!P.sniper, fatal: !!P.fatal, poison: !!P.poison, backstab: !!P.backstab,
@@ -338,13 +377,19 @@ export function fireBolt(P, pl, dirO, target) {
   }
   // Éclair de lancement + recul caméra pour donner du poids au sort
   spawnBurst(start.x, start.y, start.z, 0xbfeaff, 10);
+  impactFlash(start.x, start.y, start.z, col, 0.5);
   if (pl === player) S.camKick = 0.12;
 }
+const UPV = new THREE.Vector3(0, 1, 0), dirTmp = new THREE.Vector3();
 export function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const pr = projectiles[i];
     pr.life -= dt;
+    if (pr.grav) pr.vel.y -= pr.grav * dt; // balistique : le tir retombe en vol
     pr.mesh.position.addScaledVector(pr.vel, dt);
+    // les dagues restent alignées sur leur trajectoire (piqué du nez compris)
+    if (pr.orient && pr.vel.lengthSq() > 0.001)
+      pr.mesh.quaternion.setFromUnitVectors(UPV, dirTmp.copy(pr.vel).normalize());
     if (pr.hostile) {
       pr.mesh.rotation.x += dt * (pr.spin || 6); pr.mesh.rotation.y += dt * (pr.spin || 6) * 0.7;
       if (Math.random() < 0.4) spawnBurst(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, 0xff3a5a, 1);
@@ -378,30 +423,35 @@ export function updateProjectiles(dt) {
           let dmg = pr.dmg || 16;
           const dist = Math.hypot(pos.x - (pr.ox || pos.x), pos.y - (pr.oy || pos.y), pos.z - (pr.oz || pos.z));
           if (pr.sniper) dmg *= Math.min(2.5, 1 + dist * 0.08);
-          /* Critiques de l'Assassin — règle de non-cumul : le multiplicateur
-             le plus élevé entre Tir fatal (×3, >14 m) et Dans le dos (×2,5,
-             l'ennemi tourne le dos au tireur : dot regard·vers-tireur < -0.5)
-             s'applique seul. La montée en dégâts avec la distance (a_range,
-             jusqu'à ×2,5) reste indépendante, comme avant. */
-          let crit = 1;
-          if (pr.fatal && dist > 14) crit = 3;
+          /* Enchaînement universel (J1) : mêmes règles que la mêlée */
+          if (pr.owner === 1) dmg *= 1 + Math.min(0.4, 0.05 * G.comboHits);
+          /* Coups critiques CONTEXTUELS — la façon de toucher décide, et le
+             meilleur multiplicateur s'applique SEUL (jamais de cumul) :
+             · EN PLEINE TÊTE (toutes voies)   ×1,6 — l'impact est au-dessus
+               des épaules de l'ombre (viser haut, la balistique aide/punit)
+             · DANS LE DOS (Assassin)          ×2,5 — l'ennemi tourne le dos
+               au tireur (dot regard·vers-tireur < -0.5)
+             · TIR FATAL (Assassin, >14 m)     ×3
+             La montée en dégâts avec la distance (a_range, jusqu'à ×2,5)
+             reste indépendante, comme avant. */
+          let crit = 1, critLabel = null;
+          if (pos.y > e.g.position.y + 0.42 * e.s) { crit = 1.6; critLabel = 'EN PLEINE TÊTE !'; }
           if (pr.backstab) {
             const ry = e.g.rotation.y;
             const tox = (pr.ox || pos.x) - e.g.position.x, toz = (pr.oz || pos.z) - e.g.position.z;
             const tl = Math.hypot(tox, toz) || 1;
             const facing = Math.sin(ry) * tox / tl + Math.cos(ry) * toz / tl;
             if (facing < -0.5 && crit < 2.5) {
-              crit = 2.5;
+              crit = 2.5; critLabel = 'DANS LE DOS ×2,5 !';
               spawnBurst(pos.x, pos.y, pos.z, 0xd8ffe8, 20);
-              showMsg('DANS LE DOS ×2,5 !', 0.9);
             }
           }
+          if (pr.fatal && dist > 14 && crit < 3) { crit = 3; critLabel = 'TIR FATAL ×3 !'; }
           if (crit > 1) dmg *= crit;
-          if (crit >= 3) {
-            spawnBurst(pos.x, pos.y, pos.z, 0xff3a6a, 26);
-            showMsg('TIR FATAL ×3 !', 0.9);
-          }
-          damageEnemy(e, Math.round(dmg), pr.vel);
+          if (crit >= 3) spawnBurst(pos.x, pos.y, pos.z, 0xff3a6a, 26);
+          impactFlash(pos.x, pos.y, pos.z, pr.trailCol || 0x8feaff, crit > 1 ? 1.5 : 0.8);
+          damageEnemy(e, Math.round(dmg), pr.vel, { crit: crit > 1, label: critLabel });
+          if (pr.owner === 1) { G.comboHits++; G.comboHitT = 2.2; }
           if (!e.dead) {
             if (pr.stun) e.stunT = Math.max(e.stunT || 0, pr.stun);
             if (pr.poison) { e.dotT = 3; e.dotDps = 6; e.dotCol = 0x7ade5a; }
@@ -420,6 +470,8 @@ export function updateProjectiles(dt) {
     if (hit) {
       if (pr.aoe && !pr.hostile) { // Explosion de zone à l'impact
         spawnBurst(pos.x, pos.y, pos.z, 0xffd97a, 22);
+        impactFlash(pos.x, pos.y, pos.z, 0xffd97a, 2.4); // boule de feu lisible
+        groundRing(pos.x, pos.y - 0.8, pos.z, 0xffd97a, pr.aoeR || 3.4);
         A.impact();
         for (const e of enemies) {
           if (e.dead) continue;

@@ -30,6 +30,7 @@ export function saveGame(silent) {
       tower: G.tower, camps: G.camps,
       hour: G.hour, // horloge d'Ombreciel (cycle jour/nuit)
       xp: G.xp, level: G.level, sp: G.sp, nodes: G.nodes, maxMana: G.maxMana,
+      shards: G.shards, pupg: G.pupg, // Forge des Arts (Éclats + rangs forgés)
       questI: S.questI, tut: Object.assign({}, tut),
       px: inTw ? TER.x : player.pos.x, py: inTw ? TER.y : player.pos.y, pz: inTw ? TER.z : player.pos.z,
       yaw: S.yaw, pitch: S.pitch,
@@ -71,6 +72,9 @@ export function loadGame() {
   G.hour = (typeof s.hour === 'number') ? s.hour : 9; // anciennes sauvegardes : reprise au matin
   G.xp = s.xp || 0; G.level = s.level || 1; G.sp = s.sp || 0;
   G.nodes = s.nodes || {};
+  // Forge des Arts — anciennes sauvegardes : 1 Éclat rétroactif par niveau gagné
+  G.shards = (typeof s.shards === 'number') ? s.shards : Math.max(0, G.level - 1);
+  Object.assign(G.pupg, s.pupg || {});
   refreshPlayerVisual();
   G.maxMana = s.maxMana || (100 + (G.nodes.g_wis ? 40 : 0));
   G.mana = Math.min(G.mana, G.maxMana);

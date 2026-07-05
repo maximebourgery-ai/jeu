@@ -335,6 +335,36 @@ Chaque piédestal joue un petit texte d'apprentissage, ex. : *« Pas du vent app
 - **Paladin** : Jugement (+55 % → Verdict, onde de lumière), Rempart (−25 % dégâts subis
   → Représailles), Lumière (portée +1,2 m → Consécration), Transcendance : Avatar de l'Aube.
 
+### 7 bis. Le combat (v7.4) — balistique, critiques, combos, Forge des Arts
+
+- **Vraie balistique** : les projectiles (Trait astral, dagues) **retombent en vol**
+  (gravité 5,2 pour le Mage, 3,4 pour les dagues plus tendues de l'Assassin). À la
+  souris, il faut viser au-dessus d'une cible lointaine et gérer sa distance ; la
+  visée aimantée (tactile/manette) compense automatiquement la chute.
+- **Coups critiques contextuels** — la *façon* de toucher décide, le meilleur
+  multiplicateur s'applique seul (jamais de cumul) :
+  · **En pleine tête** (tout projectile au-dessus des épaules) : ×1,6 ;
+  · **Dans le dos** (mêlée, toutes voies — l'ennemi vous tourne le dos) : ×1,75 ;
+  · **Dans le dos** (Assassin, à distance) : ×2,5 · **Tir fatal** (Assassin, >14 m) : ×3.
+- **Enchaînement (combo)** : chaque coup au but empile le compteur **COMBO ×N**
+  (+5 % de dégâts par coup, plafonné à +40 %) ; 2,2 s sans toucher — ou un seul
+  coup encaissé — le brise. Le 3ᵉ coup du Guerrier (nœud Enchaînement) reste ×2.
+- **Lisibilité** : nom + **niveau au-dessus de la tête** des ennemis, **PV en
+  chiffres** sous leur barre, **chiffres de dégâts flottants** au point d'impact
+  (dorés et grossis sur critique, avec étiquette « DANS LE DOS ! », « EN PLEINE
+  TÊTE ! »...), « +N XP » à chaque ombre vaincue.
+- **Effets par voie** : double croissant de taillade du Guerrier, pilier d'aube du
+  Paladin sur chaque cible frappée, dagues effilées orientées dans le sens du vol
+  pour l'Assassin, flash d'impact et explosion/onde au sol pour le Mage.
+- **Variété des ombres** : chaque ombre standard naît avec sa propre carrure (±15 %,
+  les grandes sont plus coriaces) ; les renforts peuvent naître **Alpha** (couronne
+  d'épines, halo doré, ×2,2 PV, ×1,35 dégâts, ×2,5 XP).
+- **Forge des Arts (K)** : chaque niveau gagné forge **1 Éclat de puissance**, à
+  dépenser dans le panneau de l'arbre pour monter chaque sort en rangs (5 max) :
+  attaque +10 %/rang, Pas du vent −7 % de récupération/rang, Égide +0,8 s/rang,
+  Souffle glacé +18 % et zone élargie/rang, Bénédiction +12 PV/rang. L'AUTRE façon
+  de devenir puissant, en parallèle de l'arbre des pouvoirs.
+
 ---
 
 ## 8. Récolte & artisanat

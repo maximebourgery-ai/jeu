@@ -84,6 +84,32 @@ export function slashArc(x, y, z, dir, color, r) {
   fx.push({ m, t: 0, life: 0.2, kind: 'arc' });
 }
 
+/* Flash d'impact : sphère additive qui gonfle et s'éteint en un éclair —
+   le « punch » visuel du coup au but, coloré par voie, plus large sur
+   coup critique. Bon marché : une sphère low-poly, pas de lumière. */
+export function impactFlash(x, y, z, color, r) {
+  if (!S.scene) return;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 10),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.position.set(x, y, z);
+  m.scale.setScalar(0.12);
+  S.scene.add(m);
+  fx.push({ m, t: 0, life: 0.16, kind: 'flash', rMax: r || 0.8 });
+}
+
+/* Pilier de lumière du Paladin : colonne verticale qui jaillit sur l'ennemi
+   frappé — le Marteau d'aube appelle littéralement l'aube sur sa cible. */
+export function lightPillar(x, y, z, color) {
+  if (!S.scene) return;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.52, 4.6, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  m.position.set(x, y + 2.0, z);
+  S.scene.add(m);
+  fx.push({ m, t: 0, life: 0.42, kind: 'pillar' });
+}
+
 /* Anneau d'onde de choc au sol (Verdict du Paladin, Fureur, Souffle glacé...) */
 export function groundRing(x, y, z, color, rMax) {
   if (!S.scene) return;
@@ -113,6 +139,12 @@ export function updateFx(dt) {
     if (f.kind === 'arc') {
       f.m.scale.setScalar(0.55 + 0.75 * k);
       f.m.material.opacity = 0.85 * (1 - k * k);
+    } else if (f.kind === 'flash') {
+      f.m.scale.setScalar(0.12 + (f.rMax || 0.8) * k);
+      f.m.material.opacity = 0.9 * (1 - k);
+    } else if (f.kind === 'pillar') {
+      f.m.scale.set(1 + 0.7 * k, 1, 1 + 0.7 * k);
+      f.m.material.opacity = 0.75 * (1 - k * k);
     } else { // ring
       f.m.scale.setScalar(0.4 + (f.rMax || 5) * k);
       f.m.material.opacity = 0.75 * (1 - k);

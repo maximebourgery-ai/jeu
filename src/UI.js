@@ -89,7 +89,43 @@ export function refreshInv() {
   rows.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
 }
 
-/* ---------------- BARRES DE VIE DES ENNEMIS ---------------- */
+/* ---------------- CHIFFRES DE DÉGÂTS FLOTTANTS ----------------
+   Petits nombres qui s'échappent du point d'impact (dégâts, XP), grossis
+   et colorés sur coup critique, avec étiquette (« DANS LE DOS ! », « EN
+   PLEINE TÊTE ! »...) — projetés à l'écran comme les barres de vie. */
+const ftexts = [];
+export function dmgText(x, y, z, txt, kind) {
+  const box = $('ftexts');
+  if (!box || ftexts.length > 44) return;
+  const el = document.createElement('div');
+  el.className = 'ftext' + (kind ? ' ' + kind : '');
+  el.textContent = txt;
+  box.appendChild(el);
+  ftexts.push({ el, x: x + (Math.random() - 0.5) * 0.6, y: y + Math.random() * 0.2,
+    z: z + (Math.random() - 0.5) * 0.6, t: 0,
+    life: (kind === 'crit' || kind === 'label') ? 1.05 : 0.8 });
+}
+function updateFtexts(dt) {
+  if (!ftexts.length) return;
+  const vw = S.COOP ? innerWidth / 2 : innerWidth;
+  for (let i = ftexts.length - 1; i >= 0; i--) {
+    const f = ftexts[i];
+    f.t += dt; f.y += dt * 1.5; // le chiffre s'élève doucement
+    const k = f.t / f.life;
+    if (k >= 1 || !S.camera) { f.el.remove(); ftexts.splice(i, 1); continue; }
+    const v = new THREE.Vector3(f.x, f.y, f.z);
+    v.project(S.camera);
+    if (v.z > 1 || v.z < -1) { f.el.style.opacity = 0; continue; }
+    f.el.style.left = (v.x * 0.5 + 0.5) * vw + 'px';
+    f.el.style.top = (1 - (v.y * 0.5 + 0.5)) * innerHeight + 'px';
+    f.el.style.opacity = k < 0.65 ? 1 : 1 - (k - 0.65) / 0.35;
+  }
+}
+
+/* ---------------- BARRES DE VIE DES ENNEMIS ----------------
+   Nom + niveau AU-DESSUS de la tête, barre, et PV en chiffres dessous.
+   (structure .en / .etrack / .eh : l'ancienne barre unique rognait le nom
+   avec son overflow:hidden — le niveau était invisible en pratique). */
 const ebarPool = new Map();
 export function updateEnemyBars() {
   const box = $('ebars');
@@ -108,14 +144,16 @@ export function updateEnemyBars() {
     let rec = ebarPool.get(e);
     if (!rec) {
       const el = document.createElement('div'); el.className = 'ebar';
-      el.innerHTML = '<div class="en"></div><div class="ef"></div>';
+      el.innerHTML = '<div class="en"></div><div class="etrack"><div class="ef"></div></div><div class="eh"></div>';
+      if (e.elite) el.classList.add('elite');
       box.appendChild(el);
-      rec = { el, fill: el.querySelector('.ef'), name: el.querySelector('.en') };
+      rec = { el, fill: el.querySelector('.ef'), name: el.querySelector('.en'), hp: el.querySelector('.eh') };
       ebarPool.set(e, rec);
     }
     rec.el.style.left = sx + 'px'; rec.el.style.top = sy + 'px';
     rec.fill.style.width = Math.max(0, e.hp / e.maxHp * 100) + '%';
     rec.name.textContent = (e.tName || 'Ombre') + ' · Niv.' + (e.lvl || 1);
+    rec.hp.textContent = Math.max(0, Math.ceil(e.hp)) + ' / ' + e.maxHp;
     seen.add(e);
   }
   for (const [e, rec] of ebarPool) {
@@ -124,8 +162,25 @@ export function updateEnemyBars() {
 }
 
 /* ---------------- HUD ---------------- */
+let comboShown = 0;
 export function updateHUD(dt) {
   updateEnemyBars();
+  updateFtexts(dt);
+  /* Compteur de combo : visible dès 2 coups enchaînés, « pop » à chaque
+     coup supplémentaire, s'éteint quand l'enchaînement se brise. */
+  const cb = $('combo');
+  if (cb) {
+    const n = G.comboHits || 0;
+    cb.classList.toggle('hidden', n < 2);
+    if (n >= 2) {
+      cb.textContent = 'COMBO ×' + n + (n >= 8 ? ' — DÉCHAÎNÉ !' : '');
+      if (n !== comboShown) {
+        cb.classList.remove('pop'); void cb.offsetWidth; // relance l'animation
+        cb.classList.add('pop');
+      }
+    }
+    comboShown = n;
+  }
   $('hpfill').style.width = Math.max(0, G.hp / G.maxHp * 100) + '%';
   $('mpfill').style.width = Math.max(0, G.mana / G.maxMana * 100) + '%';
   $('hpnum').textContent = Math.max(0, Math.round(G.hp)) + ' / ' + G.maxHp;

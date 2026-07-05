@@ -211,13 +211,37 @@ body.touchmode #powers{display:none}
   transition:border-color .18s,color .18s}
 #treeclose:hover{border-color:#ffd97a;color:#ffd97a}
 #t-tree{left:26px;top:38%;width:48px;height:48px;font-size:20px}
-/* ---------- Barres de vie des ennemis ---------- */
+/* ---------- Barres de vie des ennemis ----------
+   .en (nom · niveau) AU-DESSUS, .etrack (barre, seule à rogner son
+   remplissage), .eh (PV chiffrés) DESSOUS — l'ancienne barre unique en
+   overflow:hidden rognait le nom : le niveau était invisible. */
 #ebars{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
-.ebar{position:absolute;width:56px;height:8px;margin-left:-28px;background:rgba(0,0,0,.6);
+.ebar{position:absolute;width:70px;margin-left:-35px}
+.ebar .etrack{height:7px;background:rgba(0,0,0,.6);
   border:1px solid rgba(255,255,255,.28);border-radius:4px;overflow:hidden}
 .ebar .ef{height:100%;background:linear-gradient(90deg,#d13438,#ff8a5a);width:100%;transition:width .12s}
-.ebar .en{position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:9px;
+.ebar .en{text-align:center;font-size:9px;margin-bottom:2px;
   font-family:Verdana,sans-serif;color:#ffd6c0;text-shadow:0 1px 3px #000;white-space:nowrap;letter-spacing:.5px}
+.ebar .eh{text-align:center;font-size:8px;margin-top:1px;
+  font-family:Verdana,sans-serif;color:#ffc8b0;text-shadow:0 1px 2px #000;white-space:nowrap}
+.ebar.elite .en{color:#ffd97a;text-shadow:0 1px 3px #000,0 0 8px rgba(255,190,80,.6)}
+.ebar.elite .etrack{border-color:rgba(255,215,120,.7);box-shadow:0 0 8px rgba(255,190,80,.35)}
+/* ---------- Chiffres de dégâts flottants & compteur de combo ---------- */
+#ftexts{position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.ftext{position:absolute;transform:translate(-50%,-50%);font-family:Georgia,serif;font-size:14px;
+  color:#ffe9c8;text-shadow:0 1px 3px #000,0 0 8px rgba(255,160,80,.35);white-space:nowrap}
+.ftext.crit{font-size:22px;font-weight:bold;color:#ffb03a;
+  text-shadow:0 1px 3px #000,0 0 16px rgba(255,120,40,.85)}
+.ftext.label{font-size:11px;letter-spacing:2px;color:#ff8a5a;text-shadow:0 1px 3px #000}
+.ftext.xp{font-size:11px;color:#ffd97a;text-shadow:0 1px 3px #000}
+#combo{position:absolute;left:50%;top:60%;transform:translate(-50%,0);font-family:Georgia,serif;
+  font-size:19px;letter-spacing:3px;color:#ffd97a;pointer-events:none;
+  text-shadow:0 2px 8px #000,0 0 16px rgba(255,180,60,.55)}
+#combo.pop{animation:combopop .18s ease-out}
+@keyframes combopop{0%{transform:translate(-50%,0) scale(1.4)}100%{transform:translate(-50%,0) scale(1)}}
+/* Forge des Arts (panneau de l'arbre) : rangs forgés ◆◆◇◇◇ */
+.tnode .stars{color:#8feaff;font-size:11px;letter-spacing:2px;margin-left:6px}
+.tbranch .bt small{color:#8791b4;letter-spacing:0;font-size:9.5px}
 @media (max-width:900px){
   .tnode{width:100%}
   #hint{display:none}
