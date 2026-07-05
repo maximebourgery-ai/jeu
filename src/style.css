@@ -64,7 +64,16 @@ canvas{display:block;touch-action:none}
 #btn-travelclose{font-family:inherit;font-size:13px;letter-spacing:1px;color:#8892b0;background:none;border:1px solid rgba(136,146,176,.4);border-radius:7px;padding:7px 16px;cursor:pointer}
 #btn-travelclose:hover{color:#cfd8f2}
 /* ---------- Écrans ---------- */
-.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;padding:24px}
+/* Les écrans (titre, pause...) sont centrés MAIS défilables : sur un iPhone
+   en paysage (~390 px de haut), le menu dépasse — margin:auto sur les
+   extrémités centre quand ça tient, et laisse défiler depuis le haut sinon
+   (justify-content:center, lui, rognerait le haut ET le bas). */
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;
+  background:radial-gradient(ellipse at 50% 32%,#151b36 0%,#05060d 72%);z-index:10;text-align:center;
+  padding:calc(24px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) calc(24px + env(safe-area-inset-left,0px))}
+.overlay>:first-child{margin-top:auto}
+.overlay>:last-child{margin-bottom:auto}
+.overlay>*{flex-shrink:0}
 .overlay h1{font-size:50px;letter-spacing:8px;color:#ffd97a;text-shadow:0 0 34px rgba(255,190,60,.45);font-weight:normal;margin-bottom:14px}
 .overlay h2{font-size:34px;letter-spacing:5px;color:#ffd97a;font-weight:normal;margin-bottom:16px}
 .overlay .sub{font-size:18px;color:#b8c4e0;font-style:italic;margin-bottom:32px;max-width:640px;line-height:1.7}
@@ -236,10 +245,17 @@ body.touchmode #powers{display:none}
   white-space:nowrap;animation:rotpulse 1.6s ease-in-out infinite}
 @keyframes rotpulse{0%,100%{opacity:.75}50%{opacity:1}}
 @media (orientation:portrait){body.is-touch #rotate{display:block}}
-/* Astuce iPhone sur l'écran-titre : le plein écran passe par l'écran d'accueil */
-#ioshint{margin-top:16px;max-width:520px;font-size:12.5px;font-family:Verdana,sans-serif;color:#94a0c4;
-  line-height:1.7;background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:10px;padding:10px 16px}
-#ioshint b{color:#cfd8f2}
+/* Astuce iPhone sur l'écran-titre : le plein écran passe par l'écran
+   d'accueil. En SURBRILLANCE (halo doré pulsé, mêmes tons que les boutons
+   principaux) pour que les joueurs iPhone ne la ratent pas. */
+#ioshint{margin:-14px 0 14px;max-width:540px;font-size:13.5px;font-family:Verdana,sans-serif;color:#ffe6a8;
+  line-height:1.8;background:rgba(30,24,10,.92);border:1.5px solid #ffd97a;border-radius:12px;padding:12px 20px;
+  text-shadow:0 1px 3px #000;animation:ioshintglow 1.8s ease-in-out infinite}
+#ioshint b{color:#ffd97a}
+@keyframes ioshintglow{
+  0%,100%{box-shadow:0 0 14px rgba(255,215,120,.35);border-color:rgba(255,217,122,.75)}
+  50%{box-shadow:0 0 30px rgba(255,215,120,.75);border-color:#ffd97a}
+}
 @media (max-width:900px){
   .tnode{width:100%}
   #hint{display:none}
@@ -251,3 +267,21 @@ body.touchmode #powers{display:none}
   .classbtn{width:140px;padding:10px 8px}
   .classbtn .cdsc{font-size:10px}
 }
+/* Menus compacts pour les écrans peu hauts (iPhone en paysage ≈ 390 px) :
+   tout l'écran-titre — astuce plein écran comprise — doit tenir ou presque. */
+@media (max-height:520px){
+  .overlay h1{font-size:26px;letter-spacing:4px;margin-bottom:6px}
+  .overlay h2{font-size:22px;margin-bottom:8px}
+  .overlay .sub{font-size:13px;margin-bottom:12px;line-height:1.5}
+  .overlay button{font-size:15px;padding:9px 26px}
+  #title .glyph,#loading .glyph{font-size:26px;margin-bottom:4px}
+  #classes{gap:8px;margin:10px 0 2px}
+  .classbtn{width:132px;padding:7px 6px}
+  .classbtn .ci{font-size:20px;margin-bottom:2px}
+  .classbtn .cn{font-size:13px}
+  .classbtn .cdsc{font-size:9px;line-height:1.4;margin-top:3px}
+  .overlay .controls{margin-top:12px;line-height:1.5}
+  #ioshint{margin:-4px 0 8px;font-size:12px;line-height:1.6;padding:8px 14px}
+}
+/* Sur tactile, l'aide-mémoire clavier/souris des menus est du bruit. */
+body.is-touch .overlay .controls{display:none}
