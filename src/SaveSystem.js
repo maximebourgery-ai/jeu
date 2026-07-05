@@ -67,6 +67,12 @@ export function loadGame() {
     Object.assign(G.tower.bosses, s.tower.bosses || {});
     Object.assign(G.tower.shortcuts, s.tower.shortcuts || {});
     G.tower.aura = !!s.tower.aura;
+    // v8 — l'Outre-Ciel : PNJ rencontrés, quête d'Orin, pont, Couronne
+    Object.assign(G.tower.met, s.tower.met || {});
+    G.tower.shards = s.tower.shards || 0;
+    if (Array.isArray(s.tower.shardsTaken)) G.tower.shardsTaken = s.tower.shardsTaken;
+    G.tower.bridge = !!s.tower.bridge;
+    G.tower.crown = !!s.tower.crown;
   }
   G.camps = s.camps || {};
   G.hour = (typeof s.hour === 'number') ? s.hour : 9; // anciennes sauvegardes : reprise au matin

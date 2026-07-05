@@ -98,18 +98,6 @@ export function impactFlash(x, y, z, color, r) {
   fx.push({ m, t: 0, life: 0.16, kind: 'flash', rMax: r || 0.8 });
 }
 
-/* Pilier de lumière du Paladin : colonne verticale qui jaillit sur l'ennemi
-   frappé — le Marteau d'aube appelle littéralement l'aube sur sa cible. */
-export function lightPillar(x, y, z, color) {
-  if (!S.scene) return;
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.52, 4.6, 10, 1, true),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  m.position.set(x, y + 2.0, z);
-  S.scene.add(m);
-  fx.push({ m, t: 0, life: 0.42, kind: 'pillar' });
-}
-
 /* Anneau d'onde de choc au sol (Verdict du Paladin, Fureur, Souffle glacé...) */
 export function groundRing(x, y, z, color, rMax) {
   if (!S.scene) return;
@@ -122,6 +110,21 @@ export function groundRing(x, y, z, color, rMax) {
   m.scale.setScalar(0.4);
   S.scene.add(m);
   fx.push({ m, t: 0, life: 0.34, kind: 'ring', rMax });
+}
+
+/* Colonne de lumière (Marteau d'aube du Paladin, Nova d'Aurore, Astre d'Aube,
+   voile déchiré...) : un fût additif qui jaillit du sol, tourne lentement et
+   se dissout — la super-puissance se voit à l'autre bout de la salle. */
+export function lightPillar(x, y, z, color, r = 0.5, h = 4.6, life = 0.45) {
+  if (!S.scene) return;
+  const geo = new THREE.CylinderGeometry(r * 0.55, r, h, 18, 1, true);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y + h / 2, z);
+  m.scale.set(0.25, 0.05, 0.25);
+  S.scene.add(m);
+  fx.push({ m, t: 0, life: life || 0.7, kind: 'pillar' });
 }
 
 export function updateFx(dt) {
@@ -143,8 +146,10 @@ export function updateFx(dt) {
       f.m.scale.setScalar(0.12 + (f.rMax || 0.8) * k);
       f.m.material.opacity = 0.9 * (1 - k);
     } else if (f.kind === 'pillar') {
-      f.m.scale.set(1 + 0.7 * k, 1, 1 + 0.7 * k);
-      f.m.material.opacity = 0.75 * (1 - k * k);
+      const grow = Math.min(1, k * 3); // jaillit vite, s'éteint lentement
+      f.m.scale.set(0.25 + 0.75 * grow, 0.05 + 0.95 * grow, 0.25 + 0.75 * grow);
+      f.m.rotation.y += dt * 2.4;
+      f.m.material.opacity = 0.7 * (1 - k * k);
     } else { // ring
       f.m.scale.setScalar(0.4 + (f.rMax || 5) * k);
       f.m.material.opacity = 0.75 * (1 - k);

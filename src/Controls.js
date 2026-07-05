@@ -40,7 +40,7 @@ export function initControls() {
       return;
     }
     if (e.code === 'Tab' && !G.paused) { G.inv = !G.inv; refreshInv(); $('inv').classList.toggle('hidden', !G.inv); }
-    if (/^Digit[1-6]$/.test(e.code)) {
+    if (/^Digit[1-8]$/.test(e.code)) {
       const p = POWERS[+e.code.slice(5) - 1];
       if (G.powers[p.id]) { G.sel = p.id; refreshPowers(); showMsg(p.name + ' préparé.', 1); }
       else showMsg('Vous ne maîtrisez pas encore cet art...', 1.4);
@@ -110,6 +110,7 @@ export function initControls() {
    même si un nouveau sort vient d'être débloqué/sélectionné.
    Y/LB/RB/LT/RT : 5 emplacements de sort assignables dans ⚙ Réglages
    (par défaut : Pas du vent, Main céleste, Égide, Souffle glacé, Bénédiction).
+   Croix haut/bas : Nova d'Aurore / Astre d'Aube (arts de l'Outre-Ciel).
    ================================================================ */
 /* Zone morte à rééchelonnage linéaire : au-delà du seuil, la valeur repart
    de 0 (pas de saut brusque façon |v|>seuil, qui donne cette sensation de
@@ -178,6 +179,8 @@ export function updateGamepad(dt) {
         if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2, p2);             // RB : emplacement 3 J2
         if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3, p2);             // LT : emplacement 4 J2
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4, p2);             // RT : emplacement 5 J2
+        if (b(12) && !S.gpPrev[12] && !G.inv) castSpecific('nova', p2);  // Croix haut : Nova d'Aurore J2
+        if (b(13) && !S.gpPrev[13] && !G.inv) castSpecific('meteor', p2);// Croix bas : Astre d'Aube J2
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
@@ -197,10 +200,12 @@ export function updateGamepad(dt) {
         if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2);                // RB / R1 : emplacement 3
         if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3);                // LT / L2 : emplacement 4
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4);                // RT / R2 : emplacement 5
+        if (b(12) && !S.gpPrev[12] && !G.inv) castSpecific('nova');     // Croix haut : Nova d'Aurore
+        if (b(13) && !S.gpPrev[13] && !G.inv) castSpecific('meteor');   // Croix bas : Astre d'Aube
       }
     }
   }
-  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9) };
+  S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7), 9: b(9), 12: b(12), 13: b(13) };
 }
 
 /* ================================================================

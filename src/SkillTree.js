@@ -64,6 +64,8 @@ export function classAtk(path) {
   if (G.upgrades.boltAoE) P.aoe = true; // Transcendance (artisanat) : compatible
   // Aura du Premier Foyer (Observatoire de l'Aube) : +15 % de dégâts, toutes voies
   if (G.tower && G.tower.aura) P.dmg = Math.round(P.dmg * 1.15);
+  // Couronne de l'Aube (Cœur de la Nuit sans lune, v8) : +10 % de plus, toutes voies
+  if (G.tower && G.tower.crown) P.dmg = Math.round(P.dmg * 1.1);
   // Forge des Arts : chaque rang forgé de l'attaque principale = +10 % de dégâts
   P.dmg = Math.round(P.dmg * (1 + 0.10 * (G.pupg.bolt || 0)));
   return P;

@@ -2,7 +2,7 @@
    POUVOIRS — sorts, projectiles, mêlée, dash, télékinésie
    ================================================================ */
 import * as THREE from 'three';
-import { G, S, IS_TOUCH, PATHS, POWERS, keys, gpMove, tmMove, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
+import { G, S, IS_TOUCH, LIGHT_SCALE, PATHS, POWERS, keys, gpMove, tmMove, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
 import { playAttack, slashArc, groundRing, impactFlash, lightPillar } from './Animations.js';
 import { A } from './Audio.js';
 import { showMsg, refreshPowers } from './UI.js';
@@ -127,6 +127,8 @@ export function castPower() {
   else if (pw.id === 'shield') { G.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield(); }
   else if (pw.id === 'frost') frostNova();
   else if (pw.id === 'heal') healSelf();
+  else if (pw.id === 'nova') dawnNova();
+  else if (pw.id === 'meteor') castMeteor();
 }
 /* Lance un sort précis sans toucher à la sélection courante (manette Xbox/PS
    avec un bouton dédié par sort, et bouton dédié de la manette smartphone) :
@@ -178,6 +180,58 @@ export function castPowerP2() {
   else if (pw.id === 'shield') { p2.shieldT = 4; A.shield(); }
   else if (pw.id === 'frost') frostNova(p2);
   else if (pw.id === 'heal') healSelf(p2); // code unifié J1/J2 (Racine Vengeresse comprise)
+  else if (pw.id === 'nova') dawnNova(p2); // le voile de l'Avale-Lune cède aux deux porteurs
+  else if (pw.id === 'meteor') castMeteor(p2);
+}
+/* ---- Nova d'Aurore (touche 7) : le lever de soleil fait arme ----
+   Colonne de lumière, triple anneau d'aube, brûlure dorée et étourdissement
+   à 360° — et le seul art qui déchire le voile de l'Avale-Lune (S.onNova). */
+export function dawnNova(pl) {
+  pl = pl || player;
+  A.power(); A.impact();
+  if (pl === player) S.camKick = 0.4;
+  const x = pl.pos.x, y = pl.pos.y, z = pl.pos.z;
+  lightPillar(x, y, z, 0xffd97a, 2.2, 9, 0.8);
+  groundRing(x, y, z, 0xffd97a, 10.5);
+  setTimeout(() => groundRing(x, y, z, 0xfff2b0, 8), 120);
+  setTimeout(() => groundRing(x, y, z, 0xffb05a, 12.5), 260);
+  spawnBurst(x, y + 1.2, z, 0xfff2b0, 30);
+  spawnBurst(x, y + 0.3, z, 0xffd97a, 22);
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.g.position.x - x, dz = e.g.position.z - z;
+    const d = Math.hypot(dx, dz);
+    if (d < 10.5 && Math.abs(e.g.position.y - (y + 1)) < 4.5) {
+      damageEnemy(e, Math.round(46 * (1 - d / 22)), { x: dx, z: dz });
+      if (!e.dead) {
+        e.stunT = Math.max(e.stunT || 0, 1.3);
+        e.dotT = 2.5; e.dotDps = 8; e.dotCol = 0xffd97a; // brûlure d'aube
+      }
+    }
+  }
+  if (S.onNova) S.onNova(pl);
+}
+/* ---- Astre d'Aube (touche 8) : arrache une étoile au ciel ----
+   Télégraphe au sol, comète qui plonge sur le point visé (lumière portée
+   + sillage doré), explosion de zone qui embrase et dresse une colonne
+   d'aurore visible à l'autre bout du château. */
+export function castMeteor(pl) {
+  pl = pl || player;
+  const t = (pl === player) ? aimPoint() : aimPoint2();
+  A.alert();
+  if (pl === player) S.camKick = 0.22;
+  groundRing(t.x, t.y, t.z, 0xffe9a8, 6.5); // télégraphe : l'astre tombe ICI
+  const start = new THREE.Vector3(t.x + 6, t.y + 26, t.z - 4);
+  const dir = t.clone().sub(start).normalize();
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0),
+    new THREE.MeshStandardMaterial({ color: 0xfff2c8, emissive: 0xffb05a, emissiveIntensity: 1.6, roughness: 0.3 }));
+  core.add(glow(0xffd97a, 4.2, 0.85));
+  core.add(new THREE.PointLight(0xffc86a, 2.2 * LIGHT_SCALE, 26, 2));
+  core.position.copy(start);
+  S.scene.add(core);
+  projectiles.push({ mesh: core, vel: dir.multiplyScalar(30), life: 3,
+    dmg: 85, aoe: true, aoeR: 6.5, burn: true, pillar: true, stun: 1, spinP: 7,
+    trailCol: 0xffd97a, ox: start.x, oy: start.y, oz: start.z });
 }
 /* Élan du Pas du vent : direction du déplacement en cours, sinon droit
    devant — cœur partagé J1/J2 (autrefois dupliqué). */
@@ -397,6 +451,10 @@ export function updateProjectiles(dt) {
       // sillage lumineux : rend les traits/dagues astraux plus lisibles et plus « cool » en vol
       spawnBurst(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, pr.trailCol, 1);
     }
+    if (pr.spinP) { // comète de l'Astre d'Aube : elle tournoie en tombant
+      pr.mesh.rotation.x += dt * pr.spinP;
+      pr.mesh.rotation.z += dt * pr.spinP * 0.6;
+    }
     const pos = pr.mesh.position;
     let hit = pr.life <= 0;
     if (!hit && pointSolid(pos.x, pos.y, pos.z)) {
@@ -473,12 +531,19 @@ export function updateProjectiles(dt) {
         impactFlash(pos.x, pos.y, pos.z, 0xffd97a, 2.4); // boule de feu lisible
         groundRing(pos.x, pos.y - 0.8, pos.z, 0xffd97a, pr.aoeR || 3.4);
         A.impact();
+        if (pr.pillar) { // Astre d'Aube : l'impact dresse une colonne d'aurore
+          lightPillar(pos.x, pos.y - 0.6, pos.z, 0xffd97a, 3, 13, 0.9);
+          groundRing(pos.x, pos.y - 0.5, pos.z, 0xfff2b0, 9);
+          spawnBurst(pos.x, pos.y + 0.5, pos.z, 0xfff2b0, 26);
+          S.camKick = Math.max(S.camKick, 0.3);
+        }
         for (const e of enemies) {
           if (e.dead) continue;
           const d = pos.distanceTo(e.g.position);
           if (d < (pr.aoeR || 3.4)) {
             damageEnemy(e, Math.round((pr.dmg || 16) * 0.6), { x: e.g.position.x - pos.x, z: e.g.position.z - pos.z });
             if (pr.burn && !e.dead) { e.dotT = 3; e.dotDps = 7; e.dotCol = 0xff9a3a; }
+            if (pr.stun && !e.dead) e.stunT = Math.max(e.stunT || 0, pr.stun);
           }
         }
       }

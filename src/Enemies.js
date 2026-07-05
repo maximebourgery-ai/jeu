@@ -34,7 +34,7 @@ export function mkEnemy(x, z, floorY, wps, opt) {
      base. Halo de niveau conservé dans tous les cas. */
   const charMats = null, mixer = null;
   const tk = opt.type || 'sentinel';
-  const wFac = tk === 'brute' ? 1.3 : (tk === 'wraith' ? 0.68 : (tk === 'caster' ? 0.85 : 1));
+  const wFac = { brute: 1.3, wraith: 0.68, caster: 0.85, seraph: 0.9, echo: 0.6, obsidian: 1.45 }[tk] || 1;
   const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.55 * s * wFac, 1.5 * s, 8), cloakMat);
   cloak.castShadow = true;
   const hood = new THREE.Mesh(new THREE.SphereGeometry(0.28 * s * (tk === 'wraith' ? 0.82 : 1), 8, 8), cloakMat);
@@ -67,6 +67,41 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     shard.position.set(0, 1.05 * s, 0.3 * s);
     shard.add(glow(T.eye || 0xff8a5a, 1.1 * s, 0.6));
     g.add(shard);
+  } else if (tk === 'seraph') {
+    // Séraphin déchu : deux ailes de lumière fanée + anneau brisé au-dessus du capuchon
+    const wingMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.5,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+    const wl = new THREE.Mesh(new THREE.ConeGeometry(0.16 * s, 1.1 * s, 5), wingMat);
+    wl.position.set(0.5 * s, 0.6 * s, -0.15 * s); wl.rotation.z = -1.15;
+    const wr = wl.clone(); wr.position.x = -0.5 * s; wr.rotation.z = 1.15;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3 * s, 0.045 * s, 6, 14),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
+    ring.position.y = 1.22 * s; ring.rotation.x = Math.PI / 2.3;
+    ring.add(glow(0xffe9a8, 1.7 * s, 0.5));
+    g.add(wl, wr, ring);
+  } else if (tk === 'echo') {
+    // Écho de l'Aube : cœur incandescent visible et double traînée — la vitesse faite ombre
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16 * s),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0 }));
+    core.position.y = 0.35 * s;
+    core.add(glow(0xfff2b0, 1.8 * s, 0.7));
+    const t1 = new THREE.Mesh(new THREE.ConeGeometry(0.1 * s, 1 * s, 5), cloakMat);
+    t1.position.set(0.16 * s, -0.15 * s, -0.5 * s); t1.rotation.x = 1.2;
+    const t2 = t1.clone(); t2.position.x = -0.16 * s;
+    g.add(core, t1, t2);
+    cloak.rotation.x = 0.22;
+  } else if (tk === 'obsidian') {
+    // Titan d'obsidienne : poings colossaux + éclats de roche en fusion sur les épaules
+    const fist = new THREE.Mesh(new THREE.SphereGeometry(0.26 * s, 7, 7), cloakMat);
+    fist.position.set(0.7 * s, 0.12 * s, 0.15 * s); fist.castShadow = true;
+    const fist2 = fist.clone(); fist2.position.x = -0.7 * s;
+    const spikeMat = new THREE.MeshStandardMaterial({ color: 0x1a1226, roughness: 0.6,
+      emissive: 0xff5a2a, emissiveIntensity: 0.55 });
+    const s1 = new THREE.Mesh(new THREE.ConeGeometry(0.12 * s, 0.5 * s, 5), spikeMat);
+    s1.position.set(0.34 * s, 0.62 * s, 0); s1.rotation.z = -0.5;
+    const s2 = s1.clone(); s2.position.x = -0.34 * s; s2.rotation.z = 0.5;
+    const s3 = s1.clone(); s3.position.set(0, 0.52 * s, -0.3 * s); s3.rotation.set(-0.6, 0, 0);
+    g.add(fist, fist2, s1, s2, s3);
   }
   if (elite) {
     // Couronne d'épines de l'Alpha : la menace se lit de loin

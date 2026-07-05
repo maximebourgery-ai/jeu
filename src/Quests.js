@@ -3,11 +3,14 @@ import { G, S, QUESTS, player, tut } from './state.js';
 import { A } from './Audio.js';
 import { $ } from './UI.js';
 
-/* ---- Dialogues ---- */
-export function openDialog(pages, after) {
+/* ---- Dialogues ----
+   `name` : nom affiché du locuteur (LUMEN par défaut — les PNJ de
+   l'Outre-Ciel comme Maëla, Orin ou le Veilleur passent le leur). */
+export function openDialog(pages, after, name) {
   S.dlg = { pages, i: 0, after };
   G.dialog = true;
   $('dialog').classList.remove('hidden');
+  $('dlg-name').textContent = name || 'LUMEN';
   $('dlg-text').textContent = pages[0];
   A.talk();
 }

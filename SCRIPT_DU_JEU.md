@@ -1,4 +1,4 @@
-# OMBRECIEL — Script complet du jeu (v7.1)
+# OMBRECIEL — Script complet du jeu (v8)
 
 > Document de relecture : histoire, personnages, progression, énigmes, textes en jeu,
 > zones, ennemis, pouvoirs et systèmes annexes. Tout est tiré du code actuel
@@ -170,6 +170,56 @@ lourd secret du jeu** : les ombres ne sont pas des envahisseuses — ce sont les
 premiers porteurs de flamme, dévorés par la lumière trop pure des Larmes d'Aube,
 sacrifiés pour sauver le monde. *« Chaque ombre que tu affrontes fut une aube,
 avant toi. »*
+
+---
+
+## 4 ter. L'OUTRE-CIEL — la suite du scénario (v8, étages 16-20)
+
+> **Le fil rouge du v8** : l'Aura du Premier Foyer rend leur **voix** aux ombres.
+> La première à parler, **Maëla**, révèle la vraie cause de la Nuit sans lune :
+> une lumière trop pure projette une ombre à sa mesure — **l'Avale-Lune**,
+> l'ombre des Larmes elles-mêmes, qui a gobé la lune il y a cent ans et la
+> digère encore. Rendre la lune au ciel est le **vrai final** du jeu.
+
+### Les 5 nouveaux étages (2 paliers instanciés)
+
+| Palier | Étages | Thème | Progression | Boss | Récompense |
+|---|---|---|---|---|---|
+| V — **L'Outre-Ciel** | 16-18 | îles flottantes par-delà le firmament, troupeau d'étoiles, vide mortel (Kill Z → entrée du palier) | étage 16 : piédestal de la **Nova d'Aurore** (touche 7) + Orin ; étage 17 : chapelet d'îles au Pas du vent, 3 **Éclats d'étoile** à retrouver, bivouac « le Belvédère des étoiles » ; étage 18 : accessible uniquement par le **pont de constellations** retissé par Orin | **Le Berger des Étoiles** — Séraphin géant : bordées d'étoiles filantes, **pluie d'étoiles** télégraphiée (colonnes de lumière), invoque des Échos de l'Aube | **Clef d'Astre** |
+| VI — **Le Cœur de la Nuit sans lune** | 19-20 | l'instant du désastre figé : lune à demi avalée au plafond, débris en suspension, mares de **nuit liquide** | étage 19 : piédestal de l'**Astre d'Aube** (touche 8) gardé par deux Titans, bivouac « la Veille du Bout de la Nuit », **porte de la Dernière Nuit** ouverte par le Veilleur ; étage 20 : l'arène finale | **L'Avale-Lune** — voile de nuit qui absorbe 90 % des dégâts : seule la **Nova d'Aurore prononcée tout contre elle** le déchire 7 s (×1,4 dégâts) ; voile dévorant radial, **crocs de nuit** télégraphiés, gueulée de zone à active frames, enragée sous 50 % PV | **la Couronne de l'Aube** (+10 % dégâts, régénération d'esprit, diadème de lumière) + le **vrai épilogue** (la lune rendue au ciel) |
+
+### Les PNJ (on leur parle pour découvrir l'histoire ET progresser)
+
+| PNJ | Où | Rôle narratif | Verrou de progression |
+|---|---|---|---|
+| **Maëla, l'Ombre Souvenante** | Observatoire (étage 15), agenouillée près de l'autel — muette tant que l'Aura ne brûle pas | première ombre à retrouver sa voix ; révèle l'Avale-Lune, le Berger, et l'existence des deux arts perdus | son dialogue **nomme le porteur au Seuil de l'Outre-Ciel** (le portail du Palier V reste clos sans elle) |
+| **Orin, le cartographe céleste** | île d'entrée de l'Outre-Ciel (étage 16), fantôme d'astronome | cartographe mort sur place ; humour de spectre ; indique où sont les Éclats | **quête des 3 Éclats d'étoile** → il retisse le **pont de constellations** vers l'île du Berger (étage 18) |
+| **Le Veilleur sans Nom** | devant la porte de la Dernière Nuit (étage 19) — frère du Chevalier de l'Éclipse | garde amnésique ; enseigne la mécanique du voile (Nova tout contre, frapper quand il « saigne de lumière ») | son dialogue **lève la porte de la Dernière Nuit** (étage 20) |
+
+### Les 2 nouveaux pouvoirs (effets très lumineux)
+
+| Touche | Pouvoir | Où | Effets |
+|---|---|---|---|
+| 7 | **Nova d'Aurore** (45 PM, 12 s) | piédestal de l'étage 16 | colonne de lumière, **triple anneau d'aube** en cascade, 360°, étourdit 1,3 s + brûlure dorée — **le seul art qui déchire le voile de l'Avale-Lune** |
+| 8 | **Astre d'Aube** (60 PM, 16 s) | piédestal de l'étage 19 | télégraphe au sol, **comète** qui plonge sur le point visé (lumière portée + sillage doré), explosion de zone (85 dég. + brûlure + étourdissement) et **colonne d'aurore** à l'impact |
+
+*(Manette : croix haut = Nova, croix bas = Astre. Tactile : deux nouveaux
+boutons dans l'arc de sorts. Clavier : touches 7 et 8.)*
+
+### Les 3 nouveaux ennemis (niveaux 14-16)
+
+| Type | Nom | Profil |
+|---|---|---|
+| seraph | **Séraphin déchu** | garde ailée du Berger — ailes de lumière fanée, anneau brisé, bordées à distance |
+| echo | **Écho de l'Aube** | la vitesse faite ombre — cœur incandescent, double traînée, plus rapide qu'un Traqueur |
+| obsidian | **Titan d'obsidienne** | muraille de roche en fusion — très lent, dévastateur, éclats incandescents aux épaules |
+
+### L'épilogue vrai (Couronne reçue)
+
+> Le voile de la Dernière Nuit se déchire d'un bord à l'autre du ciel — la lune
+> en tombe, immense, intacte. Partout, les ombres s'arrêtent et lèvent leurs
+> yeux clairs vers la première vraie nuit depuis cent ans. *« Il reste des
+> ombres, oui — mais plus une seule qui soit orpheline du ciel. »*
 
 ---
 

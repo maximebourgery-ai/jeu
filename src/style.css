@@ -157,6 +157,9 @@ canvas{display:block}
 #ts-shield{right:calc(96px + env(safe-area-inset-right,0px));bottom:152px;width:56px;height:56px}
 #ts-heal{right:calc(166px + env(safe-area-inset-right,0px));bottom:152px;width:56px;height:56px}
 #ts-tk{right:calc(232px + env(safe-area-inset-right,0px));bottom:120px;width:56px;height:56px}
+/* Arts de l'Outre-Ciel (v8) : l'arc s'étend vers la gauche du pouce */
+#ts-nova{right:calc(292px + env(safe-area-inset-right,0px));bottom:52px;width:54px;height:54px}
+#ts-meteor{right:calc(298px + env(safe-area-inset-right,0px));bottom:118px;width:54px;height:54px}
 /* voile de recharge : descend du haut du bouton, disparaît quand le sort est prêt */
 .tbtn .scd,.sbtn .scd{position:absolute;left:0;right:0;top:0;height:0;background:rgba(3,5,12,.74);
   pointer-events:none;border-radius:0}
