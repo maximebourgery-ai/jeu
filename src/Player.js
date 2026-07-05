@@ -8,7 +8,7 @@ import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
 import { damageEnemy } from './Enemies.js';
-import { animateArms } from './Animations.js';
+import { animateArms, lightPillar } from './Animations.js';
 
 export function lerpAngle(a, b, t) {
   let d = b - a;
@@ -20,8 +20,57 @@ export function lerpAngle(a, b, t) {
    (bleu = J1, pourpre = J2) préservée pour la lisibilité en coop. */
 export function classTint(identity) {
   return identity === 'p2'
-    ? { cloth: 0x6b2440, dark: 0x3d1626, glow: 0xff9a6a, glowLight: 0xff9a6a }
-    : { cloth: 0x2c3376, dark: 0x1c2148, glow: 0x8fe8ff, glowLight: 0x7fa8ff };
+    ? { cloth: 0x6b2440, dark: 0x3d1626, glow: 0xff9a6a, glowLight: 0xff9a6a, trim: 0xc86a4a }
+    : { cloth: 0x2c3376, dark: 0x1c2148, glow: 0x8fe8ff, glowLight: 0x7fa8ff, trim: 0x5a78d8 };
+}
+/* ---- petits constructeurs partagés du corps (zéro asset : pure géométrie) ---- */
+const SKIN = 0xd9b48a, GOLD = 0xd9a83c;
+function sMat(color, rough, metal, emissive, ei) {
+  const m = new THREE.MeshStandardMaterial({ color,
+    roughness: rough !== undefined ? rough : 0.8, metalness: metal || 0 });
+  if (emissive !== undefined) {
+    m.emissive = new THREE.Color(emissive);
+    m.emissiveIntensity = ei !== undefined ? ei : 0.6;
+  }
+  return m;
+}
+function bx(w, h, d, mat, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z); m.castShadow = true;
+  return m;
+}
+/* Jambes articulées : pivot à la hanche — la foulée alternée est animée
+   chaque frame dans Animations.js via parts.legL / parts.legR. */
+function mkLegs(g, mat, bootMat, spread) {
+  const legs = [];
+  for (const sx of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(sx * (spread || 0.14), 0.5, 0);
+    hip.add(bx(0.15, 0.42, 0.16, mat, 0, -0.24, 0));
+    hip.add(bx(0.17, 0.12, 0.24, bootMat, 0, -0.46, 0.03));
+    g.add(hip); legs.push(hip);
+  }
+  return legs;
+}
+/* Cape d'épaules : plane double-face qui flotte avec l'allure (parts.cape) */
+function mkCape(g, color, w, h, y) {
+  const cape = new THREE.Group(); cape.position.set(0, y, -0.17);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 1, 3),
+    new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide }));
+  m.position.y = -h / 2; m.castShadow = true;
+  cape.add(m); cape.rotation.x = 0.2;
+  g.add(cape);
+  return cape;
+}
+/* Tête + yeux lumineux : le regard des porteurs de flamme luit de leur art */
+function mkHeadEyes(g, r, y, eyeCol) {
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), sMat(SKIN, 0.85));
+  head.position.y = y; head.castShadow = true;
+  const eyeMat = new THREE.MeshBasicMaterial({ color: eyeCol });
+  const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), eyeMat);
+  e1.position.set(-0.085, y + 0.02, r * 0.86);
+  const e2 = e1.clone(); e2.position.x = 0.085;
+  g.add(head, e1, e2);
+  return head;
 }
 export function mkClassBody(pathId, identity) {
   const T = classTint(identity);
@@ -36,136 +85,248 @@ export function mkClassBody(pathId, identity) {
      droite (parts.arm) : les gestes d'attaque procéduraux (Animations.js)
      font tourner ce pivot — le coup part de l'épaule, comme un vrai bras.
      L'Assassin a un second pivot à gauche (parts.armL) pour alterner. */
-  let staffPart, robePart, armLPart = null, tipPart = null;
+  let staffPart, robePart, armLPart = null, tipPart = null,
+      legLPart = null, legRPart = null, capePart = null;
+  const spinParts = [];
+  const goldMat = sMat(GOLD, 0.35, 0.7, 0x30220a, 1);
   if (pathId === 'warrior') {
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.82, 0.36),
-      new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.6, metalness: 0.3 }));
-    torso.position.y = 0.6; torso.castShadow = true;
-    const pauldronMat = new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.35, metalness: 0.65 });
-    const pl = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), pauldronMat); pl.position.set(-0.37, 0.98, 0); pl.castShadow = true;
-    const pr = pl.clone(); pr.position.x = 0.37;
-    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.34, 0.13, 9),
-      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
-    belt.position.y = 0.84;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.235, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.8 }));
-    head.position.y = 1.34; head.castShadow = true;
-    const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.29, 0.3, 9),
-      new THREE.MeshStandardMaterial({ color: 0x585c66, roughness: 0.3, metalness: 0.75 }));
-    helm.position.y = 1.54; helm.castShadow = true;
-    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.05),
-      new THREE.MeshStandardMaterial({ color: T.glowLight, roughness: 0.5, emissive: T.glowLight, emissiveIntensity: 0.4 }));
-    crest.position.y = 1.8;
-    const arm = new THREE.Group(); arm.position.set(0.46, 1.02, 0.14);
-    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.3, 0.035),
-      new THREE.MeshStandardMaterial({ color: 0xc7ccd6, roughness: 0.2, metalness: 0.85 }));
-    sword.position.set(0, -0.12, 0); sword.rotation.z = -0.22; sword.castShadow = true;
-    // lame qui luit doucement de la teinte d'identité : signature visuelle des coups
-    const swordGlow = glow(T.glowLight, 0.7, 0.5); swordGlow.position.y = 0.62;
-    sword.add(swordGlow);
-    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.055, 0.055),
-      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
-    guard.position.set(0, -0.73, 0); guard.rotation.z = -0.22;
-    arm.add(sword, guard);
+    /* GUERRIER : cuirasse sombre, cape, heaume cornu, espadon runique */
+    const armor = sMat(T.dark, 0.4, 0.6);
+    const steel = sMat(0x8b909e, 0.3, 0.8);
+    [legLPart, legRPart] = mkLegs(g, armor, steel, 0.16);
+    const torso = bx(0.6, 0.78, 0.38, sMat(T.cloth, 0.6, 0.3), 0, 0.88, 0);
+    // plastron d'acier + veine runique verticale qui luit de la teinte d'identité
+    const plastron = bx(0.5, 0.46, 0.07, steel, 0, 1.0, 0.21);
+    const vein = bx(0.05, 0.4, 0.02, sMat(T.glowLight, 0.5, 0, T.glowLight, 1.2), 0, 1.0, 0.255);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.35, 0.12, 10), goldMat);
+    belt.position.y = 0.56;
+    // pauldrons à pointes
+    const plG = new THREE.Group(), prG = new THREE.Group();
+    for (const [grp, sx] of [[plG, -1], [prG, 1]]) {
+      grp.position.set(sx * 0.4, 1.24, 0);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.21, 9, 9), steel); dome.castShadow = true;
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.24, 6), steel);
+      spike.position.set(sx * 0.1, 0.18, 0); spike.rotation.z = -sx * 0.5;
+      grp.add(dome, spike); g.add(grp);
+    }
+    mkHeadEyes(g, 0.23, 1.62, T.glow);
+    const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.28, 10), steel);
+    helm.position.y = 1.8; helm.castShadow = true;
+    const nasal = bx(0.06, 0.2, 0.04, steel, 0, 1.66, 0.24);
+    // cornes du heaume + cimier lumineux
+    const hornMat = sMat(0xcfd4de, 0.45, 0.5);
+    const hl = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.34, 6), hornMat);
+    hl.position.set(-0.26, 1.94, 0); hl.rotation.z = 0.7; hl.castShadow = true;
+    const hr = hl.clone(); hr.position.x = 0.26; hr.rotation.z = -0.7;
+    const crest = bx(0.05, 0.24, 0.05, sMat(T.glowLight, 0.5, 0, T.glowLight, 0.9), 0, 2.02, 0);
+    capePart = mkCape(g, T.dark, 0.74, 1.1, 1.38);
+    // bras-garde gauche (bouclier de chair : bracer + poing)
+    const armF = new THREE.Group(); armF.position.set(-0.46, 1.24, 0.06);
+    armF.add(bx(0.15, 0.4, 0.16, armor, 0, -0.2, 0));
+    const fist = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), steel);
+    fist.position.set(0, -0.44, 0.02); armF.add(fist); g.add(armF);
+    /* Espadon : lame effilée, gouttière runique, garde d'or, pommeau —
+       porté par le pivot d'épaule droit (gestes d'attaque procéduraux) */
+    const arm = new THREE.Group(); arm.position.set(0.46, 1.24, 0.1);
+    arm.add(bx(0.15, 0.38, 0.16, armor, 0, -0.18, 0));
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.24, 6), sMat(0x3a2c1c, 0.9));
+    grip.position.y = -0.52;
+    const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), goldMat);
+    pommel.position.y = -0.66;
+    const guard = bx(0.32, 0.055, 0.08, goldMat, 0, -0.38, 0);
+    const blade = bx(0.11, 1.2, 0.032, sMat(0xd4d9e4, 0.18, 0.9), 0, 0.26, 0);
+    const fuller = bx(0.028, 1.04, 0.038, sMat(T.glowLight, 0.4, 0, T.glowLight, 1.4), 0, 0.24, 0);
+    const point = new THREE.Mesh(new THREE.ConeGeometry(0.062, 0.18, 4), sMat(0xd4d9e4, 0.18, 0.9));
+    point.position.y = 0.94; point.rotation.y = Math.PI / 4;
+    const swordGlow = glow(T.glowLight, 0.8, 0.45); swordGlow.position.y = 0.5;
+    arm.add(grip, pommel, guard, blade, fuller, point, swordGlow);
     const plight = new THREE.PointLight(T.glowLight, 0.6 * LIGHT_SCALE, 7.5, 2); plight.position.y = 1.6;
-    g.add(torso, pl, pr, belt, head, helm, crest, arm, plight);
+    g.add(torso, plastron, vein, belt, helm, nasal, hl, hr, crest, arm, plight);
     staffPart = arm; robePart = torso;
   } else if (pathId === 'assassin') {
-    const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.36, 1.05, 9),
-      new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.85 }));
-    cloak.position.y = 0.58; cloak.castShadow = true;
-    const sash = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.1, 9),
-      new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.6 }));
-    sash.position.y = 0.8;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.8 }));
-    head.position.y = 1.32; head.castShadow = true;
-    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.48, 9),
-      new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.9 }));
-    hood.position.y = 1.56; hood.castShadow = true;
-    const dagMat = new THREE.MeshStandardMaterial({ color: 0xd8ffe8, roughness: 0.15, metalness: 0.8 });
-    const armL = new THREE.Group(); armL.position.set(-0.34, 0.95, 0.12);
-    const dagL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 0.02), dagMat);
-    dagL.position.set(0, -0.19, 0); dagL.rotation.z = 0.32;
-    armL.add(dagL);
-    const armR = new THREE.Group(); armR.position.set(0.34, 0.95, 0.12);
-    const dagR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 0.02), dagMat.clone());
-    dagR.position.set(0, -0.19, 0); dagR.rotation.z = -0.32;
-    armR.add(dagR);
-    // pointes vénéneuses : petite lueur au bout de chaque lame
-    const dagGlowL = glow(T.glow, 0.4, 0.55); dagGlowL.position.y = 0.24; dagL.add(dagGlowL);
-    const dagGlowR = glow(T.glow, 0.4, 0.55); dagGlowR.position.y = 0.24; dagR.add(dagGlowR);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: T.glow });
-    const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), eyeMat); e1.position.set(-0.08, 1.34, 0.19);
-    const e2 = e1.clone(); e2.position.x = 0.08;
+    /* ASSASSIN : veste ajustée, sangles, écharpe flottante, dagues jumelles */
+    const dark = sMat(T.dark, 0.85);
+    const leather = sMat(0x241a12, 0.9);
+    [legLPart, legRPart] = mkLegs(g, dark, leather, 0.12);
+    const torso = bx(0.42, 0.6, 0.26, dark, 0, 0.92, 0);
+    // sangles croisées + ceinture à pochettes : la panoplie du rôdeur
+    const strap1 = bx(0.045, 0.62, 0.28, sMat(T.trim, 0.7), 0, 0.94, 0); strap1.rotation.z = 0.5;
+    const strap2 = strap1.clone(); strap2.rotation.z = -0.5;
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.09, 9), leather);
+    belt.position.y = 0.62;
+    for (let i = -1; i <= 1; i++) g.add(bx(0.09, 0.11, 0.05, leather, i * 0.14, 0.6, 0.24));
+    // couteaux de lancer au baudrier (petites lames au repos)
+    for (let i = 0; i < 2; i++)
+      g.add(bx(0.025, 0.16, 0.015, sMat(0xd8ffe8, 0.2, 0.8), -0.08 + i * 0.16, 0.9 + i * 0.12, -0.16));
+    mkHeadEyes(g, 0.2, 1.42, T.glow);
+    // masque bas + capuche effilée : seul le regard perce l'ombre
+    const mask = bx(0.24, 0.1, 0.1, dark, 0, 1.36, 0.13);
+    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.5, 9), dark);
+    hood.position.y = 1.64; hood.rotation.x = 0.12; hood.castShadow = true;
+    capePart = mkCape(g, T.cloth, 0.4, 0.85, 1.4); // écharpe flottante
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.05, 6, 10), sMat(T.cloth, 0.9));
+    scarf.position.y = 1.26; scarf.rotation.x = Math.PI / 2;
+    /* Dague jumelle : lame, garde, manche — un pivot par épaule pour
+       l'alternance droite/gauche des jets (Animations.js) */
+    const mkDagger = (sx) => {
+      const armG = new THREE.Group(); armG.position.set(sx * 0.32, 1.14, 0.1);
+      armG.add(bx(0.11, 0.34, 0.12, dark, 0, -0.16, 0));
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.14, 6), leather);
+      grip.position.y = -0.42;
+      const guard = bx(0.13, 0.03, 0.05, goldMat, 0, -0.34, 0);
+      const blade = bx(0.05, 0.4, 0.018, sMat(0xd8ffe8, 0.12, 0.85), 0, -0.12, 0);
+      const tipG = glow(T.glow, 0.45, 0.6); tipG.position.y = 0.1;
+      armG.add(grip, guard, blade, tipG); g.add(armG);
+      return armG;
+    };
+    armLPart = mkDagger(-1);
+    const armR = mkDagger(1);
     const plight = new THREE.PointLight(T.glow, 0.55 * LIGHT_SCALE, 6.5, 2); plight.position.y = 1.48;
-    g.add(cloak, sash, head, hood, armL, armR, e1, e2, plight);
-    staffPart = armR; robePart = cloak; armLPart = armL;
+    g.add(torso, strap1, strap2, belt, mask, hood, scarf, plight);
+    staffPart = armR; robePart = torso;
   } else if (pathId === 'paladin') {
-    /* Paladin : bastion cuirassé — armure claire, écu, marteau d'aube, anneau doré */
-    const armorMat = new THREE.MeshStandardMaterial({ color: 0xb8bdc9, roughness: 0.3, metalness: 0.7 });
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.86, 0.4), armorMat);
-    torso.position.y = 0.62; torso.castShadow = true;
-    const tabard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.78, 0.05),
-      new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.8 }));
-    tabard.position.set(0, 0.6, 0.22);
-    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.37, 0.13, 9),
-      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
-    belt.position.y = 0.86;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.235, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.8 }));
-    head.position.y = 1.36; head.castShadow = true;
-    const helm = new THREE.Mesh(new THREE.SphereGeometry(0.27, 9, 9, 0, Math.PI * 2, 0, Math.PI * 0.55), armorMat);
-    helm.position.y = 1.42; helm.castShadow = true;
-    // anneau d'aube flottant au-dessus du casque
+    /* PALADIN : bastion d'or et d'acier clair — écu solaire, marteau runique,
+       halo et lucioles d'aube en orbite */
+    const armorMat = sMat(0xb8bdc9, 0.3, 0.7);
+    [legLPart, legRPart] = mkLegs(g, armorMat, sMat(0x9298a8, 0.35, 0.7), 0.17);
+    const torso = bx(0.62, 0.8, 0.42, armorMat, 0, 0.9, 0);
+    const tabard = bx(0.32, 0.74, 0.05, sMat(T.cloth, 0.8), 0, 0.72, 0.23);
+    // emblème solaire du tabard : anneau + cœur d'or incandescents
+    const emblem = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 6, 14),
+      sMat(GOLD, 0.3, 0.5, 0xd9a83c, 1.2));
+    emblem.position.set(0, 0.98, 0.27);
+    const emCore = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffd97a }));
+    emCore.position.set(0, 0.98, 0.27);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.37, 0.12, 10), goldMat);
+    belt.position.y = 0.56;
+    // pauldrons cerclés d'or
+    for (const sx of [-1, 1]) {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.23, 10, 10), armorMat);
+      dome.position.set(sx * 0.42, 1.26, 0); dome.castShadow = true;
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 14), goldMat);
+      rim.position.set(sx * 0.42, 1.2, 0); rim.rotation.x = Math.PI / 2;
+      g.add(dome, rim);
+    }
+    mkHeadEyes(g, 0.235, 1.62, 0xffd97a);
+    const helm = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), armorMat);
+    helm.position.y = 1.68; helm.castShadow = true;
+    // ailes du heaume : deux plumes d'or dressées
+    const wingMat = sMat(GOLD, 0.4, 0.5, 0x30220a, 0.8);
+    const wl = bx(0.03, 0.26, 0.14, wingMat, -0.27, 1.86, 0); wl.rotation.z = 0.35;
+    const wr = bx(0.03, 0.26, 0.14, wingMat, 0.27, 1.86, 0); wr.rotation.z = -0.35;
+    // halo d'aube + lucioles en orbite lente (parts.spin)
     const haloRing = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 18),
-      new THREE.MeshStandardMaterial({ color: 0xffd97a, roughness: 0.3, metalness: 0.5,
-        emissive: 0xd9a83c, emissiveIntensity: 0.8 }));
-    haloRing.position.y = 1.86; haloRing.rotation.x = Math.PI / 2;
-    // écu au bras gauche
-    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.06, 8), armorMat);
-    shield.position.set(-0.46, 0.78, 0.1); shield.rotation.z = Math.PI / 2; shield.castShadow = true;
-    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.35, metalness: 0.7 }));
-    boss.position.set(-0.5, 0.78, 0.1);
-    // marteau d'aube au bras droit
-    const arm = new THREE.Group(); arm.position.set(0.48, 1.04, 0.14);
-    const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.2, 6), matFor('woodF', 1, 1));
-    haft.position.set(0, -0.18, 0); haft.castShadow = true;
-    const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.18), armorMat);
-    hammerHead.position.set(0, 0.46, 0); hammerHead.castShadow = true;
-    arm.add(haft, hammerHead);
+      sMat(0xffd97a, 0.3, 0.5, 0xd9a83c, 1.1));
+    haloRing.position.y = 2.12; haloRing.rotation.x = Math.PI / 2;
+    const motes = new THREE.Group(); motes.position.y = 2.12; motes.userData.spinV = 1.6;
+    for (let i = 0; i < 3; i++) {
+      const mote = glow(0xffd97a, 0.22, 0.45);
+      const a = i / 3 * Math.PI * 2;
+      mote.position.set(Math.cos(a) * 0.34, 0, Math.sin(a) * 0.34);
+      motes.add(mote);
+    }
+    g.add(motes); spinParts.push(motes);
+    capePart = mkCape(g, T.cloth, 0.78, 1.15, 1.4);
+    // écu solaire au bras gauche : croix d'aube incandescente
+    const shieldG = new THREE.Group(); shieldG.position.set(-0.5, 1.0, 0.1);
+    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.24, 0.07, 10), armorMat);
+    shield.rotation.z = Math.PI / 2; shield.castShadow = true;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 6, 16), goldMat);
+    rim.rotation.y = Math.PI / 2;
+    const crMat = sMat(0xffd97a, 0.4, 0.3, 0xd9a83c, 1.3);
+    const cr1 = bx(0.045, 0.4, 0.03, crMat, -0.05, 0, 0);
+    const cr2 = bx(0.045, 0.22, 0.03, crMat, -0.05, 0, 0); cr2.rotation.x = Math.PI / 2;
+    shieldG.add(shield, rim, cr1, cr2); g.add(shieldG);
+    /* Marteau d'aube : manche long, tête d'acier aux coiffes d'or, anneau
+       runique incandescent — le pivot d'épaule anime le geste « smash » */
+    const arm = new THREE.Group(); arm.position.set(0.5, 1.26, 0.1);
+    arm.add(bx(0.16, 0.4, 0.17, armorMat, 0, -0.2, 0));
+    const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.25, 7), matFor('woodF'));
+    haft.position.y = -0.16; haft.castShadow = true;
+    const hammerHead = bx(0.36, 0.2, 0.2, sMat(0x9aa0ae, 0.25, 0.8), 0, 0.46, 0);
+    const cap1 = bx(0.06, 0.24, 0.24, goldMat, -0.2, 0.46, 0);
+    const cap2 = bx(0.06, 0.24, 0.24, goldMat, 0.2, 0.46, 0);
+    const runeBand = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.02, 6, 12),
+      sMat(0xffd97a, 0.4, 0, 0xffd97a, 1.5));
+    runeBand.position.y = 0.46; runeBand.rotation.y = Math.PI / 2;
+    const hGlow = glow(0xffd97a, 0.55, 0.35); hGlow.position.y = 0.46;
+    arm.add(haft, hammerHead, cap1, cap2, runeBand, hGlow);
     const plight = new THREE.PointLight(0xffd97a, 0.65 * LIGHT_SCALE, 7.5, 2); plight.position.y = 1.7;
-    g.add(torso, tabard, belt, head, helm, haloRing, shield, boss, arm, plight);
+    g.add(torso, tabard, emblem, emCore, belt, helm, wl, wr, haloRing, arm, plight);
     staffPart = arm; robePart = torso;
   } else {
-    const robe = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.15, 9),
-      new THREE.MeshStandardMaterial({ color: T.cloth, roughness: 0.9 }));
-    robe.position.y = 0.62; robe.castShadow = true;
-    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.12, 9),
-      new THREE.MeshStandardMaterial({ color: 0xd9a83c, roughness: 0.4, metalness: 0.6 }));
+    /* MAGE : robe étagée au liseré runique, grimoire, chapeau étoilé,
+       bâton de cristal et runes en orbite */
+    const robe = new THREE.Mesh(new THREE.ConeGeometry(0.44, 1.2, 10), sMat(T.cloth, 0.9));
+    robe.position.y = 0.66; robe.castShadow = true;
+    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.56, 0.5, 10), sMat(T.dark, 0.95));
+    skirt.position.y = 0.26; skirt.castShadow = true;
+    // liseré runique : anneau qui luit doucement de la teinte d'identité
+    const runeBand = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.35, 0.06, 10),
+      sMat(T.dark, 0.6, 0, T.glow, 0.35));
+    runeBand.position.y = 0.94;
+    const mantle = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.44, 0.3, 9), sMat(T.dark, 0.9));
+    mantle.position.y = 1.16; mantle.castShadow = true;
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.12, 9), goldMat);
     belt.position.y = 0.85;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.235, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.8 }));
-    head.position.y = 1.36; head.castShadow = true;
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.66, 9),
-      new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.95 }));
-    hat.position.y = 1.74; hat.castShadow = true;
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.05, 10),
-      new THREE.MeshStandardMaterial({ color: T.dark, roughness: 0.95 }));
-    brim.position.y = 1.5;
-    const arm = new THREE.Group(); arm.position.set(0.42, 1.06, 0.12);
-    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.5, 6), matFor('woodF', 1, 1));
-    staff.position.set(0, -0.21, 0); staff.castShadow = true;
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: T.glow }));
-    tip.position.set(0, 0.6, 0);
-    tip.add(glow(T.glow, 1.3, 0.6));
-    arm.add(staff, tip);
+    mkHeadEyes(g, 0.235, 1.4, T.glow);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.68, 10), sMat(T.dark, 0.95));
+    hat.position.y = 1.82; hat.castShadow = true;
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.5, 0.05, 12), sMat(T.dark, 0.95));
+    brim.position.y = 1.56;
+    const hatBand = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.34, 0.07, 10), goldMat);
+    hatBand.position.y = 1.62;
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.06),
+      new THREE.MeshBasicMaterial({ color: T.glow }));
+    star.position.y = 2.2; star.add(glow(T.glow, 0.5, 0.6));
+    // grimoire ouvert dans la main gauche, sceau lumineux sur la couverture
+    const armF = new THREE.Group(); armF.position.set(-0.4, 1.12, 0.14);
+    armF.add(bx(0.09, 0.36, 0.1, sMat(T.cloth, 0.9), 0, -0.16, 0));
+    const book = bx(0.22, 0.3, 0.06, sMat(0x4a2c1a, 0.85), 0, -0.4, 0.06);
+    book.rotation.x = -0.5;
+    const seal = bx(0.1, 0.1, 0.015, sMat(T.glow, 0.5, 0, T.glow, 1.3), 0, -0.38, 0.1);
+    seal.rotation.x = -0.5;
+    armF.add(book, seal); g.add(armF);
+    /* Bâton : fût, anneaux d'or, griffes et cristal octaédrique — la pointe
+       (parts.tip) flamboie au départ de chaque trait (Animations.js) */
+    const arm = new THREE.Group(); arm.position.set(0.42, 1.12, 0.12);
+    arm.add(bx(0.09, 0.36, 0.1, sMat(T.cloth, 0.9), 0, -0.14, 0));
+    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.55, 7), matFor('woodF'));
+    staff.position.y = -0.21; staff.castShadow = true;
+    const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.015, 6, 10), goldMat);
+    ring1.position.y = 0.34;
+    const ring2 = ring1.clone(); ring2.position.y = 0.08;
+    for (let i = 0; i < 3; i++) {
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.16, 5), goldMat);
+      const a = i / 3 * Math.PI * 2;
+      claw.position.set(Math.cos(a) * 0.07, 0.52, Math.sin(a) * 0.07);
+      claw.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+      arm.add(claw);
+    }
+    const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.11),
+      new THREE.MeshBasicMaterial({ color: T.glow }));
+    tip.position.set(0, 0.64, 0);
+    tip.add(glow(T.glow, 1.5, 0.65));
+    arm.add(staff, ring1, ring2, tip);
+    // runes d'étude en orbite autour du mage (parts.spin)
+    const orbit = new THREE.Group(); orbit.position.y = 1.05; orbit.userData.spinV = 1.1;
+    for (let i = 0; i < 3; i++) {
+      const rune = new THREE.Mesh(new THREE.TetrahedronGeometry(0.05),
+        new THREE.MeshBasicMaterial({ color: T.glow }));
+      const a = i / 3 * Math.PI * 2;
+      rune.position.set(Math.cos(a) * 0.58, Math.sin(a * 2) * 0.12, Math.sin(a) * 0.58);
+      orbit.add(rune);
+    }
+    g.add(orbit); spinParts.push(orbit);
     const plight = new THREE.PointLight(T.glowLight, 0.75 * LIGHT_SCALE, 8.5, 2); plight.position.y = 1.7;
-    g.add(robe, belt, head, hat, brim, arm, plight);
+    g.add(robe, skirt, runeBand, mantle, belt, hat, brim, hatBand, star, arm, plight);
     staffPart = arm; robePart = robe; tipPart = tip;
   }
-  return { g, parts: { arm: staffPart, armL: armLPart, robe: robePart, tip: tipPart } };
+  return { g, parts: {
+    arm: staffPart, armL: armLPart, robe: robePart, tip: tipPart,
+    legL: legLPart, legR: legRPart, cape: capePart, spin: spinParts.length ? spinParts : null
+  } };
 }
 export function buildPlayer() {
   player.pos = new THREE.Vector3(0, 0.2, 60);
@@ -177,11 +338,20 @@ export function buildPlayer() {
   player.mesh = g;
   player.parts = parts;
   player.mixer = mixer || null;
-  S.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.35, 16, 16),
+  S.shieldMesh = mkShieldBubble();
+  S.scene.add(S.shieldMesh);
+}
+/* Bulle d'Égide : sphère d'énergie + treillis hexagonal en surimpression
+   (icosaèdre fil de fer) — le bouclier a une vraie « peau » magique. */
+function mkShieldBubble() {
+  const b = new THREE.Mesh(new THREE.SphereGeometry(1.35, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.16,
       side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
-  S.shieldMesh.visible = false;
-  S.scene.add(S.shieldMesh);
+  b.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.32, 1),
+    new THREE.MeshBasicMaterial({ color: 0x9fdcff, wireframe: true, transparent: true,
+      opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })));
+  b.visible = false;
+  return b;
 }
 /* Reconstruit le modèle 3D du J1 pour refléter sa voie (ex. après chargement d'une sauvegarde) */
 export function refreshPlayerVisual() {
@@ -221,10 +391,7 @@ export function buildPlayer2() {
   p2.mesh = g;
   p2.parts = parts;
   p2.mixer = mixer || null;
-  p2.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.35, 16, 16),
-    new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.16,
-      side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
-  p2.shieldMesh.visible = false;
+  p2.shieldMesh = mkShieldBubble();
   S.scene.add(p2.shieldMesh);
   if (G.hasWings) p2.wings = mkWings(g);
 }
@@ -320,7 +487,7 @@ export function updateCamera2() {
   const tx = p2.pos.x, ty = p2.pos.y + 1.6, tz = p2.pos.z;
   const dir = camDirVec2();
   const back = { x: -dir.x, y: -dir.y, z: -dir.z };
-  let d = occludeDist({ x: tx, y: ty, z: tz }, back, 5.4);
+  let d = occludeDist({ x: tx, y: ty, z: tz }, back, 4.55);
   // spring arm du J2 : même rétraction instantanée + retour lissé que le J1
   if (d < S.camD2) S.camD2 = d;
   else S.camD2 = S.camD2 + (d - S.camD2) * 0.1;
@@ -494,7 +661,9 @@ export function updateCamera() {
   // (léger recul de la caméra au lancement d'un sort via camKick)
   const back = { x: -dir.x, y: -dir.y, z: -dir.z };
   const eye = { x: tx, y: ty, z: tz };
-  let d = occludeDist(eye, back, 5.4 + S.camKick * 4);
+  /* Caméra rapprochée (4.55 contre 5.4 avant) : le personnage et ses
+     nouveaux détails remplissent l'écran, sans gêner la lecture du combat. */
+  let d = occludeDist(eye, back, 4.55 + S.camKick * 4);
   /* damping : rétraction immédiate, mais retour lissé (anti mal de mer) */
   if (d < S.camD) S.camD = d;
   else S.camD = S.camD + (d - S.camD) * 0.1;
@@ -571,6 +740,7 @@ export function healSelf(pl) {
   if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + heal);
   else G.hp = Math.min(G.maxHp, G.hp + heal);
   spawnBurst(pl.pos.x, pl.pos.y + 1.2, pl.pos.z, 0x9fffb0, 16);
+  lightPillar(pl.pos.x, pl.pos.y - 0.8, pl.pos.z, 0x9fffb0); // colonne de vie
   // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction,
   // quel que soit le porteur de flamme qui la lance
   if (S.onHeal) S.onHeal();

@@ -3,10 +3,10 @@
    ================================================================ */
 import * as THREE from 'three';
 import { G, S, IS_TOUCH, PATHS, POWERS, keys, gpMove, tmMove, player, p2, colliders, enemies, projectiles, tkCubes, PLATES } from './state.js';
-import { playAttack, slashArc, groundRing, impactFlash, lightPillar } from './Animations.js';
+import { playAttack, slashArc, groundRing, impactFlash, lightPillar, frostSpikes } from './Animations.js';
 import { A } from './Audio.js';
 import { showMsg, refreshPowers } from './UI.js';
-import { spawnBurst, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
+import { spawnBurst, spawnTrail, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
 import { glow } from './AssetManager.js';
 import { coolMul, classAtk, hasN } from './SkillTree.js';
 import { camDirVec, camDirVec2, hurt, hurtP2, healSelf } from './Player.js';
@@ -124,7 +124,12 @@ export function castPower() {
     if (P.melee) meleeStrike(P); else fireBolt(P);
   }
   else if (pw.id === 'dash') doDash();
-  else if (pw.id === 'shield') { G.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield(); }
+  else if (pw.id === 'shield') {
+    G.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield();
+    // l'Égide se déploie : onde bleue + éclat au moment de l'invocation
+    groundRing(player.pos.x, player.pos.y, player.pos.z, 0x66c8ff, 2.8);
+    spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0x9fdcff, 12);
+  }
   else if (pw.id === 'frost') frostNova();
   else if (pw.id === 'heal') healSelf();
 }
@@ -148,6 +153,9 @@ export function frostNova(pl) {
   const R = 6.5 + 0.5 * uLvl, dmgF = Math.round(14 * (1 + 0.18 * uLvl));
   spawnBurst(pl.pos.x, pl.pos.y + 1, pl.pos.z, 0xbfe8ff, 20);
   groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xbfe8ff, R); // onde de givre lisible au sol
+  // l'hiver jaillit : couronne de cristaux + éclair blanc au cœur de la nova
+  frostSpikes(pl.pos.x, pl.pos.y, pl.pos.z, 0xbfe8ff, 9, R * 0.55);
+  impactFlash(pl.pos.x, pl.pos.y + 1, pl.pos.z, 0xdff4ff, 2.2);
   if (pl === player) S.camKick = 0.14;
   for (const e of enemies) {
     if (e.dead) continue;
@@ -175,7 +183,11 @@ export function castPowerP2() {
   p2.mana -= pw.cost;
   p2.cd[pw.id] = (pw.id === 'dash') ? PATHS[p2.path].dashCool : pw.cool;
   if (pw.id === 'dash') doDashP2();
-  else if (pw.id === 'shield') { p2.shieldT = 4; A.shield(); }
+  else if (pw.id === 'shield') {
+    p2.shieldT = 4; A.shield();
+    groundRing(p2.pos.x, p2.pos.y, p2.pos.z, 0x66c8ff, 2.8);
+    spawnBurst(p2.pos.x, p2.pos.y + 1, p2.pos.z, 0x9fdcff, 12);
+  }
   else if (pw.id === 'frost') frostNova(p2);
   else if (pw.id === 'heal') healSelf(p2); // code unifié J1/J2 (Racine Vengeresse comprise)
 }
@@ -220,6 +232,7 @@ export function rageBurst(P, pl) {
   spawnBurst(pl.pos.x, pl.pos.y + 0.4, pl.pos.z, 0xff5a2a, 30);
   spawnBurst(pl.pos.x, pl.pos.y + 1.3, pl.pos.z, 0xffaa3a, 18);
   groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xff5a2a, 7); // onde dévastatrice visible
+  lightPillar(pl.pos.x, pl.pos.y - 0.8, pl.pos.z, 0xff7a3a); // colonne de fureur
   for (const e of enemies) {
     if (e.dead) continue;
     const dx = e.g.position.x - pl.pos.x, dz = e.g.position.z - pl.pos.z;
@@ -359,16 +372,28 @@ export function fireBolt(P, pl, dirO, target) {
       const nx = dir.x * ca - dir.z * sa, nz = dir.x * sa + dir.z * ca;
       dir.x = nx; dir.z = nz;
     }
-    // Assassin : vraie dague effilée orientée dans le sens du vol (et non
-    // une bille) — la classe se reconnaît à la seule silhouette de ses tirs
-    const m = isAss
-      ? new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.46, 6), new THREE.MeshBasicMaterial({ color: col }))
-      : new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), new THREE.MeshBasicMaterial({ color: col }));
+    /* Assassin : vraie dague (lame, garde, lueur en pointe) orientée dans le
+       sens du vol · autres voies : cœur de cristal blanc tournoyant sous une
+       coquille d'énergie colorée — le tir ressemble enfin à de la magie. */
+    let m;
+    if (isAss) {
+      m = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.46, 6), new THREE.MeshBasicMaterial({ color: col }));
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.05),
+        new THREE.MeshBasicMaterial({ color: 0xd9a83c }));
+      guard.position.y = -0.16;
+      m.add(guard);
+    } else {
+      m = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10),
+        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.4,
+          blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.add(shell);
+    }
     m.add(glow(col, 2.1, 0.8));
     m.position.copy(start);
     S.scene.add(m);
     projectiles.push({ mesh: m, vel: dir.multiplyScalar(P.pSpeed || 26),
-      life: P.pierce ? 3.2 : 2.2, dmg: P.dmg, grav, orient: isAss,
+      life: P.pierce ? 3.2 : 2.2, dmg: P.dmg, grav, orient: isAss, spinV: isAss ? 0 : 9,
       owner: pl === player ? 1 : 2,
       aoe: !!P.aoe, aoeR: P.aoeR || 3.4, burn: !!P.burn,
       pierce: !!P.pierce, hits: 0, chain: P.chain || 0, stun: P.stun || 0,
@@ -390,12 +415,16 @@ export function updateProjectiles(dt) {
     // les dagues restent alignées sur leur trajectoire (piqué du nez compris)
     if (pr.orient && pr.vel.lengthSq() > 0.001)
       pr.mesh.quaternion.setFromUnitVectors(UPV, dirTmp.copy(pr.vel).normalize());
+    else if (pr.spinV) {
+      // cœur de cristal des traits : il tournoie en vol, le bloom fait le reste
+      pr.mesh.rotation.x += dt * pr.spinV; pr.mesh.rotation.z += dt * pr.spinV * 0.6;
+    }
     if (pr.hostile) {
       pr.mesh.rotation.x += dt * (pr.spin || 6); pr.mesh.rotation.y += dt * (pr.spin || 6) * 0.7;
-      if (Math.random() < 0.4) spawnBurst(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, 0xff3a5a, 1);
-    } else if (pr.trailCol && Math.random() < 0.55) {
-      // sillage lumineux : rend les traits/dagues astraux plus lisibles et plus « cool » en vol
-      spawnBurst(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, pr.trailCol, 1);
+      if (Math.random() < 0.5) spawnTrail(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, 0xff3a5a);
+    } else if (pr.trailCol) {
+      // sillage lumineux continu : la trajectoire se lit comme un trait de comète
+      spawnTrail(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, pr.trailCol);
     }
     const pos = pr.mesh.position;
     let hit = pr.life <= 0;

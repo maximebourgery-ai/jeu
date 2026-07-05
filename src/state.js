@@ -341,7 +341,7 @@ export const S = {
   combatT: 0,
   // caméra : longueur courante du bras (spring arm — rétractation instantanée,
   // retour lissé) pour chaque joueur, et murs actuellement « dithérés »
-  camD: 5.4, camD2: 5.4, dithered: new Set(),
+  camD: 4.55, camD2: 4.55, dithered: new Set(),
   /* dernier appui au sol du J1 (rubber-banding coop : le J2 tombé y est
      ramené « au bord du dernier saut réussi par le Joueur 1 ») */
   lastSafe: { x: 0, y: 0.2, z: 60 },
