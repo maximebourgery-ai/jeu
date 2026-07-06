@@ -331,13 +331,13 @@ body.touchmode #powers{display:none}
 #lvltxt b{color:#ffd97a}
 /* Arbre des pouvoirs — refonte épurée : voile sombre flouté, lignes fines,
    typographie allégée, mêmes tons dorés/bleutés que le reste de l'interface. */
-#tree{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:86vh;overflow-y:auto;
+#forge,#tree{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,94vw);max-height:86vh;overflow-y:auto;
   background:rgba(5,7,15,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   border:1px solid rgba(232,224,204,.14);border-radius:14px;padding:26px 30px;z-index:9;
   box-shadow:0 24px 70px rgba(0,0,0,.55)}
-#tree::-webkit-scrollbar{width:8px}
-#tree::-webkit-scrollbar-thumb{background:rgba(232,224,204,.16);border-radius:4px}
-#tree h3{color:#ffd97a;font-weight:normal;letter-spacing:5px;font-size:16px;margin-bottom:6px;opacity:.95}
+#forge::-webkit-scrollbar,#tree::-webkit-scrollbar{width:8px}
+#forge::-webkit-scrollbar-thumb,#tree::-webkit-scrollbar-thumb{background:rgba(232,224,204,.16);border-radius:4px}
+#forge h3,#tree h3{color:#ffd97a;font-weight:normal;letter-spacing:5px;font-size:16px;margin-bottom:6px;opacity:.95}
 #treepts{font-size:11px;font-family:Verdana,sans-serif;color:#7f8bb0;letter-spacing:.5px;margin-bottom:20px;
   padding-bottom:14px;border-bottom:1px solid rgba(232,224,204,.1)}
 #treepts b{color:#ffd97a;font-weight:normal}
@@ -443,3 +443,26 @@ body.touchmode #powers{display:none}
 }
 /* Sur tactile, l'aide-mémoire clavier/souris des menus est du bruit. */
 body.is-touch .overlay .controls{display:none}
+
+/* --- v9 : la Forge (équipement, fusion) --- */
+#forgetop{color:#c8d2ea;font-size:13px;margin-bottom:10px;opacity:.9}
+#forge .gearrow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+#forge .gearlist{display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto}
+.gearcard{border:1px solid #666;border-radius:8px;padding:7px 9px;background:rgba(10,12,26,.6);min-width:170px;flex:1 1 170px;max-width:240px}
+.gearcard .gn{font-size:13px;margin-bottom:3px}
+.gearcard .gn em{opacity:.75;font-size:11px;font-style:normal;margin-left:4px}
+.gearcard .gs{font-size:11.5px;color:#aeb8d8;font-family:Verdana,sans-serif;margin-bottom:5px}
+.gearcard button,.gearslot button{font-size:11.5px;padding:3px 10px}
+.gearslot{flex:1 1 170px;max-width:240px}
+.gearslot .gsl{font-size:11px;letter-spacing:2px;color:#8fa0c8;margin-bottom:4px}
+.gearempty{color:#6a769a;font-size:12.5px;padding:10px 4px}
+.forgebtn{border:1px solid #555;border-radius:8px;background:rgba(14,16,32,.7);color:#e8e0cc;padding:8px 12px;font-size:12.5px;cursor:pointer;flex:1 1 150px}
+.forgebtn small{display:block;font-size:10.5px;color:#8fa0c8;margin-top:3px}
+.forgebtn:hover{background:rgba(40,44,72,.8)}
+#forgeclose{margin-top:12px}
+/* --- v9 : alerte de gear check --- */
+#gearwarn{position:fixed;top:22%;left:50%;transform:translateX(-50%);z-index:60;background:rgba(70,8,14,.88);
+  border:1px solid #ff5a5a;border-radius:10px;color:#ffd9d9;padding:12px 26px;font-size:17px;letter-spacing:1px;
+  text-shadow:0 1px 6px #000;box-shadow:0 0 24px rgba(255,60,60,.35);pointer-events:none;text-align:center}
+#gearwarn.hidden{display:none}
+/* --- v9 : surbrillance padfocus reprise par les boutons de forge --- */

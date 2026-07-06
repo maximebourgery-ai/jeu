@@ -1,9 +1,9 @@
 /* ---------------- JOUEURS (J1 clavier/souris · J2 manette en coop) ---------------- */
 import * as THREE from 'three';
-import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE } from './state.js';
+import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE, armorReduction, equipTotals } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg, gameOver } from './UI.js';
-import { slide, slideP, rayAABB, spawnBurst, setCamAspects } from './World.js';
+import { slide, slideP, rayAABB, spawnBurst, setCamAspects, safeZoneAt, dropEquipmentOnDeath } from './World.js';
 import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
@@ -558,6 +558,8 @@ export function updatePlayer(dt) {
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'] || S.gpSprint || tmSprint;
   // Danse des ombres (hasteT) et Élixir du Traqueur (buffSpeedT) ne se cumulent pas
   let speed = (sprint ? 9.5 : 5.8) * (PATHS[G.path].move || 1) * (G.hasteT > 0 || G.buffSpeedT > 0 ? 1.2 : 1);
+  // v9 — célérité d'équipement (stat `speed`, en %) : plafonnée à +25 %
+  speed *= 1 + Math.min(25, equipTotals().speed) / 100;
   if (p.dashT > 0) {
     p.dashT -= dt;
     vx = p.dashDir.x; vz = p.dashDir.z;
@@ -625,6 +627,7 @@ export function updatePlayer(dt) {
     p.mesh.rotation.y = lerpAngle(p.mesh.rotation.y, ty, 12 * dt);
   }
   if (p.mixer) p.mixer.update(dt);
+  tickPoison(dt); // le venin des Maîtres d'Étage ronge la chair (J1 + J2)
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
   // Aura du Premier Foyer (Observatoire de l'Aube) : le foyer répare la chair
   // (v8.3 : régénération adoucie — le porteur ne doit plus être immortel)
@@ -731,10 +734,49 @@ export function updateCamera() {
 }
 
 /* ---------------- DÉGÂTS ---------------- */
+/* Poison / corruption : certains coups des Maîtres d'Étage (venin de la
+   Racine, crocs de l'Avale-Lune) et les mares (poison, nuit liquide)
+   laissent un venin qui ronge la chair pendant t secondes. L'Égide bloque
+   l'application ; le venin ne porte jamais le coup fatal (1 PV plancher) —
+   il force à boire une potion ou fuir, pas à mourir sans se battre. */
+export function applyPoison(pl, t, dps) {
+  if (pl === p2) {
+    if (p2.shieldT > 0) return;
+    if (p2.poisonT <= 0) spawnBurst(p2.pos.x, p2.pos.y + 1, p2.pos.z, 0x7ade5a, 10);
+    p2.poisonT = Math.max(p2.poisonT, t); p2.poisonDps = dps;
+  } else {
+    if (G.shieldT > 0) return;
+    if (S.poisonT <= 0) {
+      spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0x7ade5a, 10);
+      showMsg('EMPOISONNÉ ! Le venin ronge votre chair...', 2.4);
+    }
+    S.poisonT = Math.max(S.poisonT, t); S.poisonDps = dps;
+  }
+}
+function tickPoison(dt) {
+  if (S.poisonT > 0) {
+    S.poisonT -= dt;
+    G.hp = Math.max(1, G.hp - S.poisonDps * dt);
+    G.vig = Math.max(G.vig, 0.4);
+    if (Math.random() < dt * 7)
+      spawnBurst(player.pos.x + (Math.random() - 0.5) * 0.7, player.pos.y + 0.6 + Math.random(),
+        player.pos.z + (Math.random() - 0.5) * 0.7, 0x7ade5a, 1);
+  }
+  if (S.COOP && p2.pos && p2.poisonT > 0) {
+    p2.poisonT -= dt;
+    p2.hp = Math.max(1, p2.hp - p2.poisonDps * dt);
+    if (Math.random() < dt * 7)
+      spawnBurst(p2.pos.x, p2.pos.y + 0.8 + Math.random(), p2.pos.z, 0x7ade5a, 1);
+  }
+}
 export function hurt(d, src) {
   if (player.invuln > 0 || G.shieldT > 0) return;
   player.invuln = 0.5;
   if (G.path === 'paladin' && hasN('p_guard')) d = Math.round(d * 0.75); // Peau de pierre
+  /* v9 — armure d'équipement à RENDEMENTS DÉCROISSANTS : réduction =
+     armure / (armure + 100), plafonnée à 75 % (voir armorReduction,
+     state.js). Chaque coup inflige toujours au moins 1 point. */
+  d = Math.max(1, Math.round(d * (1 - armorReduction())));
   G.hp -= d; G.vig = 1;
   G.comboHits = 0; G.comboHitT = 0; // encaisser un coup brise l'enchaînement
   gainRage(d * 0.5); // Guerrier : la douleur nourrit la rage (+50 % des dégâts subis)
@@ -767,7 +809,10 @@ export function hurt(d, src) {
       player.pos.set(G.checkpoint.x, G.checkpoint.y, G.checkpoint.z); player.vel.set(0, 0, 0);
       showMsg('Les ombres vous ont submergé... Vous rouvrez les yeux près du dernier feu de bivouac.', 4.5);
     } else {
-      /* Solo : écran GAME OVER — latence, puis choix du feu de renaissance */
+      /* Solo : CORPSE RUN — l'équipement porté tombe dans une Tombe d'Aube
+         aux coordonnées du trépas (5 min réelles pour le récupérer), PUIS
+         écran GAME OVER — latence, choix du feu de renaissance. */
+      dropEquipmentOnDeath();
       gameOver();
     }
   }
@@ -799,8 +844,8 @@ export function healSelf(pl) {
   A.pickup();
   // Forge des Arts : rangs de Bénédiction DU LANCEUR (J1 et J2 forgent chacun les leurs)
   const heal = 40 + 12 * ((pl === p2 ? p2 : G).pupg.heal || 0);
-  if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + heal);
-  else G.hp = Math.min(G.maxHp, G.hp + heal);
+  if (pl === p2) { p2.hp = Math.min(p2.maxHp, p2.hp + heal); p2.poisonT = 0; }
+  else { G.hp = Math.min(G.maxHp, G.hp + heal); S.poisonT = 0; } // la Bénédiction purge le venin
   spawnBurst(pl.pos.x, pl.pos.y + 1.2, pl.pos.z, 0x9fffb0, 16);
   lightPillar(pl.pos.x, pl.pos.y - 0.8, pl.pos.z, 0x9fffb0); // colonne de vie
   // la Racine Vengeresse (Tour, étage 9) est vulnérable à la Bénédiction,

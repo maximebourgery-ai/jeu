@@ -28,20 +28,20 @@
    ================================================================ */
 import * as THREE from 'three';
 import {
-  G, S, POWERS,
+  G, S, POWERS, gearScore,
   colliders, doors, pickups, inter, enemies, projectiles, tkCubes,
   spinners, flames, pedestals, player, p2
 } from './state.js';
 import { A } from './Audio.js';
-import { showMsg, withLoading, showVictory } from './UI.js';
+import { showMsg, withLoading, showVictory, gearWarning } from './UI.js';
 import {
   mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube,
-  pedestal, mkDoor, openDoor
+  pedestal, mkDoor, openDoor, pointSolid, mkAnvil
 } from './World.js';
 import { lightPillar, groundRing } from './Animations.js';
 import { matFor, glow } from './AssetManager.js';
 import { mkEnemy } from './Enemies.js';
-import { hurt, hurtP2 } from './Player.js';
+import { hurt, hurtP2, applyPoison } from './Player.js';
 import { tkToggle } from './Powers.js';
 import { openDialog } from './Quests.js';
 import { saveGame } from './SaveSystem.js';
@@ -65,9 +65,10 @@ const TERRACE = { x: 58, y: 23.2, z: 46.8 }; // terrasse de la Tour du Levant
 let snap = null;         // instantané des collections du monde avant le build
 let origAdd = null;      // S.scene.add d'origine (capture des meshes du palier)
 const hazards = [];      // zones de danger {x,z,w,d,y,h,dmg,label,period,on,mesh}
-const spikes = [];       // télégraphes d'impact {x,z,y,t,dmg,col,r,pillar}
+const spikes = [];       // télégraphes d'impact {x,z,y,t,dmg,col,r,pillar,pois}
 const bombs = [];        // globes de nuit de l'Avale-Lune (v8.4) — Égide seule les bloque
 const npcs = [];         // PNJ du palier courant {g,y0,seed} — respiration douce
+const movers = [];       // plateformes MOBILES {mesh,col,w,h,x,y,z,dx,dy,dz,period,phase,px,py,pz}
 let boss = null;         // Maître d'Étage du palier courant
 let pillars = [];        // colonnes de feu de l'arène du Chevalier
 let pillarT = 0, pillarI = 0;
@@ -124,7 +125,7 @@ function unloadPalier() {
   for (const pr of projectiles) S.scene.remove(pr.mesh);
   projectiles.length = 0;
   for (const b of bombs) S.scene.remove(b.mesh);
-  hazards.length = 0; spikes.length = 0; npcs.length = 0; bombs.length = 0;
+  hazards.length = 0; spikes.length = 0; npcs.length = 0; bombs.length = 0; movers.length = 0;
   boss = null; pillars = []; pillarT = 0; pillarI = 0;
   S.onHeal = null; S.onNova = null;
   snap = null;
@@ -144,7 +145,10 @@ function mkPortal(x, y, z, color, label, canOpen, lockedMsg, onEnter) {
   ring.position.set(x, y + 1.9, z);
   ring.add(glow(color, 3, 0.45));
   S.scene.add(ring); spinners.push(ring);
-  addInter(x, y, z, 2.4, label, () => {
+  /* rayon GÉNÉREUX (3,6 m) : un portail fait 3,2 m de large avec son
+     linteau — avec l'ancien rayon (2,4 m), on pouvait être visiblement
+     « au portail » sans que le E n'apparaisse (retour joueur, étage 9). */
+  addInter(x, y, z, 3.6, label, () => {
     if (!canOpen()) { showMsg(lockedMsg(), 3.2); return; }
     A.door();
     spawnBurst(x, y + 1.8, z, color, 22);
@@ -245,8 +249,10 @@ function mkHazard(x, z, w, d, y, h, dmg, color, label, period) {
 }
 /* Bordée radiale de projectiles hostiles (tempête de parchemins).
    v8.4 — `size` : gros orbes bien visibles (Avale-Lune) au lieu des petits
-   parchemins ; leur rayon de collision (hitR) grossit avec eux. */
-function radialBurst(e, n, dmg, speed, color, size) {
+   parchemins ; leur rayon de collision (hitR) grossit avec eux.
+   pois = [durée, dégâts/s] : la bordée laisse en plus un venin (voir
+   applyPoison, Player.js) — encre corrosive, spores, nuit liquide... */
+function radialBurst(e, n, dmg, speed, color, size, pois) {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + G.time;
     const dir = new THREE.Vector3(Math.cos(a), -0.04, Math.sin(a));
@@ -259,9 +265,43 @@ function radialBurst(e, n, dmg, speed, color, size) {
     core.position.set(e.g.position.x, e.g.position.y + 0.8, e.g.position.z);
     S.scene.add(core);
     projectiles.push({ mesh: core, vel: dir.multiplyScalar(speed), life: 2.8, dmg,
-      hostile: true, spin: 9, hitR: size ? size * 2.4 : 0 });
+      hostile: true, spin: 9, hitR: size ? size * 2.4 : 0, pois: pois || null });
   }
   A.hostileBolt();
+}
+/* Plateforme MOBILE : oscille autour de (x,y,z) sur ±(dx,dy,dz) en `period`
+   secondes. Le collider AABB suit le mesh, et le porteur debout dessus est
+   EMPORTÉ avec elle (sinon la dalle glisserait sous ses pieds). */
+function mkMover(w, h, d, x, y, z, dx, dy, dz, period, phase) {
+  const mesh = mkBox(w, h, d, x, y, z, 'slabW');
+  const col = colliders[colliders.length - 1];
+  const halo = glow(0x8fe8ff, 2.4, 0.3);
+  halo.position.y = 0.5;
+  mesh.add(halo);
+  movers.push({ mesh, col, w, h, d, x, y, z, dx, dy, dz, period, phase: phase || 0, px: x, py: y, pz: z });
+}
+function updateMovers() {
+  for (const mv of movers) {
+    const k = Math.sin((G.time + mv.phase) * Math.PI * 2 / mv.period);
+    const nx = mv.x + mv.dx * k, ny = mv.y + mv.dy * k, nz = mv.z + mv.dz * k;
+    const ddx = nx - mv.px, ddy = ny - mv.py, ddz = nz - mv.pz;
+    mv.mesh.position.set(nx, ny + mv.h / 2, nz);
+    mv.col.min.x += ddx; mv.col.max.x += ddx;
+    mv.col.min.y += ddy; mv.col.max.y += ddy;
+    mv.col.min.z += ddz; mv.col.max.z += ddz;
+    const top = ny + mv.h;
+    const carry = pl => {
+      if (!pl.pos) return;
+      if (Math.abs(pl.pos.x - nx) < mv.w / 2 + 0.5 && Math.abs(pl.pos.z - nz) < mv.d / 2 + 0.5 &&
+          pl.pos.y > top - 0.4 && pl.pos.y < top + 0.7 && pl.vel.y <= 0.01) {
+        pl.pos.x += ddx; pl.pos.z += ddz;
+        pl.pos.y += ddy; // la dalle soulève ou descend son passager avec elle
+      }
+    };
+    carry(player);
+    if (S.COOP) carry(p2);
+    mv.px = nx; mv.py = ny; mv.pz = nz;
+  }
 }
 
 /* ================================================================
@@ -282,6 +322,8 @@ export function leaveTower(silent) {
 /* Rebâtit un palier donné SANS fondu (le voyage rapide, déjà sous écran de
    chargement, s'en sert pour rejoindre un bivouac de la Tour). */
 export function enterPalier(n) { gotoPalier(n); }
+/* v9 — Gear Score CONSEILLÉ par palier (gear check à l'entrée) */
+const PALIER_GEAR = [0, 30, 60, 100, 0, 180, 240];
 function gotoPalier(n) {
   unloadPalier();
   beginBuild();
@@ -294,6 +336,19 @@ function gotoPalier(n) {
     else if (n === 5) buildPalier5();
     else buildPalier6();
   } finally { endBuild(); }
+  /* v9 — GEAR CHECK : très sous-équipé pour l'étage (< 40 % du Score
+     conseillé) → alerte claire, et les ombres du palier sont ×3 en PV et
+     dégâts. Les Maîtres d'Étage, calibrés à la main, restent inchangés. */
+  const rec = PALIER_GEAR[n] || 0;
+  if (rec && gearScore() < rec * 0.4) {
+    for (let i = snap.enemies; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (e.dead || e.fsm) continue;
+      e.hp *= 3; e.maxHp *= 3; e.dmg = Math.round(e.dmg * 3);
+    }
+    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gearScore() + ' / ' + rec
+      + ' conseillé) : les ombres y frappent TROIS FOIS plus fort. Forgez votre panoplie à une enclume !');
+  }
   S.inTower = true; S.palier = n;
   const e = ENTRY[n];
   player.pos.set(e.x, e.y, e.z); player.vel.set(0, 0, 0);
@@ -339,6 +394,7 @@ function buildVestibule() {
   addInter(TX, 0, TZ - 2, 3, 'Lire le fronton du vestibule', () => {
     showMsg('« Chaque palier possède ses règles, son Maître d\'Étage et sa clef. Les portails n\'obéissent qu\'aux flags du destin : boss vaincu, clef en main. »', 4.5);
   });
+  mkAnvil(TX + 12, 0, TZ - 2); // v9 : la Forge du vestibule (façonnage & fusion)
 
   // retour à la terrasse
   mkPortal(TX, 0, TZ + 16.5, 0x8fe8ff, 'Revenir à la terrasse', () => true, () => '', () => leaveTower(false));
@@ -433,13 +489,14 @@ function buildPalier1() {
   mkEnemy(TX + 12, TZ - 6, 10.05, [[TX + 9, TZ - 6], [TX + 15, TZ - 6]], { type: 'wraith', lvl: 9 });
 
   /* ---- BOSS (étage 4) : L'ARCHIVISTE CORROMPU ----
-     Tisseur géant qui invoque des tempêtes de parchemins. */
+     Tisseur géant : tempêtes de parchemins à l'ENCRE CORROSIVE (venin),
+     geysers d'encre télégraphiés sous les pieds, Traqueurs d'encre. */
   if (!G.tower.bosses.archiviste) {
     boss = mkEnemy(TX, TZ - 12, 15.2, [[TX - 6, TZ - 12], [TX + 6, TZ - 12]], {
-      type: 'caster', lvl: 11, hp: 750, dmg: 28, scale: 2.6, speed: 1.6, chase: 2.9
+      type: 'caster', lvl: 11, hp: 820, dmg: 22, scale: 2.6, speed: 1.9, chase: 3.4
     });
     boss.tName = 'L\'Archiviste Corrompu';
-    boss.fsm = { kind: 'archiviste', state: 'IDLE', t: 0, stormT: 2.8, summonT: 7 };
+    boss.fsm = { kind: 'archiviste', state: 'IDLE', t: 0, stormT: 3.5, summonT: 8, inkT: 5, inkMsg: false };
     /* v8.4 — ruée du Maître d'Étage (voir chargeProfOf, Enemies.js) */
     boss.chargeProf = { wind: 0.5, speed: 14, range: 11, dmgMul: 1, cool: 8, col: 0xe8dfc0 };
     boss.onKilled = () => {
@@ -507,24 +564,35 @@ function buildPalier2() {
   addPickup('herb', TX - 11, 3.25, TZ - 6);
   addPickup('mana', TX - 19, 3.25, TZ - 12);
   bivouac(TX - 14, 3.25, TZ - 4.5, 'la Salle de l\'Alchimiste', 'alchimiste', false, 4.5);
+  mkAnvil(TX - 9.5, 3.25, TZ - 13); // v9 : l'enclume de l'Alchimiste
 
-  /* étage 7 (y 6) : corniche nord (montée par piliers taillés) */
+  /* étage 7 (y 6) : corniche nord — montée par piliers taillés, avec une
+     marche intermédiaire (l'ascension se fait en petits sauts lisibles) */
   mkBox(3, 4.5, 2.6, TX - 6, 0, TZ - 14, 'stoneR');
+  mkBox(2.4, 5.4, 2.4, TX - 6, 0, TZ - 12.8, 'stoneR');
   mkBox(12, 0.5, 7, TX - 1, 5.75, TZ - 17.5, 'stoneR');
   floorSign(7, 'Les racines percent la pierre comme du papier.', TX + 3, 6.25, TZ - 19);
   addPickup('mana', TX - 4, 6.25, TZ - 18);
 
-  /* étage 8 (y 9) : balcon est au-dessus du vide */
+  /* étage 8 (y 9) : balcon est au-dessus du vide — marche intermédiaire
+     entre le pilier et le balcon (fini le grand saut au pixel près) */
   mkBox(2.8, 7.5, 2.6, TX + 7, 0, TZ - 16, 'stoneR');
+  mkBox(2.4, 8.4, 2.4, TX + 8.3, 0, TZ - 16, 'stoneR');
   mkBox(10, 0.5, 8, TX + 14, 8.75, TZ - 14, 'stoneR');
   floorSign(8, 'D\'ici, la Serre entière murmure.', TX + 17, 9.25, TZ - 10);
   addPickup('heart', TX + 17, 9.25, TZ - 17);
   mkHazard(TX + 13, TZ - 11, 4, 3, 9.25, 1.4, 8, 0x4ade5a, 'poison');
 
-  /* étage 9 (y 12) : l'autel de la Racine */
+  /* étage 9 (y 12) : l'autel de la Racine.
+     Montée ADOUCIE (retour joueur « étage pas passable ») : pilier (10,5),
+     puis marche intermédiaire (11,4) collée au bord est de la plateforme —
+     trois petits sauts lisibles au lieu d'un grand saut au pixel. */
   mkBox(2.6, 10.5, 2.6, TX + 8, 0, TZ - 19, 'stoneR');
+  mkBox(2.4, 11.4, 2.4, TX + 7.2, 0, TZ - 17, 'stoneR');
   mkBox(16, 0.5, 10, TX - 2, 11.75, TZ - 16.5, 'stoneR');
-  floorSign(9, 'L\'arbre-sanctuaire de la Serre. Corrompu jusqu\'à la sève.', TX + 4, 12.25, TZ - 20);
+  /* plaque écartée du portail du Palier III (leurs zones d'interaction se
+     chevauchaient : le E lisait la plaque au lieu d'ouvrir le sas) */
+  floorSign(9, 'L\'arbre-sanctuaire de la Serre. Corrompu jusqu\'à la sève.', TX - 1, 12.25, TZ - 13);
 
   // population
   mkEnemy(TX - 4, TZ + 8, 0, [[TX - 8, TZ + 8], [TX, TZ + 8]], { type: 'wraith', lvl: 9 });
@@ -543,10 +611,10 @@ function buildPalier2() {
     deadCone.position.set(treeX, 17, treeZ);
     S.scene.add(deadCone);
     boss = mkEnemy(TX - 4, TZ - 16, 12.25, [[TX - 6, TZ - 16], [TX - 2, TZ - 16]], {
-      type: 'brute', lvl: 12, hp: 1000, dmg: 36, scale: 2.4, speed: 0.9, chase: 2.3, color: 0x1a3a20
+      type: 'brute', lvl: 12, hp: 1050, dmg: 28, scale: 2.4, speed: 1.15, chase: 2.3, color: 0x1a3a20
     });
     boss.tName = 'La Racine Vengeresse';
-    boss.fsm = { kind: 'racine', state: 'CHASE', t: 0, spikeT: 3, vulnT: 0, msgT: 0, summonT: 9 };
+    boss.fsm = { kind: 'racine', state: 'CHASE', t: 0, spikeT: 3, vulnT: 0, msgT: 0, summonT: 9, sporeT: 6, sporeMsg: false };
     /* v8.4 — ruée de racines (voir chargeProfOf, Enemies.js) */
     boss.chargeProf = { wind: 0.6, speed: 13, range: 12, dmgMul: 1.1, cool: 7, col: 0x7ade5a };
     boss.onDamaged = (d) => {
@@ -673,15 +741,15 @@ function buildPalier3() {
 
   if (!G.tower.bosses.chevalier) {
     boss = mkEnemy(TX, TZ - 34, 0, [[TX - 4, TZ - 34], [TX + 4, TZ - 34]], {
-      type: 'brute', lvl: 13, hp: 1350, dmg: 48, scale: 2.2, speed: 1.55, chase: 3.4, color: 0x14101f
+      type: 'brute', lvl: 13, hp: 1350, dmg: 38, scale: 2.2, speed: 1.7, chase: 3.1, color: 0x14101f
     });
     boss.tName = 'Le Chevalier de l\'Éclipse';
-    /* FSM stricte (§3.4) : IDLE → CHASE → ATTACK_AOE → (STUNNED) → CHASE.
-       La transition vers STUNNED n'obéit qu'à l'impact du tag
-       « Projectile_MainCeleste » : un bloc runique porté par la Main céleste. */
-    boss.fsm = { kind: 'chevalier', state: 'IDLE', t: 0, active: false, summonT: 12 };
-    /* v8.4 — charge de cavalerie (voir chargeProfOf, Enemies.js) */
-    boss.chargeProf = { wind: 0.5, speed: 17, range: 13, dmgMul: 1.2, cool: 6, col: 0xff3a3a };
+    /* FSM stricte (§3.4) : IDLE → CHASE → ATTACK_AOE / CHARGE → (STUNNED)
+       → CHASE. La CHARGE traverse l'arène : télégraphe 0,7 s, puis ruée en
+       ligne droite — seul un pas de côté l'esquive. La transition vers
+       STUNNED n'obéit qu'à l'impact du tag « Projectile_MainCeleste » :
+       un bloc runique porté par la Main céleste. */
+    boss.fsm = { kind: 'chevalier', state: 'IDLE', t: 0, active: false, summonT: 12, chargeT: 5, cx: 0, cz: 0, hit1: false, hit2: false };
     boss.onDamaged = (d, knock) => {
       if (boss.fsm.state === 'STUNNED') return Math.round(d * 2); // hurtbox grande ouverte
       /* Hitbox asymétrique : la Hurtbox vit sur les os exposés du DOS ;
@@ -910,6 +978,9 @@ function buildPalier5() {
   addPickup('maxhp', TX + 12, 4.8, TZ - 4); // Fragment de vitalité, sous le Titan
   /* le Belvédère des étoiles : bivouac-sanctuaire du palier */
   bivouac(TX - 5, 7.2, TZ - 22, 'le Belvédère des étoiles', 'belvedere', false, 4.5);
+  /* DALLE ERRANTE : une plateforme mobile navette entre l'île B et le
+     Belvédère — les étoiles portent qui ose sauter au bon moment */
+  mkMover(3, 0.5, 3, TX - 0.5, 5.6, TZ - 19.5, -2.2, 1.4, -3.8, 7);
 
   /* ---- LE PONT DE CONSTELLATIONS (quête d'Orin) ----
      Préconstruit mais éteint (pattern des colonnes du Chevalier) : les
@@ -941,6 +1012,11 @@ function buildPalier5() {
 
   /* ---- étage 18 : l'île du Berger ---- */
   mkBox(24, 1, 24, TX, 13, TZ - 40, 'slabW');
+  /* deux DALLES MOBILES flanquent l'arène au-dessus du vide : pendant la
+     pluie d'étoiles du Berger, elles sont le seul refuge — mais elles
+     bougent, et le vide attend dessous */
+  mkMover(4, 0.5, 4, TX - 15, 13.5, TZ - 40, 0, 0, 5.5, 6);
+  mkMover(4, 0.5, 4, TX + 15, 13.5, TZ - 40, 0, 0, -5.5, 6, 3);
   floorSign(18, 'La bergerie céleste. Il ne reste au Berger que des étoiles mordues.', TX - 9, 14, TZ - 32);
   torch(TX - 9, 14, TZ - 47, 0xfff2b0, 1.2, 16);
   torch(TX + 9, 14, TZ - 47, 0xfff2b0, 1.2, 16);
@@ -952,10 +1028,10 @@ function buildPalier5() {
      télégraphiée sous les porteurs, invocation d'Échos de l'Aube. */
   if (!G.tower.bosses.berger) {
     boss = mkEnemy(TX, TZ - 42, 14, [[TX - 5, TZ - 42], [TX + 5, TZ - 42]], {
-      type: 'seraph', lvl: 15, hp: 2100, dmg: 42, scale: 2.6, speed: 1.85, chase: 3.3
+      type: 'seraph', lvl: 15, hp: 2300, dmg: 34, scale: 2.6, speed: 2.1, chase: 3.4
     });
     boss.tName = 'Le Berger des Étoiles';
-    boss.fsm = { kind: 'berger', state: 'IDLE', t: 0, starT: 3, rainT: 6, summonT: 10 };
+    boss.fsm = { kind: 'berger', state: 'IDLE', t: 0, starT: 4, rainT: 7.5, summonT: 12, enrMsg: false };
     /* v8.4 — fondu céleste : le Berger fond sur les porteurs (chargeProfOf) */
     boss.chargeProf = { wind: 0.5, speed: 16, range: 14, dmgMul: 1.1, cool: 7, col: 0xfff2b0 };
     boss.onKilled = () => {
@@ -1086,7 +1162,7 @@ function buildPalier6() {
   });
   if (!G.tower.bosses.avale) {
     boss = mkEnemy(TX, TZ - 26, 0, [[TX - 5, TZ - 26], [TX + 5, TZ - 26]], {
-      type: 'obsidian', lvl: 16, hp: 3400, dmg: 55, scale: 3, speed: 1.15, chase: 2.8, color: 0x060312
+      type: 'obsidian', lvl: 16, hp: 3400, dmg: 45, scale: 3, speed: 1.25, chase: 2.7, color: 0x060312
     });
     boss.tName = 'L\'Avale-Lune';
     /* Le VOILE DE NUIT absorbe 90 % des dégâts. Seule la NOVA D'AURORE
@@ -1234,8 +1310,13 @@ export function updateTower(dt) {
   /* respiration douce des PNJ (Maëla, Orin, le Veilleur) */
   for (const n of npcs) n.g.position.y = n.y0 + Math.sin(G.time * 1.4 + n.seed) * 0.06;
 
+  /* plateformes mobiles : la dalle bouge, son collider et son passager avec */
+  updateMovers();
+
   /* zones de danger : jets rythmés (period) ou permanents. hurt() respecte
-     l'Égide et l'invulnérabilité — le tempo des dégâts reste équitable. */
+     l'Égide et l'invulnérabilité — le tempo des dégâts reste équitable.
+     Les mares toxiques (poison, nuit liquide) laissent en plus un VENIN
+     qui ronge encore la chair après en être sorti. */
   for (const z of hazards) {
     if (z.period) {
       const t = (G.time + (z.period[2] || 0)) % z.period[0];
@@ -1245,8 +1326,9 @@ export function updateTower(dt) {
         spawnBurst(z.x + (Math.random() - 0.5) * z.w, z.y + 0.4, z.z + (Math.random() - 0.5) * z.d, 0xff9a3a, 1);
     }
     if (!z.on) continue;
-    if (inZone(player, z)) hurt(z.dmg, null);
-    if (S.COOP && p2.pos && inZone(p2, z)) hurtP2(z.dmg, null);
+    const venom = z.label === 'poison' || z.label === 'nuit liquide';
+    if (inZone(player, z)) { hurt(z.dmg, null); if (venom) applyPoison(player, 3, 5); }
+    if (S.COOP && p2.pos && inZone(p2, z)) { hurtP2(z.dmg, null); if (venom) applyPoison(p2, 3, 5); }
   }
 
   /* télégraphes d'impact : pointes de la Racine (défauts verts), pluie
@@ -1262,8 +1344,8 @@ export function updateTower(dt) {
       A.impact();
       const R = sp.r || 2.2;
       const near = pl => Math.hypot(pl.pos.x - sp.x, pl.pos.z - sp.z) < R && Math.abs(pl.pos.y - sp.y) < 2;
-      if (near(player)) hurt(sp.dmg || 22, { x: sp.x, z: sp.z });
-      if (S.COOP && p2.pos && near(p2)) hurtP2(sp.dmg || 22, { x: sp.x, z: sp.z });
+      if (near(player)) { hurt(sp.dmg || 22, { x: sp.x, z: sp.z }); if (sp.pois) applyPoison(player, sp.pois[0], sp.pois[1]); }
+      if (S.COOP && p2.pos && near(p2)) { hurtP2(sp.dmg || 22, { x: sp.x, z: sp.z }); if (sp.pois) applyPoison(p2, sp.pois[0], sp.pois[1]); }
       spikes.splice(i, 1);
     }
   }
@@ -1312,9 +1394,9 @@ export function updateTower(dt) {
   if (S.palier === 3 && boss && !boss.dead) {
     pillarT -= dt;
     if (pillarT <= 0) {
-      pillarT = 4.5;
+      pillarT = 4.5; // l'arène respire plus vite : le sol change sous les pieds
       for (const p of pillars) { p.mesh.visible = false; p.col.on = false; p.fl.visible = false; p.up = false; }
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < 4; k++) {
         const p = pillars[(pillarI + k) % pillars.length];
         p.mesh.visible = true; p.col.on = true; p.fl.visible = true; p.up = true;
         spawnBurst(p.mesh.position.x, 0.5, p.mesh.position.z, 0xff7a3a, 10);
@@ -1343,21 +1425,31 @@ export function updateTower(dt) {
       }
       return;
     }
-    f.stormT -= dt; f.summonT -= dt;
+    f.stormT -= dt; f.summonT -= dt; f.inkT -= dt;
     if (f.stormT <= 0) {
       f.stormT = 3.4;
       spawnBurst(bp.x, bp.y + 1, bp.z, 0xe8dfc0, 16);
-      radialBurst(boss, 12, boss.dmg, 11.5, 0xff8a5a); // tempête de parchemins
+      // tempête de parchemins à l'encre corrosive : toucher = venin
+      radialBurst(boss, 12, boss.dmg, 11.5, 0xff8a5a, 0, [3, 5]);
+    }
+    /* geysers d'encre : télégraphes sous les pieds du porteur visé */
+    if (f.inkT <= 0 && dP < 18 && sameY) {
+      f.inkT = 5.5;
+      const tgt = (S.COOP && p2.pos && Math.random() < 0.4) ? p2 : player;
+      for (let k = 0; k < 2; k++)
+        spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 2.6, z: tgt.pos.z + (Math.random() - 0.5) * 2.6,
+          y: boss.floorY, t: 0.8 + k * 0.3, dmg: 20, col: 0x6a5aff, r: 2.3, pois: [3, 5] });
+      if (!f.inkMsg) { f.inkMsg = true; showMsg('L\'encre BOUT sous vos pieds — écartez-vous des lueurs !', 2.5); }
     }
     if (f.summonT <= 0) {
-      f.summonT = 9;
+      f.summonT = 8.5;
       let alive = 0;
       for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
       /* v8.4 : il déchire DEUX pages à la fois, jusqu'à 4 Traqueurs actifs */
       let born = 0;
       while (alive < 4 && born < 2) {
         const sx = bp.x + (Math.random() - 0.5) * 6, sz = bp.z + (Math.random() - 0.5) * 6;
-        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'wraith', lvl: 9, tag: 'summon', dyn: true });
+        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'wraith', lvl: 10, tag: 'summon', dyn: true });
         w.state = 'chase'; w.alerted = true;
         spawnBurst(sx, boss.floorY + 1, sz, 0xe8dfc0, 14);
         alive++; born++;
@@ -1389,15 +1481,22 @@ export function updateTower(dt) {
       }
       if (born) showMsg('La Racine crache des rejetons de sève !', 2.5);
     }
-    f.spikeT -= dt;
+    f.spikeT -= dt; f.sporeT -= dt;
     if (f.spikeT <= 0 && dP < 16 && sameY) {
-      f.spikeT = f.vulnT > 0 ? 4 : 2.3;
-      // racines-harpons : télégraphe sous les pieds du porteur visé,
-      // suivi d'un second harpon décalé — rester planté ne pardonne plus
+      f.spikeT = f.vulnT > 0 ? 4 : 2.4;
+      /* racines-harpons VENIMEUX : télégraphe sous le porteur visé, plus
+         un second harpon décalé — rester immobile ne pardonne plus */
       const tgt = (S.COOP && p2.pos && Math.random() < 0.4) ? p2 : player;
-      spikes.push({ x: tgt.pos.x, z: tgt.pos.z, y: boss.floorY, t: 0.9, dmg: 32 });
-      spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 4, z: tgt.pos.z + (Math.random() - 0.5) * 4,
-        y: boss.floorY, t: 1.2, dmg: 32 });
+      spikes.push({ x: tgt.pos.x, z: tgt.pos.z, y: boss.floorY, t: 0.9, dmg: 32, pois: [4, 7] });
+      spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 3.6, z: tgt.pos.z + (Math.random() - 0.5) * 3.6,
+        y: boss.floorY, t: 1.15, dmg: 32, pois: [4, 7] });
+    }
+    /* nuage de spores : bordée radiale empoisonnée — l'arène entière respire mal */
+    if (f.sporeT <= 0 && dP < 18 && sameY) {
+      f.sporeT = 8;
+      spawnBurst(bp.x, bp.y + 1.2, bp.z, 0x7ade5a, 22);
+      radialBurst(boss, 10, 16, 8.5, 0x7ade5a, 0, [4, 7]);
+      if (!f.sporeMsg) { f.sporeMsg = true; showMsg('La Racine crache un NUAGE DE SPORES — chaque spore inocule son venin !', 3); }
     }
   } else if (f.kind === 'chevalier') {
     /* FSM stricte : IDLE / CHASE / ATTACK_AOE / STUNNED (§3.4) */
@@ -1443,12 +1542,44 @@ export function updateTower(dt) {
       }
       if (born) showMsg('Le Chevalier lève le poing : la garnison des armures vides répond !', 2.5);
     }
+    f.chargeT -= dt;
     if (f.state === 'CHASE') {
       boss.state = 'chase';
-      if (dP < 3.9 && sameY) { f.state = 'ATTACK_AOE'; f.t = 0; f.active = false;
+      if (f.chargeT <= 0 && dP > 5.5 && dP < 16 && sameY) {
+        /* CHARGE : l'armure se ramasse sur elle-même, fixe sa proie... */
+        f.state = 'CHARGE_WIND'; f.t = 0;
+        boss.state = 'patrol'; boss.wps = [[bp.x, bp.z]];
+        spawnBurst(bp.x, bp.y + 0.8, bp.z, 0xff3a3a, 22);
+        A.alert();
+      } else if (dP < 3.4 && sameY) { f.state = 'ATTACK_AOE'; f.t = 0; f.active = false;
         spawnBurst(bp.x, bp.y + 0.4, bp.z, 0xff3a3a, 18); // télégraphe (wind-up)
         A.alert();
       }
+    } else if (f.state === 'CHARGE_WIND') {
+      boss.state = 'patrol'; boss.wps = [[bp.x, bp.z]];
+      const tgt = (S.COOP && p2.pos && dP > Math.hypot(p2.pos.x - bp.x, p2.pos.z - bp.z)) ? p2 : player;
+      boss.g.rotation.y = Math.atan2(tgt.pos.x - bp.x, tgt.pos.z - bp.z);
+      if (Math.random() < dt * 16) spawnBurst(bp.x, bp.y + 0.9, bp.z, 0xff3a3a, 2);
+      if (f.t >= 0.7) {
+        f.state = 'CHARGING'; f.t = 0; f.hit1 = false; f.hit2 = false;
+        const dx = tgt.pos.x - bp.x, dz = tgt.pos.z - bp.z, l = Math.hypot(dx, dz) || 1;
+        f.cx = dx / l; f.cz = dz / l;
+        A.impact();
+      }
+    } else if (f.state === 'CHARGING') {
+      /* ... puis TRAVERSE l'arène en ligne droite (murs respectés) */
+      boss.state = 'patrol'; boss.wps = [[bp.x, bp.z]];
+      const step = 16 * dt, ey = boss.floorY + 1;
+      let blocked = false;
+      const nx = bp.x + f.cx * step, nz = bp.z + f.cz * step;
+      if (!pointSolid(nx, ey, bp.z)) bp.x = nx; else blocked = true;
+      if (!pointSolid(bp.x, ey, nz)) bp.z = nz; else blocked = true;
+      boss.g.rotation.y = Math.atan2(f.cx, f.cz);
+      if (Math.random() < dt * 22) spawnBurst(bp.x, bp.y + 0.3, bp.z, 0xff7a3a, 2);
+      const hitNow = pl => Math.hypot(pl.pos.x - bp.x, pl.pos.z - bp.z) < 2.4 && Math.abs(pl.pos.y - boss.floorY) < 3;
+      if (!f.hit1 && hitNow(player)) { f.hit1 = true; hurt(32, bp); }
+      if (S.COOP && p2.pos && !f.hit2 && hitNow(p2)) { f.hit2 = true; hurtP2(32, bp); }
+      if (f.t >= 0.9 || blocked) { f.state = 'CHASE'; boss.state = 'chase'; f.t = 0; f.chargeT = 6.5; }
     } else if (f.state === 'ATTACK_AOE') {
       boss.state = 'patrol'; boss.wps = [[bp.x, bp.z]]; // il se plante pour frapper
       if (f.t >= 0.85 && !f.active) {
@@ -1456,12 +1587,12 @@ export function updateTower(dt) {
         f.active = true;
         spawnBurst(bp.x, bp.y + 0.3, bp.z, 0xff7a3a, 30);
         A.impact();
-        const hitR = 5.2;
+        const hitR = 5;
         if (Math.hypot(player.pos.x - bp.x, player.pos.z - bp.z) < hitR && sameY) hurt(boss.dmg, bp);
         if (S.COOP && p2.pos && Math.hypot(p2.pos.x - bp.x, p2.pos.z - bp.z) < hitR &&
             Math.abs(p2.pos.y - boss.floorY) < 4) hurtP2(boss.dmg, bp);
       }
-      if (f.t >= 1.5) { f.state = 'CHASE'; boss.state = 'chase'; f.t = 0; }
+      if (f.t >= 1.55) { f.state = 'CHASE'; boss.state = 'chase'; f.t = 0; }
     }
   } else if (f.kind === 'berger') {
     /* LE BERGER DES ÉTOILES (étage 18) : bordées d'étoiles filantes,
@@ -1473,19 +1604,27 @@ export function updateTower(dt) {
       }
       return;
     }
+    /* enrage sous 50 % de PV : le troupeau entier se cabre — tout s'accélère */
+    const bEnr = boss.hp / boss.maxHp < 0.5;
+    if (bEnr && !f.enrMsg) {
+      f.enrMsg = true;
+      spawnBurst(bp.x, bp.y + 1.4, bp.z, 0xffd97a, 30);
+      showMsg('Le Berger S\'EMBRASE : « Mon troupeau... TOUT mon troupeau ! » — les dalles mobiles sont votre refuge !', 3.5);
+    }
     f.starT -= dt; f.rainT -= dt; f.summonT -= dt;
     if (f.starT <= 0) {
-      f.starT = 3.2;
+      f.starT = bEnr ? 2.6 : 3.4;
       spawnBurst(bp.x, bp.y + 1.4, bp.z, 0xfff2b0, 18);
-      radialBurst(boss, 13, boss.dmg, 12, 0xfff2b0); // bordée d'étoiles filantes
+      radialBurst(boss, bEnr ? 15 : 13, boss.dmg, 12, 0xfff2b0); // bordée d'étoiles filantes
     }
     if (f.rainT <= 0 && dP < 22 && sameY) {
-      f.rainT = 6;
-      /* pluie d'étoiles : quatre impacts dorés télégraphiés sous les porteurs */
-      for (let k = 0; k < 4; k++) {
+      f.rainT = bEnr ? 4.6 : 6;
+      /* pluie d'étoiles : impacts dorés télégraphiés sous les porteurs */
+      const nRain = bEnr ? 5 : 4;
+      for (let k = 0; k < nRain; k++) {
         const tgt = (S.COOP && p2.pos && k === 1) ? p2 : player;
-        spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 3.5, z: tgt.pos.z + (Math.random() - 0.5) * 3.5,
-          y: boss.floorY, t: 0.85 + k * 0.3, dmg: 40, col: 0xffe9a8, r: 2.8, pillar: true });
+        spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 4, z: tgt.pos.z + (Math.random() - 0.5) * 4,
+          y: boss.floorY, t: 0.85 + k * 0.28, dmg: 34, col: 0xffe9a8, r: 2.8, pillar: true });
       }
       showMsg('Le Berger siffle : ses étoiles PLONGENT — fuyez les lueurs au sol !', 2.5);
     }
@@ -1495,7 +1634,7 @@ export function updateTower(dt) {
       for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
       if (alive < 3) {
         const sx = bp.x + (Math.random() - 0.5) * 8, sz = bp.z + (Math.random() - 0.5) * 8;
-        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'echo', lvl: 14, tag: 'summon', dyn: true });
+        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'echo', lvl: 15, tag: 'summon', dyn: true });
         w.state = 'chase'; w.alerted = true;
         spawnBurst(sx, boss.floorY + 1, sz, 0xfff2b0, 16);
         showMsg('Une étoile tombe du troupeau — un Écho de l\'Aube en jaillit !', 2.5);
@@ -1571,13 +1710,14 @@ export function updateTower(dt) {
     }
     if (f.crocT <= 0 && dP < 20 && sameY) {
       f.crocT = enraged ? 1.9 : 2.7;
+      /* crocs de nuit CORROSIFS : la morsure de l'ombre inocule la nuit liquide */
       const tgt = (S.COOP && p2.pos && Math.random() < 0.4) ? p2 : player;
-      spikes.push({ x: tgt.pos.x, z: tgt.pos.z, y: boss.floorY, t: 0.8, dmg: 46, col: 0x8a5aff, r: 2.4 });
+      spikes.push({ x: tgt.pos.x, z: tgt.pos.z, y: boss.floorY, t: 0.8, dmg: 40, col: 0x8a5aff, r: 2.4, pois: [4, 8] });
       if (enraged) spikes.push({ x: tgt.pos.x + (Math.random() - 0.5) * 4, z: tgt.pos.z + (Math.random() - 0.5) * 4,
-        y: boss.floorY, t: 1.1, dmg: 46, col: 0x8a5aff, r: 2.4 });
+        y: boss.floorY, t: 1.1, dmg: 40, col: 0x8a5aff, r: 2.4, pois: [4, 8] });
     }
     if (f.summonT <= 0) {
-      f.summonT = 12;
+      f.summonT = 11;
       let alive = 0;
       for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
       if (alive < 3) {

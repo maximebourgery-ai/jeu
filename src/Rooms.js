@@ -22,10 +22,10 @@
 import * as THREE from 'three';
 import {
   G, S, colliders, doors, pickups, inter, enemies, projectiles,
-  tkCubes, spinners, flames, pedestals, PLATES, CAMPS, player, p2
+  tkCubes, spinners, flames, pedestals, PLATES, CAMPS, player, p2, gearScore
 } from './state.js';
 import { A } from './Audio.js';
-import { $, showMsg, withLoading } from './UI.js';
+import { $, showMsg, withLoading, gearWarning } from './UI.js';
 import {
   mkBox, mkCyl, mkDoor, openDoor, addInter, addPickup, torch, bivouac,
   spawnBurst, mkTkCube, pedestal, doorFlames, asciiWalls
@@ -136,6 +136,8 @@ export function unloadRoom() {
   S.roomId = null;
 }
 
+/* v9 — Gear Score conseillé par salle (gear check des zones profondes) */
+const ROOM_GEAR = { cata: 25, trone: 40 };
 /* Charge une salle (SANS fondu — les enrobages avec fondu sont plus bas).
    Renvoie false si l'id est inconnu (sauvegarde d'une autre version). */
 export function loadRoom(id, spawn) {
@@ -146,6 +148,18 @@ export function loadRoom(id, spawn) {
   enemySeq = 0;
   beginBuild();
   try { def.build(); } finally { endBuild(); S.buildingRoom = null; }
+  /* v9 — GEAR CHECK des salles profondes du château : très sous-équipé
+     (< 40 % du Score conseillé) → alerte + ombres de la salle ×3. */
+  const rec = ROOM_GEAR[id] || 0;
+  if (rec && gearScore() < rec * 0.4) {
+    for (let i = snap.enemies; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e || e.dead || e.fsm) continue;
+      e.hp *= 3; e.maxHp *= 3; e.dmg = Math.round(e.dmg * 3);
+    }
+    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gearScore() + ' / ' + rec
+      + ' conseillé) : les ombres y frappent TROIS FOIS plus fort. Forgez votre panoplie à une enclume !');
+  }
   setFlag(id, 'visited'); // les prochaines visites seront moins peuplées
   S.roomId = id;
   const e = spawn || def.entry;

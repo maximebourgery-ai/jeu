@@ -9,7 +9,7 @@ import { G, S, CTRL_ID, JOIN_CODE, PEERSRV, IS_TOUCH, IS_IOS, IS_STANDALONE, PAT
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
+import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac, mkAnvil, updateDeathDrop, updateAnvilProximity } from './World.js';
 import { updateDayNight } from './DayNight.js';
 import { buildPlayer, setupCoopP2, updatePlayer, updateP2, updateCamera, updateCamera2, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
@@ -33,7 +33,7 @@ function loop() {
   updateGamepad(dt);
   pushCtrlState(); // manettes smartphone : état des menus/sorts poussé sur changement
   pushNetHud(dt);  // joueur en ligne (2ᵉ PC) : HUD répliqué ~10 Hz (barres, objectif, dialogues...)
-  const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen;
+  const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen && !G.forgeOpen;
   // ✦ tactile ou manette smartphone : toujours l'attaque de base (les sorts ont leurs boutons dédiés)
   if (S.tmBoltHeld && canAct) castSpecific('bolt');
   /* Manette smartphone du JOUEUR 2 : appliquée APRÈS updateGamepad (qui
@@ -48,8 +48,10 @@ function loop() {
   /* Le monde SE FIGE aussi sac ouvert (Tab), arbre des pouvoirs ouvert (K)
      et matrice des Bivouacs ouverte : on fabrique, on consomme et on
      apprend tranquille — aucune ombre ne frappe un joueur qui lit ses menus. */
-  if (G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) {
+  if (G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.forgeOpen) {
     G.time += dt;
+    updateDeathDrop(); // Corpse Run : Tombe d'Aube (matérialisation, expiration 5 min réelles, récupération)
+    updateAnvilProximity(); // Guide du porteur : explique la Forge à la première approche
     updateDayNight(dt); // horloge d'Ombreciel : ciel, lumières, force des ombres
     updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs
     updatePlayer(dt);
@@ -227,6 +229,13 @@ async function initGame() {
      pour souffler, forger et dépenser ses points. Ajouté EN DERNIER pour ne
      pas décaler les index d'interactions des sauvegardes existantes. */
   bivouac(-3.5, 0, 57, 'la fontaine des Jardins', 'fontaine');
+  /* v9 — l'enclume de départ, contre la VRAIE fontaine du sanctuaire (le
+     bassin de pierre en (0, 0, 42), avec son offrande secrète) : le point
+     de repère qu'un joueur associe naturellement à « la fontaine » — pas
+     le feu de bivouac homonyme, planté 15 m plus loin près du spawn.
+     À 5,7 m du bassin (hors de son emprise, r = 3,3), sur le chemin
+     naturel vers Lumen (balise du tutoriel, à peine plus loin). */
+  mkAnvil(-4.5, 0, 40.5); // v9 : la Forge de la fontaine
   /* Patrouilles v8.1 : ajoutées APRÈS tout le reste (comme le bivouac
      ci-dessus) pour préserver les index d'ennemis des sauvegardes. */
   buildExtraPatrols();
@@ -245,13 +254,15 @@ async function initGame() {
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
   if (import.meta.env.DEV) {
-    const { inter, CAMPS, doors, tkCubes, zoneSeen } = await import('./state.js');
+    const { inter, CAMPS, doors, tkCubes, zoneSeen,
+      rollEquipment, equipItem, unequipSlot, equipTotals, gearScore, armorReduction } = await import('./state.js');
     const { killEnemy } = await import('./Enemies.js');
     const { loadRoom, unloadRoom } = await import('./Rooms.js');
     const { travelTo } = await import('./UI.js');
     const { openMap, closeMap } = await import('./WorldMap.js');
     window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, doors,
-      tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap };
+      tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap,
+      rollEquipment, equipItem, unequipSlot, equipTotals, gearScore, armorReduction };
   }
   loop();
 }
