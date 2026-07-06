@@ -367,7 +367,7 @@ function drawMap() {
 }
 
 export function openMap() {
-  if (!G.started || G.over || G.dialog || G.mapOpen) return;
+  if (!G.started || G.over || (G.dialog && S.dlgWho === 1) || G.mapOpen) return;
   if (G.travelOpen) { G.travelOpen = false; $('travel').classList.add('hidden'); }
   G.mapOpen = true;
   zoom = 1; panX = 0; panY = 0; // vue d'ensemble à chaque ouverture

@@ -5,7 +5,7 @@
    mode dual jeu / manette smartphone (?controller=ID).
    ================================================================ */
 import './style.css';
-import { G, S, CTRL_ID, JOIN_CODE, PEERSRV, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, tm2Move, applyPath, loadSettings } from './state.js';
+import { G, S, CTRL_ID, JOIN_CODE, PEERSRV, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, tm2Move, applyPath, loadSettings, p1Busy, p2Busy, worldFrozen } from './state.js';
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
@@ -33,9 +33,16 @@ function loop() {
   updateGamepad(dt);
   pushCtrlState(); // manettes smartphone : état des menus/sorts poussé sur changement
   pushNetHud(dt);  // joueur en ligne (2ᵉ PC) : HUD répliqué ~10 Hz (barres, objectif, dialogues...)
-  const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen;
+  /* v9 — INDÉPENDANCE DES JOUEURS : chaque porteur a SON propre état
+     « occupé » (pause, dialogue, arbre des pouvoirs — voir p1Busy/p2Busy,
+     state.js). L'un peut lire son sac, dialoguer ou consulter son arbre
+     SANS geler l'autre : seul updatePlayer/updateP2 du joueur concerné
+     s'arrête. Le MONDE (ombres, portes, directeur...) ne se fige que si
+     PLUS PERSONNE ne joue (solo occupé, ou coop occupé des DEUX côtés). */
+  const canAct1 = G.started && !G.over && !p1Busy();
+  const canAct2 = G.started && !G.over && !p2Busy();
   // ✦ tactile ou manette smartphone : toujours l'attaque de base (les sorts ont leurs boutons dédiés)
-  if (S.tmBoltHeld && canAct) castSpecific('bolt');
+  if (S.tmBoltHeld && canAct1) castSpecific('bolt');
   /* Manette smartphone du JOUEUR 2 : appliquée APRÈS updateGamepad (qui
      remet p2.input à zéro chaque frame) — téléphone et manette physique
      se cumulent, joystick poussé à fond = sprint (comme l'écran tactile). */
@@ -43,17 +50,14 @@ function loop() {
     p2.input.mx += tm2Move.x; p2.input.mz += tm2Move.z;
     if (Math.hypot(tm2Move.x, tm2Move.z) > 0.92) p2.input.sprint = true;
     if (S.tm2JumpHeld) p2.input.jumpHeld = true;
-    if (S.tm2BoltHeld && canAct) castSpecific('bolt', p2);
+    if (S.tm2BoltHeld && canAct2) castSpecific('bolt', p2);
   }
-  /* Le monde SE FIGE aussi sac ouvert (Tab), arbre des pouvoirs ouvert (K)
-     et matrice des Bivouacs ouverte : on fabrique, on consomme et on
-     apprend tranquille — aucune ombre ne frappe un joueur qui lit ses menus. */
-  if (G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen) {
+  if (G.started && !G.over && !worldFrozen()) {
     G.time += dt;
     updateDayNight(dt); // horloge d'Ombreciel : ciel, lumières, force des ombres
     updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs
-    updatePlayer(dt);
-    if (S.COOP && p2.mesh) updateP2(dt);
+    if (canAct1) updatePlayer(dt);
+    if (S.COOP && p2.mesh && canAct2) updateP2(dt);
     updateEnemies(dt);
     updateFx(dt);        // arcs de taillade, ondes de choc au sol
     updateProjectiles(dt);
@@ -245,13 +249,18 @@ async function initGame() {
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
   if (import.meta.env.DEV) {
-    const { inter, CAMPS, doors, tkCubes, zoneSeen } = await import('./state.js');
+    const { inter, CAMPS, doors, tkCubes, zoneSeen, p1Busy, p2Busy, worldFrozen, tm2Move } = await import('./state.js');
     const { killEnemy } = await import('./Enemies.js');
     const { loadRoom, unloadRoom } = await import('./Rooms.js');
-    const { travelTo } = await import('./UI.js');
+    const { travelTo, toggleInv } = await import('./UI.js');
     const { openMap, closeMap } = await import('./WorldMap.js');
+    const { setupCoopP2 } = await import('./Player.js');
+    const { tryInteractP2 } = await import('./World.js');
+    const { toggleTree } = await import('./SkillTree.js');
+    const { openDialog } = await import('./Quests.js');
     window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, doors,
-      tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap };
+      tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap,
+      p1Busy, p2Busy, worldFrozen, setupCoopP2, toggleInv, toggleTree, openDialog, tryInteractP2, tm2Move };
   }
   loop();
 }

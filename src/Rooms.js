@@ -38,6 +38,13 @@ import { saveGame } from './SaveSystem.js'; // cycle sûr : appel différé
 
 /* Site des salles (hors du monde, à l'opposé de la Tour qui vit en x +400) */
 const RX = -400, RZ = 0;
+/* v9 — INDÉPENDANCE DES SALLES : le site (RX,RZ) regroupe TOUTES les salles
+   instanciées (rayon large : la salle des catacombes s'étend jusqu'à
+   RX+59). L'autre porteur n'est déplacé de force QUE s'il se trouvait
+   physiquement DANS la salle qui se décharge — s'il est resté dans le
+   monde ouvert (jardins, Terres Perdues...), il n'est jamais téléporté. */
+const ROOM_SITE_R = 100;
+function nearRoomSite(pos) { return !!(pos && Math.hypot(pos.x - RX, pos.z - RZ) < ROOM_SITE_R); }
 
 /* ---------------- persistance par salle ---------------- */
 const roomState = id => G.rooms[id] || (G.rooms[id] = { flags: {}, taken: {}, tk: null });
@@ -138,9 +145,17 @@ export function unloadRoom() {
 
 /* Charge une salle (SANS fondu — les enrobages avec fondu sont plus bas).
    Renvoie false si l'id est inconnu (sauvegarde d'une autre version). */
-export function loadRoom(id, spawn) {
+export function loadRoom(id, spawn, who) {
   const def = ROOMS[id];
   if (!def) return false;
+  /* v9 — qui entre ? (S.actingPlayer, posé par tryInteract/tryInteractP2) —
+     par défaut le J1 (chargement de sauvegarde, voyage rapide...). L'AUTRE
+     porteur n'est amené avec lui que s'il se trouvait dans la salle qui se
+     décharge — sinon il reste où il est, dans le monde ouvert. */
+  const w = who === 2 ? 2 : (who === 1 ? 1 : (S.actingPlayer === 2 ? 2 : 1));
+  const mover = w === 2 ? p2 : player;
+  const other = w === 2 ? player : p2;
+  const dragOther = S.COOP && other.pos && nearRoomSite(other.pos);
   if (S.roomId) unloadRoom();
   S.buildingRoom = id;
   enemySeq = 0;
@@ -149,28 +164,37 @@ export function loadRoom(id, spawn) {
   setFlag(id, 'visited'); // les prochaines visites seront moins peuplées
   S.roomId = id;
   const e = spawn || def.entry;
-  player.pos.set(e.x, e.y, e.z); player.vel.set(0, 0, 0);
-  if (S.COOP && p2.pos) { p2.pos.set(e.x + 1.3, e.y, e.z + 0.8); p2.vel.set(0, 0, 0); }
-  G.checkpoint = { x: e.x, y: e.y, z: e.z };
-  if (e.yaw !== undefined) S.yaw = e.yaw;
+  mover.pos.set(e.x, e.y, e.z); mover.vel.set(0, 0, 0);
+  if (dragOther) { other.pos.set(e.x + 1.3, e.y, e.z + 0.8); other.vel.set(0, 0, 0); }
+  if (w === 1) {
+    G.checkpoint = { x: e.x, y: e.y, z: e.z };
+    if (e.yaw !== undefined) S.yaw = e.yaw;
+  } else if (e.yaw !== undefined) p2.yaw = e.yaw;
   S.graceT = Math.max(S.graceT, 4.5); // le temps de se repérer avant l'aggro
   return true;
 }
 
 /* ---------------- transitions AVEC écran de chargement ---------------- */
 function gotoRoom(id, spawn) {
+  const who = S.actingPlayer === 2 ? 2 : 1; // capturé AVANT le fondu (async)
   withLoading(ROOMS[id].name, () => {
-    loadRoom(id, spawn);
+    loadRoom(id, spawn, who);
     saveGame(true); // chaque écran de chargement vaut point de reprise
   });
 }
 function exitToWorld(title, x, y, z, yaw, msg) {
+  const who = S.actingPlayer === 2 ? 2 : 1; // capturé AVANT le fondu (async)
   withLoading(title, () => {
+    const mover = who === 2 ? p2 : player;
+    const other = who === 2 ? player : p2;
+    const dragOther = S.COOP && other.pos && nearRoomSite(other.pos);
     unloadRoom();
-    player.pos.set(x, y, z); player.vel.set(0, 0, 0);
-    if (S.COOP && p2.pos) { p2.pos.set(x + 1.3, y, z + 0.8); p2.vel.set(0, 0, 0); }
-    G.checkpoint = { x, y, z };
-    if (yaw !== undefined) S.yaw = yaw;
+    mover.pos.set(x, y, z); mover.vel.set(0, 0, 0);
+    if (dragOther) { other.pos.set(x + 1.3, y, z + 0.8); other.vel.set(0, 0, 0); }
+    if (who === 1) {
+      G.checkpoint = { x, y, z };
+      if (yaw !== undefined) S.yaw = yaw;
+    } else if (yaw !== undefined) p2.yaw = yaw;
     if (msg) showMsg(msg, 3.5);
     saveGame(true);
   });

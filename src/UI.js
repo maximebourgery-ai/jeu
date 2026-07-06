@@ -98,12 +98,12 @@ export function openTravel(fromCamp, canSleep) {
 /* Ouvre/ferme le sac-atelier : le monde se fige (voir loop, main.js), la
    souris est libérée pour cliquer les boutons, puis re-capturée en sortie. */
 export function toggleInv() {
-  if (!G.started || G.over || G.dialog || G.paused) return;
+  if (!G.started || G.over || (G.dialog && S.dlgWho === 1) || G.paused) return;
   G.inv = !G.inv;
   if (G.inv) {
     refreshInv();
     if (document.exitPointerLock) document.exitPointerLock();
-  } else if (!G.treeOpen && !G.travelOpen) {
+  } else if (!(G.treeOpen && S.treeFor === 1) && !G.travelOpen) {
     lockPointer();
   }
   $('inv').classList.toggle('hidden', !G.inv);
@@ -118,6 +118,12 @@ export function closeTravel() {
 export function travelTo(c) {
   if (S.combatT > 0) { showMsg('Les ombres vous traquent : impossible de voyager en plein combat.', 3); return; }
   closeTravel();
+  /* v9 — le voyage rapide est un écran du J1 (G.travelOpen) : le Joueur 2
+     n'est amené avec lui que s'il se trouvait DÉJÀ dans la salle/le palier
+     que le J1 quitte — sinon il reste où il est (monde ouvert). */
+  const dragP2 = S.COOP && p2.pos && (
+    (S.roomId && Math.hypot(p2.pos.x + 400, p2.pos.z) < 100) ||
+    (S.inTower && Math.hypot(p2.pos.x - 400, p2.pos.z) < 100));
   /* Le voyage rapide passe TOUJOURS par l'écran de chargement : on décharge
      l'instance courante (salle ou palier), on charge celle du feu visé
      (c.room = salle instanciée, c.palier = palier de la Tour), puis on pose
@@ -129,9 +135,9 @@ export function travelTo(c) {
     if (S.roomId) unloadRoom();
     if (S.inTower) leaveTower(true);
     if (c.palier) enterPalier(c.palier);
-    else if (c.room) loadRoom(c.room);
+    else if (c.room) loadRoom(c.room, null, 1);
     player.pos.set(c.x, c.y, c.z); player.vel.set(0, 0, 0);
-    if (S.COOP && p2.pos) { p2.pos.set(c.x + 1.5, c.y, c.z + 0.8); p2.vel.set(0, 0, 0); }
+    if (dragP2) { p2.pos.set(c.x + 1.5, c.y, c.z + 0.8); p2.vel.set(0, 0, 0); }
     G.checkpoint = { x: c.x, y: c.y, z: c.z };
     A.dash();
     spawnBurst(c.x, c.y + 1, c.z, 0xffc06a, 20);
@@ -508,7 +514,7 @@ export function updateHUD(dt) {
       } else lk.classList.add('hidden');
     } else lk.classList.add('hidden');
   }
-  const it = (G.started && !G.paused && !G.over && !G.dialog) ? nearInter() : null;
+  const it = (G.started && !G.paused && !G.over && !(G.dialog && S.dlgWho === 1)) ? nearInter() : null;
   $('prompt').textContent = it ? ('E — ' + it.label) : '';
   if (G.msgT > 0) {
     G.msgT -= dt;

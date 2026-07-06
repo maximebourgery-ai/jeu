@@ -5,6 +5,12 @@
    ================================================================ */
 import * as THREE from 'three';
 import { G, S, IS_TOUCH, IS_IOS, IS_STANDALONE, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
+/* v9 — le dialogue/l'arbre de CE joueur uniquement (voir state.js) : « myDialog »
+   et « myTree » distinguent MON dialogue/arbre de celui de l'autre porteur,
+   qui ne doit jamais me bloquer. who = 1 (clavier/tactile, ce module) ou 2
+   (manette locale, qui pilote le J2 en coop — voir updateGamepad). */
+const myDialog = who => G.dialog && S.dlgWho === who;
+const myTree = who => G.treeOpen && S.treeFor === who;
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
 import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots, updatePadLegend } from './UI.js';
@@ -56,13 +62,13 @@ export function initControls() {
   addEventListener('keydown', e => {
     if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
     keys[e.code] = true;
-    if (e.code === 'Space' && G.started && !G.paused && !G.dialog && !G.over) S.jumpQueued = 0.14;
+    if (e.code === 'Space' && G.started && !G.paused && !myDialog(1) && !G.over) S.jumpQueued = 0.14;
     if (!G.started || G.over) return;
-    if (G.dialog) { if (e.code === 'KeyE' || e.code === 'Space') dlgNext(); return; }
+    if (myDialog(1)) { if (e.code === 'KeyE' || e.code === 'Space') dlgNext(); return; }
     if (e.code === 'Escape' && !document.pointerLockElement) {
       if (G.mapOpen) { closeMap(); return; }
       if (G.travelOpen) { closeTravel(); return; }
-      if (G.treeOpen) { toggleTree(); return; }
+      if (myTree(1)) { toggleTree(); return; }
       if (G.inv) { toggleInv(); return; }
       G.paused = !G.paused;
       $('pause').classList.toggle('hidden', !G.paused);
@@ -102,8 +108,8 @@ export function initControls() {
   });
   addEventListener('mousedown', e => {
     if (!G.started || G.over) return;
-    if (G.dialog) { dlgNext(); return; }
-    if (G.paused || G.inv || G.treeOpen || G.travelOpen) return; // clics réservés aux boutons de ces panneaux
+    if (myDialog(1)) { dlgNext(); return; }
+    if (G.paused || G.inv || myTree(1) || G.travelOpen) return; // clics réservés aux boutons de ces panneaux
     if (IS_TOUCH) return; // sur mobile, l'attaque passe par le bouton tactile
     if (document.pointerLockElement) {
       if (e.button === 0 && !G.inv) castPower();
@@ -116,12 +122,12 @@ export function initControls() {
     if (!S.mDown) return;
     S.mDown = false;
     if (IS_TOUCH) return;
-    if (!document.pointerLockElement && G.started && !G.paused && !G.inv && !G.dialog && !G.over && S.dragDist < 6) {
+    if (!document.pointerLockElement && G.started && !G.paused && !G.inv && !myDialog(1) && !G.over && S.dragDist < 6) {
       castPower();
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !myDialog(1) && !G.inv && !myTree(1) && !G.travelOpen && !G.mapOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -267,15 +273,24 @@ const PANEL_DEFS = {
   truewin:  { sel: '#truewin button' }, // la vraie fin (v8.4)
   qr:       { sel: '#qrpanel button', close: '#btn-qrclose' } // appairage des manettes smartphone
 };
-function activePanel() {
+/* v9 — INDÉPENDANCE : `who` (1 = J1 clavier/tactile, 2 = J2 manette locale
+   ou en ligne) précise POUR QUI on demande le panneau actif. pause/arbre
+   sont désormais propres à chacun (G.paused/p2.paused, S.treeFor) ; sac,
+   carte et matrice des bivouacs restent des écrans du J1 uniquement — ils
+   ne redirigent jamais les entrées du J2. Les écrans globaux (réglages,
+   écran-titre, victoire...) bloquent tout le monde, comme avant. */
+function activePanel(who) {
   const vis = id => { const el = $(id); return el && !el.classList.contains('hidden'); };
+  const w = who === 2 ? 2 : 1;
   if (vis('qrpanel')) return 'qr'; // au-dessus de tout (écran-titre ou pause)
   if (vis('settings')) return 'settings';
-  if (G.paused && vis('pause')) return 'pause';
-  if (G.mapOpen) return 'map';
-  if (G.inv) return 'inv';
-  if (G.treeOpen) return 'tree';
-  if (G.travelOpen) return 'travel';
+  if ((w === 2 ? p2.paused : G.paused) && vis('pause')) return 'pause';
+  if (w === 1) {
+    if (G.mapOpen) return 'map';
+    if (G.inv) return 'inv';
+    if (G.travelOpen) return 'travel';
+  }
+  if (G.treeOpen && S.treeFor === w) return 'tree';
   if (G.dead && vis('gameover')) return 'gameover';
   if (vis('win')) return 'win';
   if (vis('truewin')) return 'truewin';
@@ -357,8 +372,8 @@ function padMenus(panel, b, dirs, gp, dt) {
    physique (surbrillance dorée, curseurs de réglage, carte). Renvoie true
    si un panneau était ouvert (l'impulsion a été consommée par le menu).
    ================================================================ */
-export function remoteNav(d) {
-  const panel = activePanel();
+export function remoteNav(d, who) {
+  const panel = activePanel(who === 2 ? 2 : 1);
   if (!panel) return false;
   /* --- la carte : déplacement par crans + zoom + centrage --- */
   if (panel === 'map') {
@@ -404,8 +419,9 @@ export function remoteNav(d) {
   if (focused && focused.scrollIntoView) focused.scrollIntoView({ block: 'nearest' });
   return true;
 }
-/* Un panneau (menu) est-il ouvert ? — exposé pour la manette smartphone */
-export function anyPanelOpen() { return activePanel(); }
+/* Un panneau (menu) est-il ouvert POUR CE JOUEUR ? — exposé pour la
+   manette smartphone / le joueur en ligne (who : 1 ou 2). */
+export function anyPanelOpen(who) { return activePanel(who === 2 ? 2 : 1); }
 
 /* Publie la manette principale vers la légende des boutons (UI.js) dès
    qu'elle change — connexion, déconnexion, bascule solo/coop, démarrage. */
@@ -509,28 +525,32 @@ export function updateGamepad(dt) {
     S.gpPrev = { 0: b(0), 1: b(1), 2: b(2), 3: b(3), 4: b(4), 5: b(5), 6: b(6), 7: b(7),
       8: b(8), 9: b(9), 12: padUp(), 13: padDown(), 14: padLeft(), 15: padRight() };
   };
-  /* — MENUS : dès qu'un panneau est ouvert, la manette navigue DEDANS
-     (écran-titre compris) et le gameplay ne reçoit plus rien — */
-  const panel = activePanel();
+  /* — MENUS : dès qu'un panneau (LE SIEN — v9) est ouvert, la manette
+     navigue DEDANS et le gameplay ne reçoit plus rien. En coop, la manette
+     pilote le J2 : le panneau du J1 (sac, carte, pause...) ne la concerne
+     plus — le J2 continue de jouer pendant que le J1 gère son écran. */
+  const gpWho = S.COOP ? 2 : 1;
+  const panel = activePanel(gpWho);
   if (panel) {
     padMenus(panel, b, { up: padUp, down: padDown, left: padLeft, right: padRight }, gp, dt);
     snapPrev();
     return;
   }
   if (navPanel) clearPadFocus(); // on sort d'un menu : éteint la surbrillance
-  // Pause (Start)
-  if (b(9) && !S.gpPrev[9] && G.started && !G.over && !G.dialog) {
-    G.paused = !G.paused;
-    $('pause').classList.toggle('hidden', !G.paused);
+  // Pause (Start) — propre au J2 en coop (le J1 garde la sienne, Échap)
+  if (b(9) && !S.gpPrev[9] && G.started && !G.over && !myDialog(gpWho)) {
+    if (S.COOP) { p2.paused = !p2.paused; }
+    else { G.paused = !G.paused; $('pause').classList.toggle('hidden', !G.paused); }
   }
-  // Select / Back : la carte d'Ombreciel
-  if (b(8) && !S.gpPrev[8] && G.started && !G.over && !G.dialog) toggleMap();
+  // Select / Back : la carte d'Ombreciel (écran du J1 uniquement)
+  if (!S.COOP && b(8) && !S.gpPrev[8] && G.started && !G.over && !myDialog(1)) toggleMap();
   if (G.started && !G.over) {
-    if (G.dialog) {
+    if (myDialog(gpWho)) {
       if ((b(0) || b(2)) && !S.gpPrev[0] && !S.gpPrev[2]) dlgNext();
-    } else if (!G.paused) {
+    } else if (S.COOP ? !p2.paused : !G.paused) {
       if (S.COOP) {
-        /* --- La manette contrôle le JOUEUR 2 --- */
+        /* --- La manette contrôle le JOUEUR 2 : SES propres arts, jamais
+           bloqués par le sac (Tab) ou la pause du JOUEUR 1 --- */
         p2.input.mx = dz(gp.axes[0]);
         p2.input.mz = -dz(gp.axes[1]);
         p2.yaw -= aimCurve(camX) * 2.6 * settings.padSens * dt;
@@ -539,15 +559,15 @@ export function updateGamepad(dt) {
         p2.input.sprint = b(10);
         p2.input.jumpHeld = b(0);
         if (b(0) && !S.gpPrev[0]) p2.jumpQ = 0.14;                       // A : saut J2
-        if (b(2) && !G.inv) castSpecific('bolt', p2);                    // X : attaque de base J2 (jamais un autre sort)
+        if (b(2)) castSpecific('bolt', p2);                              // X : attaque de base J2 (jamais un autre sort)
         if (b(1) && !S.gpPrev[1]) tryInteractP2();                       // B : interagir J2
-        if (b(3) && !S.gpPrev[3] && !G.inv) castSlot(0, p2);             // Y : emplacement 1 J2
-        if (b(4) && !S.gpPrev[4] && !G.inv) castSlot(1, p2);             // LB : emplacement 2 J2
-        if (b(5) && !S.gpPrev[5] && !G.inv) castSlot(2, p2);             // RB : emplacement 3 J2
-        if (b(6) && !S.gpPrev[6] && !G.inv) castSlot(3, p2);             // LT : emplacement 4 J2
-        if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4, p2);             // RT : emplacement 5 J2
-        if (padUp() && !S.gpPrev[12] && !G.inv) castSpecific('nova', p2);   // Croix haut : Nova d'Aurore J2
-        if (padDown() && !S.gpPrev[13] && !G.inv) castSpecific('meteor', p2);// Croix bas : Astre d'Aube J2
+        if (b(3) && !S.gpPrev[3]) castSlot(0, p2);                       // Y : emplacement 1 J2
+        if (b(4) && !S.gpPrev[4]) castSlot(1, p2);                       // LB : emplacement 2 J2
+        if (b(5) && !S.gpPrev[5]) castSlot(2, p2);                       // RB : emplacement 3 J2
+        if (b(6) && !S.gpPrev[6]) castSlot(3, p2);                       // LT : emplacement 4 J2
+        if (b(7) && !S.gpPrev[7]) castSlot(4, p2);                       // RT : emplacement 5 J2
+        if (padUp() && !S.gpPrev[12]) castSpecific('nova', p2);          // Croix haut : Nova d'Aurore J2
+        if (padDown() && !S.gpPrev[13]) castSpecific('meteor', p2);      // Croix bas : Astre d'Aube J2
       } else {
         /* --- Solo : la manette contrôle le JOUEUR 1 --- */
         gpMove.x = dz(gp.axes[0]);
@@ -640,7 +660,7 @@ export function setupTouch() {
   let lookId = null, lx = 0, ly = 0, lookMoved = 0, lookT0 = 0;
   look.addEventListener('pointerdown', e => {
     e.preventDefault();
-    if (G.dialog) { dlgNext(); return; }
+    if (myDialog(1)) { dlgNext(); return; }
     lookId = e.pointerId; lx = e.clientX; ly = e.clientY;
     lookMoved = 0; lookT0 = performance.now();
     look.setPointerCapture(e.pointerId);
@@ -650,7 +670,7 @@ export function setupTouch() {
     const dx = e.clientX - lx, dy = e.clientY - ly;
     lx = e.clientX; ly = e.clientY;
     lookMoved += Math.abs(dx) + Math.abs(dy);
-    if (G.started && !G.paused && !G.dialog) {
+    if (G.started && !G.paused && !myDialog(1)) {
       const s = 0.0052 * settings.mouseSens;
       S.yaw -= dx * s;
       S.pitch -= dy * s * (settings.invertY ? -1 : 1);
@@ -662,7 +682,7 @@ export function setupTouch() {
     if (e.pointerId !== lookId) return;
     lookId = null;
     // tap bref et immobile = tentative de verrouillage de cible
-    if (lookMoved < 12 && performance.now() - lookT0 < 350 && G.started && !G.paused && !G.dialog)
+    if (lookMoved < 12 && performance.now() - lookT0 < 350 && G.started && !G.paused && !myDialog(1))
       pickTapTarget(e.clientX, e.clientY);
   };
   look.addEventListener('pointerup', lookEnd);
@@ -674,19 +694,19 @@ export function setupTouch() {
   let atkId = null, ax = 0, ay = 0;
   atk.addEventListener('pointerdown', e => {
     e.preventDefault(); e.stopPropagation();
-    if (G.dialog) { dlgNext(); return; }
+    if (myDialog(1)) { dlgNext(); return; }
     atkId = e.pointerId; ax = e.clientX; ay = e.clientY;
     try { atk.setPointerCapture(e.pointerId); } catch (err) {}
     S.tmBoltHeld = true; // toujours l'attaque de base, jamais le dernier sort débloqué
     /* le coup part dès l'appui : un tap bref frappe aussi (le maintien,
        lui, enchaîne via la boucle principale — la recharge fait le tri) */
-    if (G.started && !G.paused && !G.over && !G.inv && !G.treeOpen && !G.travelOpen) castSpecific('bolt');
+    if (G.started && !G.paused && !G.over && !G.inv && !myTree(1) && !G.travelOpen) castSpecific('bolt');
   });
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== atkId) return;
     const dx = e.clientX - ax, dy = e.clientY - ay;
     ax = e.clientX; ay = e.clientY;
-    if (G.started && !G.paused && !G.dialog) {
+    if (G.started && !G.paused && !myDialog(1)) {
       const s = 0.0036 * settings.mouseSens; // plus fin que le glisser-caméra : c'est de la visée
       S.yaw -= dx * s;
       S.pitch -= dy * s * (settings.invertY ? -1 : 1);
@@ -706,12 +726,12 @@ export function setupTouch() {
     }
   };
   bind('t-jump', () => {
-    if (G.dialog) { dlgNext(); return; }
+    if (myDialog(1)) { dlgNext(); return; }
     if (G.started && !G.paused && !G.over) S.jumpQueued = 0.14;
     S.tmJumpHeld = true;
   }, () => { S.tmJumpHeld = false; });
   bind('t-act', () => {
-    if (G.dialog) { dlgNext(); return; }
+    if (myDialog(1)) { dlgNext(); return; }
     tryInteract();
   });
   /* Un bouton par sort : lancement direct, sans cycle — le pouce droit a
@@ -720,7 +740,7 @@ export function setupTouch() {
   document.querySelectorAll('#spellbar .sbtn').forEach(btn => {
     btn.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
-      if (G.dialog) { dlgNext(); return; }
+      if (myDialog(1)) { dlgNext(); return; }
       if (!G.started || G.paused || G.over || G.inv) return;
       castSpecific(btn.dataset.power);
       try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
@@ -730,7 +750,7 @@ export function setupTouch() {
   bind('t-tree', () => toggleTree());
   bind('t-map', () => toggleMap());
   bind('t-pause', () => {
-    if (!G.started || G.over || G.dialog) return;
+    if (!G.started || G.over || myDialog(1)) return;
     G.paused = !G.paused;
     $('pause').classList.toggle('hidden', !G.paused);
   });

@@ -11,6 +11,7 @@ import { openDoor, syncCube, runRestores } from './World.js';
 import { refreshPlayerVisual, addWingsToPlayer } from './Player.js';
 import { applyQuest } from './Quests.js';
 import { syncRoomState, loadRoom } from './Rooms.js'; // cycle sûr : appels différés
+import { broadcastSaveToNet } from './Network.js'; // cycle sûr : appel différé (sauvegarde du joueur en ligne, v9)
 
 export function saveGame(silent) {
   if (!G.started || G.over) return;
@@ -60,6 +61,10 @@ export function saveGame(silent) {
       tk: tkCubes.map(c => [+c.mesh.position.x.toFixed(2), +c.mesh.position.y.toFixed(2), +c.mesh.position.z.toFixed(2)])
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+    /* v9 — le(s) joueur(s) en ligne (2ᵉ PC) reçoivent une copie de cette
+       sauvegarde pour LEUR PROPRE navigateur : chacun peut ainsi avancer et
+       sauvegarder de son côté (voir Network.broadcastSaveToNet). */
+    broadcastSaveToNet(s);
     /* chaque jalon du v8 (clefs, PNJ, pont, boss, Couronne) force une
        sauvegarde : on en profite pour rafraîchir la ligne d'objectif */
     applyQuest();

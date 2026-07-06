@@ -477,6 +477,7 @@ export function updatePickups(dt) {
     const byP1 = player.pos.distanceTo(p.mesh.position) < 1.6;
     const byP2 = S.COOP && p2.pos && p2.pos.distanceTo(p.mesh.position) < 1.6;
     if (byP1 || byP2) {
+      S.actingPlayer = byP1 ? 1 : 2; // attribue le guide du porteur au bon joueur (v9)
       p.taken = true; S.scene.remove(p.mesh);
       if (p.type === 'crystal') {
         G.crystals++; A.power();
@@ -583,14 +584,15 @@ export function nearInter() {
   return nearInterP(player);
 }
 export function tryInteractP2() {
-  if (!G.started || G.paused || G.inv || G.over || G.dialog || S.transitioning) return;
+  if (!G.started || G.over || S.transitioning) return;
+  if (p2.paused || (G.dialog && S.dlgWho === 2)) return; // sa propre pause/dialogue seulement
   const it = nearInterP(p2);
-  if (it) it.fn(it);
+  if (it) { S.actingPlayer = 2; it.fn(it); }
 }
 export function tryInteract() {
   if (!G.started || G.paused || G.inv || G.over || G.dialog || S.transitioning) return;
   const it = nearInter();
-  if (it) it.fn(it);
+  if (it) { S.actingPlayer = 1; it.fn(it); }
 }
 
 /* ---------------- PARTICULES ---------------- */

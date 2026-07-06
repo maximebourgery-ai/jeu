@@ -16,7 +16,7 @@
    L'hôte reste 100 % autorité : physique, combats, XP, sauvegarde.
    ================================================================ */
 import Peer from 'peerjs';
-import { PATHS, POWERS, TREE_COMMON, TREES, PUPG } from './state.js';
+import { PATHS, POWERS, TREE_COMMON, TREES, PUPG, SAVE_KEY } from './state.js';
 import { peerOpts, ROOM_PREFIX } from './Network.js';
 
 export function startOnlineClientMode(code) {
@@ -244,6 +244,14 @@ export function startOnlineClientMode(code) {
             const b = el('osp-' + p.id);
             if (b) b.classList.toggle('on', !!d.powers[p.id]);
           });
+        }
+        /* v9 — SAUVEGARDE INDÉPENDANTE : l'hôte renvoie une copie de la
+           sauvegarde à chaque écran de chargement/auto-save, avec NOTRE
+           propre personnage promu en tête. On la garde dans CE navigateur :
+           en rouvrant le jeu ici sans ?join, « Continuer » retrouve notre
+           progression, dans le même monde — on peut avancer de son côté. */
+        else if (d.t === 'yoursave') {
+          try { localStorage.setItem(SAVE_KEY, JSON.stringify(d.save)); } catch (e) {}
         }
       });
       conn.on('close', () => { setStatus('Déconnecté. Nouvelle tentative...'); retry(); });

@@ -171,13 +171,13 @@ export function buyNode(id, who) {
   showMsg('✧ ' + n.name + ' appris' + (who === 2 ? ' (Joueur 2)' : '') + ' !', 2.5);
   buildTreeUI();
 }
-/* L'arbre appartient au joueur qui l'a ouvert (treeFor) : depuis le clavier
-   ou l'écran c'est le J1, depuis le téléphone du J2 (✥) c'est le J2 — chacun
-   dépense SES points et SES Éclats. */
-let treeFor = 1;
+/* L'arbre appartient au joueur qui l'a ouvert (S.treeFor, state.js) : depuis
+   le clavier ou l'écran c'est le J1, depuis le téléphone/en ligne du J2 (✥)
+   c'est le J2 — chacun dépense SES points et SES Éclats, et SEUL ce joueur
+   se fige (voir p1Busy/p2Busy, state.js, et la boucle principale main.js). */
 export function buildTreeUI() {
   const t = $('tree'); if (!t) return;
-  const who = (treeFor === 2 && S.COOP && p2.mesh) ? 2 : 1;
+  const who = (S.treeFor === 2 && S.COOP && p2.mesh) ? 2 : 1;
   const prog = progOf(who), path = pathOf(who);
   const branches = [TREE_COMMON].concat(TREES[path] || []);
   let h = '<h3>ARBRE DES POUVOIRS — ' + (S.COOP ? 'JOUEUR ' + who + ' · ' : '') + PATHS[path].name.toUpperCase() + '</h3>';
@@ -217,13 +217,17 @@ export function buildTreeUI() {
   if (bc) bc.addEventListener('click', () => toggleTree());
 }
 export function toggleTree(who) {
-  if (!G.started || G.over || G.dialog) return;
+  if (!G.started || G.over) return;
+  /* v9 — le dialogue de l'AUTRE joueur ne doit pas empêcher celui-ci
+     d'ouvrir son arbre ; seul SON propre dialogue le bloque. */
+  const w = who === 2 ? 2 : 1;
+  if (G.dialog && S.dlgWho === w) return;
   G.treeOpen = !G.treeOpen;
   if (G.treeOpen) {
-    treeFor = who === 2 ? 2 : 1; // l'arbre appartient à qui l'ouvre
+    S.treeFor = w; // l'arbre appartient à qui l'ouvre
     buildTreeUI();
-    if (document.exitPointerLock) document.exitPointerLock();
-  } else if (!IS_TOUCH && !G.paused) {
+    if (w === 1 && document.exitPointerLock) document.exitPointerLock();
+  } else if (w === 1 && !IS_TOUCH && !G.paused) {
     lockPointer();
   }
   $('tree').classList.toggle('hidden', !G.treeOpen);

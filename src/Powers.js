@@ -108,7 +108,7 @@ export function aimPoint2() {
 }
 
 export function castPower() {
-  if (G.treeOpen || G.travelOpen || G.mapOpen) return;
+  if ((G.treeOpen && S.treeFor === 1) || G.travelOpen || G.mapOpen) return;
   const pw = POWERS.find(q => q.id === G.sel);
   if (!G.powers[pw.id] || G.cd[pw.id] > 0) return;
   if (pw.id === 'tk') { tkToggle(); G.cd.tk = pw.cool; return; }

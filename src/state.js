@@ -287,7 +287,11 @@ export const p2 = {
   grounded: false, airJumped: false, jumpQ: 0,
   rage: 0, // jauge de rage du Guerrier quand le J2 incarne cette voie (voir Powers.js)
   input: { mx: 0, mz: 0, sprint: false, jumpHeld: false },
-  pos: null, vel: null, dashDir: null, mesh: null, parts: null, wings: null, shieldMesh: null, mixer: null
+  pos: null, vel: null, dashDir: null, mesh: null, parts: null, wings: null, shieldMesh: null, mixer: null,
+  /* v9 — INDÉPENDANCE DES JOUEURS : le Joueur 2 (manette locale ou joueur en
+     ligne, 2ᵉ PC) a SA PROPRE pause — la pause du J1 ne fige plus son
+     personnage (voir p1Busy/p2Busy/worldFrozen ci-dessous et main.js). */
+  paused: false
 };
 
 /* ---- Joueur 1 ---- */
@@ -476,5 +480,34 @@ export const S = {
   /* manette smartphone (hôte) : le pair PeerJS et la LISTE des téléphones
      connectés — chaque entrée { conn, player: 1|2|null, name } (plusieurs
      téléphones peuvent scanner le même QR : un par personnage). */
-  hostPeer: null, ctrlConns: [], hostConnTimer: null
+  hostPeer: null, ctrlConns: [], hostConnTimer: null,
+  /* v9 — INDÉPENDANCE DES JOUEURS :
+     · dlgWho / treeFor : quel joueur (1|2) vit le dialogue / a ouvert SON
+       arbre des pouvoirs en ce moment — l'AUTRE joueur ne s'arrête pas.
+     · actingPlayer : qui vient de déclencher la dernière interaction (E) —
+       lu par openDialog/guide (Quests.js) pour attribuer le dialogue au bon
+       joueur, et par les transitions de salle (Rooms.js) pour savoir qui
+       entre (l'autre n'est déplacé que s'il se trouvait physiquement dans
+       la salle qui se décharge). */
+  dlgWho: 1, treeFor: 1, actingPlayer: 1
 };
+/* Le Joueur 1 (hôte/clavier) est-il occupé par un menu qui lui est propre ?
+   inv / travelOpen / mapOpen restent des écrans du J1 (pas d'équivalent J2
+   pour l'instant) : ils ne bloquent jamais le Joueur 2. */
+export function p1Busy() {
+  return G.paused || G.inv || G.travelOpen || G.mapOpen
+    || (G.dialog && S.dlgWho !== 2) || (G.treeOpen && S.treeFor !== 2);
+}
+/* Le Joueur 2 (manette locale ou joueur en ligne) est-il occupé par SON
+   propre menu ? Sa pause, SON dialogue, SON arbre — jamais celui du J1. */
+export function p2Busy() {
+  return p2.paused || (G.dialog && S.dlgWho === 2) || (G.treeOpen && S.treeFor === 2);
+}
+/* Le MONDE (ombres, projectiles, portes, directeur...) ne se fige que si
+   PERSONNE ne joue activement : en solo, dès que l'unique joueur est
+   occupé (comportement inchangé) ; en coop, seulement si les DEUX le sont
+   à la fois — l'un peut lire son sac/dialoguer pendant que l'autre continue. */
+export function worldFrozen() {
+  if (!S.COOP || !p2.mesh) return p1Busy();
+  return p1Busy() && p2Busy();
+}

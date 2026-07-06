@@ -49,6 +49,11 @@ import { craftAction } from './Crafting.js';
 
 /* Site de l'instance (hors du monde : le brouillard nocturne l'isole) */
 const TX = 400, TZ = 0;
+/* v9 — l'autre porteur n'est déplacé de force que s'il se trouvait
+   physiquement sur le site de la Tour (voir Rooms.js, même principe pour
+   les salles instanciées du château). */
+const TOWER_SITE_R = 100;
+function nearTowerSite(pos) { return !!(pos && Math.hypot(pos.x - TX, pos.z - TZ) < TOWER_SITE_R); }
 /* Points d'entrée de chaque palier (0 = vestibule-sas) */
 const ENTRY = [
   { x: TX, y: 0.2, z: TZ + 13 },
@@ -272,10 +277,11 @@ export function enterTower() {
   showMsg('— L\'ASCENSION DE LA TOUR DU LEVANT — Quinze étages vous séparent de l\'Observatoire de l\'Aube... et l\'on murmure que le ciel n\'est pas le sommet.', 5);
 }
 export function leaveTower(silent) {
+  const dragP2 = S.COOP && p2.pos && nearTowerSite(p2.pos);
   unloadPalier();
   S.inTower = false; S.palier = 0;
   player.pos.set(TERRACE.x, TERRACE.y, TERRACE.z); player.vel.set(0, 0, 0);
-  if (S.COOP && p2.pos) { p2.pos.set(TERRACE.x + 1.4, TERRACE.y, TERRACE.z + 0.6); p2.vel.set(0, 0, 0); }
+  if (dragP2) { p2.pos.set(TERRACE.x + 1.4, TERRACE.y, TERRACE.z + 0.6); p2.vel.set(0, 0, 0); }
   G.checkpoint = { x: TERRACE.x, y: TERRACE.y, z: TERRACE.z };
   if (!silent) showMsg('Le sas vous rend à la terrasse de la Tour du Levant.', 3);
 }
@@ -283,6 +289,7 @@ export function leaveTower(silent) {
    chargement, s'en sert pour rejoindre un bivouac de la Tour). */
 export function enterPalier(n) { gotoPalier(n); }
 function gotoPalier(n) {
+  const dragP2 = S.COOP && p2.pos && nearTowerSite(p2.pos);
   unloadPalier();
   beginBuild();
   try {
@@ -297,7 +304,7 @@ function gotoPalier(n) {
   S.inTower = true; S.palier = n;
   const e = ENTRY[n];
   player.pos.set(e.x, e.y, e.z); player.vel.set(0, 0, 0);
-  if (S.COOP && p2.pos) { p2.pos.set(e.x + 1.3, e.y, e.z + 0.8); p2.vel.set(0, 0, 0); }
+  if (dragP2) { p2.pos.set(e.x + 1.3, e.y, e.z + 0.8); p2.vel.set(0, 0, 0); }
   /* Kill Z-volume de la Tour : le point de contrôle devient l'entrée du
      palier — toute chute hors de l'instance y ramène, sans crash. */
   G.checkpoint = { x: e.x, y: e.y, z: e.z };

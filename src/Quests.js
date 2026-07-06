@@ -6,9 +6,13 @@ import { $ } from './UI.js';
 /* ---- Dialogues ----
    `name` : nom affiché du locuteur (LUMEN par défaut — les PNJ de
    l'Outre-Ciel comme Maëla, Orin ou le Veilleur passent le leur). */
-export function openDialog(pages, after, name) {
+export function openDialog(pages, after, name, who) {
   S.dlg = { pages, i: 0, after };
   G.dialog = true;
+  /* v9 — le dialogue appartient à qui l'a déclenché (S.actingPlayer, posé par
+     tryInteract/tryInteractP2 dans World.js) : SEUL ce joueur s'arrête, voir
+     p1Busy/p2Busy dans state.js et la boucle principale (main.js). */
+  S.dlgWho = who === 2 ? 2 : (who === 1 ? 1 : (S.actingPlayer === 2 ? 2 : 1));
   $('dialog').classList.remove('hidden');
   $('dlg-name').textContent = name || 'LUMEN';
   $('dlg-text').textContent = pages[0];

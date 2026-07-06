@@ -177,6 +177,34 @@ function sendTree(c) {
     level: prog.level, sp: prog.sp, xp: Math.round(prog.xp), need: xpNeed(prog.level),
     shards: prog.shards, nodes: prog.nodes, pupg: prog.pupg, powers: G.powers });
 }
+/* v9 — SAUVEGARDE INDÉPENDANTE DU JOUEUR EN LIGNE : à chaque sauvegarde de
+   l'hôte (auto-save, bouton, écran de chargement), on renvoie une copie de
+   la sauvegarde à chaque joueur en ligne (2ᵉ PC) connecté — POUR LE JOUEUR 2,
+   sa propre progression (p2prog) devient la progression PRINCIPALE de cette
+   copie : si ce joueur ferme la partie et rouvre le jeu SEUL sur son PC
+   (sans ?join=), il retrouve directement SON personnage, dans le même monde,
+   et peut continuer à sauvegarder et avancer de son côté. Appelé par
+   SaveSystem.saveGame (cycle sûr : import différé, comme Rooms↔SaveSystem). */
+export function broadcastSaveToNet(s) {
+  if (!S.ctrlConns.some(o => o.net)) return;
+  for (const c of S.ctrlConns) {
+    if (!c.net) continue;
+    let payload = s;
+    if (c.player === 2) {
+      const pr = s.p2prog;
+      if (!pr) continue; // le J2 n'a pas encore rejoint la partie en jeu
+      payload = Object.assign({}, s, {
+        path: pr.path, xp: pr.xp, level: pr.level, sp: pr.sp,
+        shards: pr.shards, nodes: pr.nodes, pupg: pr.pupg,
+        coop: false, p2prog: null,
+        hp: p2.hp, maxHp: p2.maxHp, mana: p2.mana, maxMana: p2.maxMana,
+        px: p2.pos ? p2.pos.x : s.px, py: p2.pos ? p2.pos.y : s.py, pz: p2.pos ? p2.pos.z : s.pz,
+        yaw: p2.yaw, pitch: p2.pitch
+      });
+    }
+    sendTo(c, { t: 'yoursave', save: payload });
+  }
+}
 /* HUD répliqué du joueur en ligne : ~10 envois/s, uniquement s'il y en a un */
 let hudAcc = 0;
 export function pushNetHud(dt) {
@@ -191,14 +219,17 @@ export function pushNetHud(dt) {
     const pr = isP2 ? p2 : G;
     const cd = {};
     for (const k in pr.cd) if (pr.cd[k] > 0.05) cd[k] = +pr.cd[k].toFixed(2);
+    /* v9 — INDÉPENDANCE : ce joueur en ligne ne voit « pause » / « dialogue »
+       QUE si c'est LE SIEN (p2.paused / S.dlgWho) — celui de l'autre joueur
+       ne fige plus son écran ni son personnage (voir p1Busy/p2Busy, state.js). */
     sendTo(c, { t: 'hud',
       hp: Math.round(pr.hp), mhp: pr.maxHp, mp: Math.round(pr.mana), mmp: pr.maxMana,
       xp: Math.round(pr.xp), need: xpNeed(pr.level), lvl: pr.level, sp: pr.sp,
       cd, potions: G.potions, pl: c.player || 2, path: isP2 ? p2.path : G.path,
       obj: ($('objective') || { textContent: '' }).textContent,
       msg: G.msgT > 0 ? $('msg').textContent : '',
-      dlg: G.dialog ? { n: $('dlg-name').textContent, x: $('dlg-text').textContent } : null,
-      paused: G.paused, coop: S.COOP && !!p2.mesh, started: G.started, over: G.over,
+      dlg: (G.dialog && S.dlgWho === (isP2 ? 2 : 1)) ? { n: $('dlg-name').textContent, x: $('dlg-text').textContent } : null,
+      paused: isP2 ? p2.paused : G.paused, coop: S.COOP && !!p2.mesh, started: G.started, over: G.over,
       end: vis('truewin') ? 'truewin' : vis('win') ? 'win' : null
     });
   }
@@ -223,24 +254,31 @@ function handleCtrlMsg(c, d) {
       return;
     }
   }
-  /* pavé de navigation : pilote les menus (écran-titre, pause, sac, carte...) */
-  if (d.t === 'nav') { remoteNav(String(d.d)); return; }
   /* Aiguillage : ce téléphone parle POUR SON personnage — jamais pour
      l'autre. Si le J2 n'est pas (encore) en jeu, ses entrées de gameplay
      sont ignorées plutôt que de retomber sur le J1. */
   const isP2 = c.player === 2;
   const p2live = S.COOP && !!p2.mesh;
-  if (G.dialog) { if (d.t === 'atkdown' || d.t === 'interact' || d.t === 'jumpdown') dlgNext(); return; }
+  const myPaused = () => isP2 ? p2.paused : G.paused;
+  const myDialog = () => G.dialog && S.dlgWho === (isP2 ? 2 : 1);
+  const myTree = () => G.treeOpen && S.treeFor === (isP2 ? 2 : 1);
+  /* pavé de navigation : pilote SES menus (écran-titre, pause, sac, carte...) —
+     jamais ceux de l'autre joueur (v9, voir activePanel dans Controls.js) */
+  if (d.t === 'nav') { remoteNav(String(d.d), isP2 ? 2 : 1); return; }
+  /* v9 — SEUL le dialogue DE CE JOUEUR avale ses propres touches d'action ;
+     l'autre porteur continue de jouer normalement pendant ce temps. */
+  if (myDialog()) { if (d.t === 'atkdown' || d.t === 'interact' || d.t === 'jumpdown') dlgNext(); return; }
   if (d.t === 'move') {
-    /* carte ouverte : le joystick la fait défiler (comme le stick manette) */
-    if (G.mapOpen) { mapPan((d.x || 0) * 26, -(d.z || 0) * 26); return; }
+    /* carte ouverte (écran du J1) : le joystick du J1 la fait défiler —
+       celui du J2 continue de piloter son personnage normalement */
+    if (G.mapOpen && !isP2) { mapPan((d.x || 0) * 26, -(d.z || 0) * 26); return; }
     if (!G.started || G.over) return;
     const mv = isP2 ? tm2Move : tmMove;
     mv.x = d.x || 0; mv.z = d.z || 0;
     return;
   }
   if (!G.started || G.over) return; // le reste est du gameplay pur
-  if (d.t === 'look' && !G.paused && !anyPanelOpen()) {
+  if (d.t === 'look' && !myPaused() && !anyPanelOpen(isP2 ? 2 : 1)) {
     const s = 0.0052 * settings.padSens;
     if (isP2) {
       if (!p2live) return;
@@ -254,7 +292,7 @@ function handleCtrlMsg(c, d) {
     }
   }
   else if (d.t === 'jumpdown') {
-    if (isP2) { if (!G.paused && p2live) p2.jumpQ = 0.14; S.tm2JumpHeld = true; }
+    if (isP2) { if (!p2.paused && p2live) p2.jumpQ = 0.14; S.tm2JumpHeld = true; }
     else { if (!G.paused) S.jumpQueued = 0.14; S.tmJumpHeld = true; }
   }
   else if (d.t === 'jumpup') { if (isP2) S.tm2JumpHeld = false; else S.tmJumpHeld = false; }
@@ -263,22 +301,27 @@ function handleCtrlMsg(c, d) {
     if (isP2) S.tm2BoltHeld = true; else S.tmBoltHeld = true;
   }
   else if (d.t === 'atkup') { if (isP2) S.tm2BoltHeld = false; else S.tmBoltHeld = false; }
-  else if (d.t === 'interact' && !G.paused) { if (isP2) { if (p2live) tryInteractP2(); } else tryInteract(); }
-  else if (d.t === 'cast' && !G.paused && !G.inv && !G.treeOpen &&
-           POWERS.some(p => p.id === d.id)) {
-    if (isP2) { if (p2live) castSpecific(d.id, p2); }
-    else castSpecific(d.id);
+  else if (d.t === 'interact') {
+    if (isP2) { if (!p2.paused && p2live) tryInteractP2(); }
+    else if (!G.paused) tryInteract();
   }
-  else if (d.t === 'bag') toggleInv();       // 🎒 sac-atelier (fige le jeu)
+  else if (d.t === 'cast' && POWERS.some(p => p.id === d.id)) {
+    if (isP2) { if (p2live && !p2.paused && !myTree()) castSpecific(d.id, p2); }
+    else if (!G.paused && !G.inv && !myTree()) castSpecific(d.id);
+  }
+  else if (d.t === 'bag') { if (!isP2) toggleInv(); }       // 🎒 sac-atelier du J1 (fige SON jeu)
   /* ✥ arbre des pouvoirs : celui DU JOUEUR qui appuie — le téléphone du J2
-     ouvre l'arbre du J2 (ses points, ses nœuds, ses Éclats), v8.7 */
+     ouvre l'arbre du J2 (ses points, ses nœuds, ses Éclats), v8.7 — sans
+     jamais mettre en pause le personnage de l'autre joueur (v9). */
   else if (d.t === 'tree') toggleTree(isP2 && p2live ? 2 : 1);
-  else if (d.t === 'map') {                  // 🗺 carte d'Ombreciel
-    if (!G.paused && !G.inv && !G.treeOpen && !G.travelOpen) toggleMap();
+  else if (d.t === 'map') {                  // 🗺 carte d'Ombreciel (écran du J1)
+    if (!isP2 && !G.paused && !G.inv && !myTree() && !G.travelOpen) toggleMap();
   }
-  else if (d.t === 'potion') { if (!G.paused) craftAction('H'); } // 🧪 boire une potion
-  else if (d.t === 'pause' && !G.dialog) {
-    G.paused = !G.paused; $('pause').classList.toggle('hidden', !G.paused);
+  else if (d.t === 'potion') { if (!myPaused()) craftAction('H', isP2 ? 2 : 1); } // 🧪 boire une potion
+  else if (d.t === 'pause') {
+    if (myDialog()) return; // on ne peut pas se mettre en pause en pleine réplique
+    if (isP2) { p2.paused = !p2.paused; }
+    else { G.paused = !G.paused; $('pause').classList.toggle('hidden', !G.paused); }
   }
 }
 
@@ -295,21 +338,25 @@ function dropCtrl(c) {
   showMsg('📱 Manette smartphone déconnectée' + (c.player ? ' (Joueur ' + c.player + ')' : '') + '.', 3);
 }
 
-/* Poussé chaque frame par la boucle principale (main.js) : préviens les
-   téléphones quand un menu s'ouvre/se ferme, qu'un sort est appris, que la
-   partie démarre... N'envoie QUE si quelque chose a changé. */
-let lastUiJson = '';
+/* Poussé chaque frame par la boucle principale (main.js) : préviens chaque
+   téléphone/joueur en ligne quand SON menu s'ouvre/se ferme, qu'un sort est
+   appris, que la partie démarre... N'envoie à CE téléphone que si quelque
+   chose a changé POUR LUI (v9 : chacun a désormais son propre état). */
 export function pushCtrlState() {
   if (!S.ctrlConns.length) return;
-  const msg = {
-    t: 'ui', panel: anyPanelOpen() || '', started: G.started, paused: G.paused,
-    dialog: !!G.dialog, powers: G.powers,
-    icons: { 1: PATHS[G.path].icon, 2: (S.COOP && p2.mesh) ? PATHS[p2.path].icon : PATHS[S.P2PATH].icon }
-  };
-  const j = JSON.stringify(msg);
-  if (j === lastUiJson) return;
-  lastUiJson = j;
-  broadcast(msg);
+  for (const c of S.ctrlConns) {
+    const isP2 = c.player === 2;
+    const msg = {
+      t: 'ui', panel: anyPanelOpen(isP2 ? 2 : 1) || '', started: G.started,
+      paused: isP2 ? p2.paused : G.paused,
+      dialog: !!(G.dialog && S.dlgWho === (isP2 ? 2 : 1)), powers: G.powers,
+      icons: { 1: PATHS[G.path].icon, 2: (S.COOP && p2.mesh) ? PATHS[p2.path].icon : PATHS[S.P2PATH].icon }
+    };
+    const j = JSON.stringify(msg);
+    if (j === c._lastUiJson) continue;
+    c._lastUiJson = j;
+    sendTo(c, msg);
+  }
 }
 
 export function openManettePanel() {

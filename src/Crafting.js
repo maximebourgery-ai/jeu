@@ -145,9 +145,12 @@ export function usePotion() {
   if (G.inv) refreshInv();
 }
 
-/* Raccourcis clavier historiques : H potion · O orbe · C transcender */
-export function craftAction(k) {
-  if (!G.started || G.over || G.dialog) return;
+/* Raccourcis clavier historiques : H potion · O orbe · C transcender.
+   `who` (1|2) : le dialogue de L'AUTRE joueur ne doit pas m'empêcher de
+   boire/fabriquer — seul MON propre dialogue le fait (v9). */
+export function craftAction(k, who) {
+  if (!G.started || G.over) return;
+  if (G.dialog && S.dlgWho === (who === 2 ? 2 : 1)) return;
   if (k === 'H') usePotion();
   else if (k === 'O') craftRecipe('orbe');
   else if (k === 'C') {
