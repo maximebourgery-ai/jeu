@@ -191,6 +191,13 @@ export const ZONES = [
   { id: 'ossuaire',  name: 'Ossuaire',              room: 'cata',   x: -400, z: -26, y: 0, r: 26, lvl: 5,  cap: 5, types: ['wraith', 'sentinel', 'caster'] },
   { id: 'gouffre',   name: 'Gouffre des Morts',     room: 'cata',   x: -368, z: 14,  y: 0, r: 18, lvl: 5,  cap: 4, types: ['sentinel', 'caster'] },
   { id: 'trone',     name: 'Salle du trône',        room: 'trone',  x: -400, z: 0,   y: 0, r: 26, lvl: 6,  cap: 5, types: ['brute', 'caster', 'wraith'] },
+  { id: 'muraille',         name: 'La Muraille Céleste',   room: 'muraille',         x: -900, z: 0,    y: 0,  r: 30, lvl: 5,  cap: 4, types: ['sentinel', 'wraith'] },
+  { id: 'val_murmures',     name: 'Le Val des Murmures',   room: 'val_murmures',     x: -900, z: -150,  y: 0,  r: 28, lvl: 8,  cap: 5, types: ['sentinel', 'caster'] },
+  { id: 'carriere_sel',     name: 'La Carrière de Sel',    room: 'carriere_sel',     x: -900, z: -300,  y: 0,  r: 28, lvl: 10, cap: 5, types: ['sentinel', 'wraith', 'caster'] },
+  { id: 'canyon_lames',     name: 'Le Canyon des Lames',   room: 'canyon_lames',     x: -900, z: -450,  y: 0,  r: 28, lvl: 13, cap: 5, types: ['brute', 'caster', 'wraith'] },
+  { id: 'aqueduc_colossal', name: 'L\'Aqueduc Colossal',   room: 'aqueduc_colossal', x: -900, z: -600,  y: 15, r: 28, lvl: 16, cap: 4, types: ['caster', 'wraith'] },
+  { id: 'foret_obsidienne', name: 'La Forêt d\'Obsidienne', room: 'foret_obsidienne', x: -900, z: -750,  y: 0,  r: 28, lvl: 19, cap: 5, types: ['wraith', 'brute', 'caster'] },
+  { id: 'bastion_cendres',  name: 'Le Bastion des Cendres', room: 'bastion_cendres', x: -900, z: -900,  y: 0,  r: 24, lvl: 22, cap: 5, types: ['brute', 'caster', 'wraith'] },
   { id: 'ruines',    name: 'Ruines des Terres Perdues', x: 0, z: -38, y: 0, r: 20, lvl: 7,  cap: 5, types: ['sentinel', 'brute', 'caster'] },
   { id: 'foret',     name: 'Forêt de Nuit',         x: 0,   z: -70, y: 0,   r: 30, lvl: 8,  cap: 6, types: ['wraith', 'sentinel', 'wraith', 'caster'] },
   { id: 'clairiere', name: 'Clairière du Cœur',     x: 0,   z: -95, y: 0,   r: 12, lvl: 10, cap: 4, types: ['brute', 'caster', 'wraith'] }

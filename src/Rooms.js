@@ -22,18 +22,19 @@
 import * as THREE from 'three';
 import {
   G, S, colliders, doors, pickups, inter, enemies, projectiles,
-  tkCubes, spinners, flames, pedestals, PLATES, CAMPS, player, p2, gearScore
+  tkCubes, spinners, flames, pedestals, PLATES, CAMPS, player, p2, gearScore, rollEquipment
 } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg, withLoading, gearWarning } from './UI.js';
 import {
   mkBox, mkCyl, mkDoor, openDoor, addInter, addPickup, torch, bivouac,
-  spawnBurst, mkTkCube, pedestal, doorFlames, asciiWalls
+  spawnBurst, mkTkCube, pedestal, doorFlames, asciiWalls, mkAnvil, tree
 } from './World.js';
 import { matFor, glow } from './AssetManager.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt } from './Player.js';
 import { questReach } from './Quests.js';
+import { addGearToBag } from './Crafting.js';
 import { saveGame } from './SaveSystem.js'; // cycle sûr : appel différé
 
 /* Site des salles (hors du monde, à l'opposé de la Tour qui vit en x +400) */
@@ -219,6 +220,9 @@ export function enterCastleHall() {
 }
 export function enterThroneFromLostLands() {
   gotoRoom('trone', { x: RX + 8, y: 0.2, z: RZ - 17, yaw: 0 });
+}
+export function enterPilgrimage() {
+  gotoRoom('muraille', { x: -900, y: 0.2, z: -30.5, yaw: Math.PI });
 }
 
 /* ================================================================
@@ -717,6 +721,255 @@ function buildCata() {
   });
 }
 
+/* ================================================================
+   v9.3 — LE GRAND PÈLERINAGE : sept salles instanciées supplémentaires
+   entre les Terres Perdues et le reste du monde, sur un site dédié loin
+   de tout (x ≈ -900 — ni le château, x ≈ -400, ni la Tour, x ≈ +400, ni
+   le monde ouvert n'y touchent). Chaînées en une seule route : Muraille
+   Céleste → Val des Murmures → Carrière de Sel → Canyon des Lames →
+   Aqueduc Colossal → Forêt d'Obsidienne → Bastion des Cendres, puis
+   retour aux Terres Perdues avec une récompense de fin de route.
+   Esthétique volontairement minérale et monumentale (aucune moisissure,
+   aucune chair) : pierre pâle, verre noir, lignes de lumière fines.
+   ================================================================ */
+const PX = -900; // ancre commune ; chaque salle a SA bande de z, largement espacée
+
+/* ---- 1. LA MURAILLE CÉLESTE (niv 4-7) — chemin de ronde d'un rempart titanesque ---- */
+function buildMuraille() {
+  const z = 0;
+  mkBox(8, 1, 66, PX, -1, z, 'stoneD');
+  mkBox(0.7, 1.6, 66, PX - 4, 0, z, 'stoneR');
+  mkBox(0.7, 1.6, 66, PX + 4, 0, z, 'stoneR');
+  // murs de bout (sud = retour, nord = suite) avec passage étroit
+  mkBox(3, 8, 1, PX - 2.5, 0, z - 33, 'stoneD'); mkBox(3, 8, 1, PX + 2.5, 0, z - 33, 'stoneD');
+  mkBox(3, 8, 1, PX - 2.5, 0, z + 33, 'stoneD'); mkBox(3, 8, 1, PX + 2.5, 0, z + 33, 'stoneD');
+  // lignes de lumière gravées, fines et oniriques, courant le long du mur ouest
+  for (let i = 0; i < 11; i++) {
+    const rz = z - 30 + i * 6;
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 3.4), new THREE.MeshBasicMaterial({ color: 0x8fc8ff }));
+    line.position.set(PX - 3.9, 1.1, rz); line.add(glow(0x8fc8ff, 1.1, 0.4));
+    S.scene.add(line);
+  }
+  torch(PX - 3, 0, z - 24, 0x8fc8ff, 1.1, 18); torch(PX + 3, 0, z, 0x8fc8ff, 1.1, 18); torch(PX - 3, 0, z + 24, 0x8fc8ff, 1.1, 18);
+  addInter(PX, 0, z - 30.5, 3, 'Lire les gravures du rempart', () => {
+    showMsg('« Ici veillaient les gardes du ciel. » Les lignes de lumière courent encore le long de la pierre, comme un souvenir qui refuse de s\'éteindre.', 4.5);
+  });
+  addPickup('heart', PX - 2, 0, z - 10);
+  addPickup('mana', PX + 2, 0, z + 8);
+  rEnemy(PX, z - 8, 0, [[PX, z - 20], [PX, z + 5]], { type: 'sentinel', lvl: 5 });
+  rEnemy(PX, z + 18, 0, [[PX, z + 8], [PX, z + 28]], { type: 'wraith', lvl: 6 });
+  addInter(PX, 0, z + 32.3, 2.6, 'Poursuivre vers le Val des Murmures', () => {
+    gotoRoom('val_murmures', { x: PX, y: 0.2, z: -150 + 32.3, yaw: Math.PI });
+  });
+  addInter(PX, 0, z - 32.3, 2.6, 'Revenir vers les Terres Perdues', () => {
+    exitToWorld('Les Terres Perdues', 55, 0.2, -14, -Math.PI / 2, 'Le vent des Terres Perdues vous accueille de nouveau.');
+  });
+}
+
+/* ---- 2. LE VAL DES MURMURES (niv 7-9) — plaine balayée par les vents, herbes lunaires ---- */
+function buildValMurmures() {
+  const z = -150;
+  mkBox(50, 1, 60, PX, -1, z, 'grass');
+  mkBox(1, 9, 60, PX - 25, 0, z, 'stoneD'); mkBox(1, 9, 60, PX + 25, 0, z, 'stoneD');
+  mkBox(24, 9, 1, PX - 13, 0, z - 30, 'stoneD'); mkBox(24, 9, 1, PX + 13, 0, z - 30, 'stoneD');
+  mkBox(24, 9, 1, PX - 13, 0, z + 30, 'stoneD'); mkBox(24, 9, 1, PX + 13, 0, z + 30, 'stoneD');
+  // rochers et herbes lunaires cristallisées
+  for (let i = 0; i < 16; i++) {
+    const rx = PX - 22 + ((i * 173) % 44), rz = z - 27 + ((i * 97) % 54);
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3 + ((i * 13) % 10) * 0.06, 0), matFor('stoneR', 1, 1));
+    r.position.set(rx, 0.2, rz); r.rotation.set(i, i * 2, i * 3); r.castShadow = true; r.receiveShadow = true;
+    S.scene.add(r);
+  }
+  // la première enclume abandonnée, sur la route des pèlerins
+  mkAnvil(PX + 14, 0, z + 10);
+  torch(PX - 18, 0, z - 20, 0x9fe8ff, 1.1, 18); torch(PX + 18, 0, z + 18, 0x9fe8ff, 1.1, 18);
+  addInter(PX, 0, z - 5, 3, 'Écouter les murmures du vent', () => {
+    showMsg('C\'était la route des pèlerins. Le vent porte encore leurs prières, en échos trop anciens pour se laisser comprendre.', 4.5);
+  });
+  addPickup('herb', PX - 10, 0, z + 14); addPickup('herb', PX + 8, 0, z - 12);
+  addPickup('shadow', PX - 6, 0, z - 20); addPickup('mana', PX + 16, 0, z - 4);
+  rEnemy(PX - 10, z - 10, 0, [[PX - 16, z - 10], [PX - 2, z - 16]], { type: 'sentinel', lvl: 7 });
+  rEnemy(PX + 8, z + 6, 0, [[PX + 4, z + 14], [PX + 14, z + 2]], { type: 'caster', lvl: 7 });
+  rEnemy(PX - 4, z + 20, 0, [[PX - 12, z + 22], [PX + 2, z + 18]], { type: 'sentinel', lvl: 8 });
+  addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers la Carrière de Sel', () => {
+    gotoRoom('carriere_sel', { x: PX, y: 0.2, z: -300 + 29.3, yaw: Math.PI });
+  });
+  addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers la Muraille Céleste', () => {
+    gotoRoom('muraille', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+  });
+}
+
+/* ---- 3. LA CARRIÈRE DE SEL ET D'AUBE (niv 9-12) — crevasse aveuglante, ponts suspendus ---- */
+function buildCarriereSel() {
+  const z = -300;
+  mkBox(20, 8, 60, PX - 24, -8, z, 'slabW');   // rive ouest (bloc plein)
+  mkBox(8, 1, 60, PX, -8, z, 'slabW');         // fond de la crevasse (-7,5 m)
+  mkBox(20, 8, 60, PX + 24, -8, z, 'slabW');   // rive est (bloc plein)
+  mkBox(1, 16.5, 60, PX - 14, -8, z, 'slabW', false);
+  mkBox(1, 16.5, 60, PX + 14, -8, z, 'slabW', false);
+  mkBox(38, 9, 1, PX, 0, z - 30, 'stoneD'); mkBox(38, 9, 1, PX, 0, z + 30, 'stoneD');
+  mkBox(30, 0.6, 60, PX, 8.5, z, 'stoneD');
+  // deux ponts de planches suspendus au-dessus du vide
+  mkBox(28, 0.35, 3, PX, 0, z - 14, 'woodD');
+  mkBox(28, 0.35, 3, PX, 0, z + 14, 'woodD');
+  torch(PX - 20, -7.5, z - 20, 0xf4ecd6, 1.1, 16); torch(PX + 20, -7.5, z + 20, 0xf4ecd6, 1.1, 16);
+  addInter(PX, 0, z, 3, 'Contempler la crevasse', () => {
+    showMsg('Le sel ronge jusqu\'au métal. C\'est d\'ici que fut extraite chaque pierre du château — et, dit-on, l\'entrée des catacombes dort quelque part sous ce blanc aveuglant.', 5);
+  });
+  addPickup('mana', PX - 10, 0, z - 14); addPickup('heart', PX + 10, 0, z + 14);
+  addPickup('shadow', PX, -7.3, z);
+  rEnemy(PX - 8, z - 8, 0, [[PX - 12, z - 14], [PX + 4, z - 8]], { type: 'sentinel', lvl: 9 });
+  rEnemy(PX + 6, z + 10, 0, [[PX - 4, z + 14], [PX + 10, z + 6]], { type: 'wraith', lvl: 10 });
+  rEnemy(PX, z, -7.5, [[PX - 10, z], [PX + 10, z]], { type: 'caster', lvl: 10 });
+  addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers le Canyon des Lames', () => {
+    gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -450 + 29.3, yaw: Math.PI });
+  });
+  addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers le Val des Murmures', () => {
+    gotoRoom('val_murmures', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+  });
+}
+
+/* ---- 4. LE CANYON DES LAMES FILIGRANES (niv 12-15) — épées colossales à escalader ---- */
+function buildCanyonLames() {
+  const z = -450;
+  mkBox(24, 1, 60, PX, -1, z, 'stoneD');
+  mkBox(1, 20, 60, PX - 12, 0, z, 'stoneD'); mkBox(1, 20, 60, PX + 12, 0, z, 'stoneD');
+  mkBox(24, 9, 1, PX, 0, z - 30, 'stoneD'); mkBox(24, 9, 1, PX, 0, z + 30, 'stoneD');
+  const bladeMat = new THREE.MeshStandardMaterial({ color: 0x14101f, roughness: 0.35, metalness: 0.6, emissive: 0x2a1a4a, emissiveIntensity: 0.5 });
+  /* épées géantes plantées dans la roche : plateformes d'escalade par paliers */
+  for (let i = 0; i < 8; i++) {
+    const bx = (i % 2 === 0) ? PX - 6 : PX + 6, bz = z - 24 + i * 6.8;
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(1.3, 5 + i * 0.4, 6), bladeMat);
+    blade.position.set(bx, (5 + i * 0.4) / 2 - 0.3 + i * 1.35, bz);
+    blade.rotation.z = (i % 2 === 0) ? 0.12 : -0.12;
+    blade.castShadow = true; S.scene.add(blade); addCol2(blade);
+    if (i % 3 === 0) {
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshBasicMaterial({ color: 0xb08cff }));
+      gem.position.set(bx, blade.position.y + (5 + i * 0.4) / 2 + 0.3, bz);
+      gem.add(glow(0xb08cff, 1.6, 0.5)); S.scene.add(gem); spinners.push(gem);
+    }
+  }
+  torch(PX - 10, 0, z - 20, 0x9a6cff, 1.1, 18); torch(PX + 10, 0, z + 16, 0x9a6cff, 1.1, 18);
+  addInter(PX, 0, z, 3, 'Observer les lames plantées', () => {
+    showMsg('Des dizaines d\'épées monumentales, faites d\'un verre sombre parcouru de motifs oniriques. Le site d\'une bataille que nul ne raconte plus.', 4.5);
+  });
+  addPickup('mana', PX - 8, 0, z - 4); addPickup('heart', PX + 8, 0, z + 4);
+  rEnemy(PX - 6, z - 12, 0, [[PX - 8, z - 18], [PX - 4, z - 6]], { type: 'brute', lvl: 12 });
+  rEnemy(PX + 6, z + 8, 0, [[PX + 4, z + 2], [PX + 8, z + 16]], { type: 'caster', lvl: 13 });
+  rEnemy(PX, z + 20, 12.15, [[PX - 4, z + 20], [PX + 4, z + 20]], { type: 'wraith', lvl: 13 });
+  addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers l\'Aqueduc Colossal', () => {
+    gotoRoom('aqueduc_colossal', { x: PX, y: 0.2, z: -600 + 29.3, yaw: Math.PI });
+  });
+  addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers la Carrière de Sel', () => {
+    gotoRoom('carriere_sel', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+  });
+}
+
+/* ---- 5. L'AQUEDUC COLOSSAL (niv 15-18) — arches cyclopéennes au-dessus des nuages ---- */
+function buildAqueducColossal() {
+  const z = -600;
+  const H = 15; // altitude de la passerelle : le vide en dessous est mortel
+  mkBox(6, 1, 60, PX, H - 0.5, z, 'stoneD');
+  mkBox(0.6, 1.3, 60, PX - 3, H, z, 'stoneR'); mkBox(0.6, 1.3, 60, PX + 3, H, z, 'stoneR');
+  mkBox(8, 9, 1, PX, H, z - 30, 'stoneD'); mkBox(8, 9, 1, PX, H, z + 30, 'stoneD');
+  /* arches cyclopéennes soutenant la passerelle, plongeant dans le vide */
+  for (let i = 0; i < 5; i++) {
+    const az = z - 24 + i * 12;
+    mkBox(1.6, H + 1, 1.6, PX - 9, -1, az, 'stoneD');
+    mkBox(1.6, H + 1, 1.6, PX + 9, -1, az, 'stoneD');
+    mkBox(20, 1.2, 1.6, PX, H - 1, az, 'stoneD', false);
+  }
+  torch(PX - 2.5, H, z - 20, 0x8fc8ff, 1.2, 20); torch(PX + 2.5, H, z + 4, 0x8fc8ff, 1.2, 20); torch(PX - 2.5, H, z + 22, 0x8fc8ff, 1.2, 20);
+  addInter(PX, H, z, 3, 'Regarder par-dessus la rambarde', () => {
+    showMsg('Rien que des nuages, à perte de vue. Cet aqueduc ne transportait pas de l\'eau, mais de la lumière liquide vers Ombreciel.', 4.5);
+  });
+  addPickup('mana', PX - 2, H, z - 10); addPickup('heart', PX + 2, H, z + 12);
+  rEnemy(PX, z - 10, H, [[PX, z - 20], [PX, z]], { type: 'caster', lvl: 16, ranged: true });
+  rEnemy(PX, z + 14, H, [[PX, z + 6], [PX, z + 24]], { type: 'wraith', lvl: 16 });
+  addInter(PX, H, z + 29.3, 2.6, 'Poursuivre vers la Forêt d\'Obsidienne', () => {
+    gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -750 + 29.3, yaw: Math.PI });
+  });
+  addInter(PX, H, z - 29.3, 2.6, 'Revenir vers le Canyon des Lames', () => {
+    gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+  });
+}
+
+/* ---- 6. LA FORÊT D'OBSIDIENNE (niv 18-20) — arbres pétrifiés, verre noir tranchant ---- */
+function buildForetObsidienne() {
+  const z = -750;
+  mkBox(46, 1, 60, PX, -1, z, 'stoneD');
+  mkBox(1, 10, 60, PX - 23, 0, z, 'stoneD'); mkBox(1, 10, 60, PX + 23, 0, z, 'stoneD');
+  mkBox(46, 9, 1, PX, 0, z - 30, 'stoneD'); mkBox(46, 9, 1, PX, 0, z + 30, 'stoneD');
+  const obsMat = new THREE.MeshStandardMaterial({ color: 0x0a0812, roughness: 0.2, metalness: 0.3, emissive: 0x1a0a2a, emissiveIntensity: 0.35 });
+  for (let i = 0; i < 22; i++) {
+    const tx = PX - 20 + ((i * 137) % 40), tz = z - 27 + ((i * 211) % 54);
+    const h = 2.6 + ((i * 53) % 10) * 0.3;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, h, 6), obsMat);
+    trunk.position.set(tx, h / 2, tz); trunk.rotation.z = ((i * 7) % 5 - 2) * 0.05;
+    trunk.castShadow = true; S.scene.add(trunk); addCol2(trunk);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.6, 5), obsMat);
+    crown.position.set(tx, h + 0.5, tz); crown.castShadow = true; S.scene.add(crown);
+  }
+  torch(PX - 16, 0, z - 16, 0x6a3aff, 1.05, 16); torch(PX + 16, 0, z + 14, 0x6a3aff, 1.05, 16);
+  addInter(PX, 0, z, 3, 'Toucher un arbre de verre noir', () => {
+    showMsg('Tranchant comme un rasoir, froid comme la nuit sans lune. Rien ne pourrit ici : tout est figé depuis un siècle.', 4.5);
+  });
+  addPickup('shadow', PX - 12, 0, z - 10); addPickup('shadow', PX + 10, 0, z + 8);
+  addPickup('heart', PX, 0, z + 20);
+  rEnemy(PX - 10, z - 14, 0, [[PX - 16, z - 18], [PX - 4, z - 8]], { type: 'wraith', lvl: 18 });
+  rEnemy(PX + 8, z + 6, 0, [[PX + 2, z + 12], [PX + 16, z]], { type: 'brute', lvl: 19 });
+  rEnemy(PX, z + 18, 0, [[PX - 8, z + 22], [PX + 8, z + 16]], { type: 'caster', lvl: 19 });
+  addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers le Bastion des Cendres', () => {
+    gotoRoom('bastion_cendres', { x: PX, y: 0.2, z: -900 + 29.3, yaw: Math.PI });
+  });
+  addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers l\'Aqueduc Colossal', () => {
+    gotoRoom('aqueduc_colossal', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+  });
+}
+
+/* ---- 7. LE BASTION DES CENDRES (niv 20-23) — dernière résistance, lumière crépusculaire ---- */
+function buildBastionCendres() {
+  const z = -900;
+  mkBox(40, 1, 50, PX, -1, z, 'stoneD');
+  mkBox(1, 11, 50, PX - 20, 0, z, 'stoneD'); mkBox(1, 11, 50, PX + 20, 0, z, 'stoneD');
+  mkBox(40, 9, 1, PX, 0, z - 25, 'stoneD'); mkBox(40, 9, 1, PX, 0, z + 25, 'stoneD');
+  mkBox(42, 0.6, 52, PX, 11, z, 'stoneD');
+  // ruines militaires éventrées : blocs de décombres épars
+  for (let i = 0; i < 10; i++) {
+    const rx = PX - 16 + ((i * 173) % 32), rz = z - 18 + ((i * 97) % 36);
+    mkBox(1.4 + (i % 3) * 0.5, 1 + (i % 4) * 0.4, 1.4 + (i % 2) * 0.6, rx, 0, rz, 'stoneR');
+  }
+  torch(PX - 14, 0, z - 12, 0xff5a2a, 1.3, 18); torch(PX + 14, 0, z + 12, 0xff5a2a, 1.3, 18);
+  torch(PX, 0, z, 0xff8a3a, 1.2, 20);
+  addInter(PX, 0, z - 20, 3, 'Se recueillir parmi les cendres', () => {
+    showMsg('Ici tomba la dernière résistance de l\'ordre. Les fantômes des Porteurs de Flamme y affrontent encore les Ombres, chaque nuit, pour l\'éternité.', 5);
+  });
+  addPickup('mana', PX - 10, 0, z - 8); addPickup('heart', PX + 10, 0, z + 8);
+  rEnemy(PX - 8, z - 6, 0, [[PX - 14, z - 10], [PX - 2, z]], { type: 'brute', lvl: 21 });
+  rEnemy(PX + 8, z + 8, 0, [[PX + 2, z + 4], [PX + 14, z + 14]], { type: 'brute', lvl: 22 });
+  rEnemy(PX, z + 16, 0, [[PX - 10, z + 18], [PX + 10, z + 14]], { type: 'caster', lvl: 22 });
+  rEnemy(PX - 4, z - 16, 0, [[PX - 10, z - 20], [PX + 2, z - 12]], { type: 'wraith', lvl: 22 });
+  /* récompense de fin de route : une pièce d'équipement rare, adaptée à la Voie */
+  if (!flag('bastion_cendres', 'reward')) {
+    setFlag('bastion_cendres', 'reward');
+    addInter(PX, 0, z, 2.8, 'Recueillir la relique du Bastion', it => {
+      it.on = false;
+      addGearToBag(rollEquipment(['weapon', 'armor', 'accessory'][Math.floor(Math.random() * 3)], 'rare', G.path));
+      spawnBurst(PX, 1.4, z, 0xffd97a, 30);
+      showMsg('Sous les cendres, une relique du dernier Porteur de Flamme — encore tiède de lumière.', 4.5);
+    });
+  }
+  addInter(PX, 0, z - 24.3, 2.6, 'Revenir vers la Forêt d\'Obsidienne', () => {
+    gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -24.3, yaw: 0 });
+  });
+}
+/* petit utilitaire local : collider simple sans passer par mkBox (formes non-boîtes) */
+function addCol2(m) {
+  m.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(m);
+  colliders.push({ min: b.min.clone(), max: b.max.clone(), on: true, mesh: m });
+}
+
 /* ---------------- registre des salles ---------------- */
 const ROOMS = {
   hall:   { name: 'Le Grand Hall', build: buildHall,
@@ -728,5 +981,20 @@ const ROOMS = {
   trone:  { name: 'La Salle du Trône', build: buildTrone,
             entry: { x: RX, y: 0.2, z: RZ + 17.5, yaw: Math.PI } },
   cata:   { name: 'Les Catacombes', build: buildCata,
-            entry: { x: RX, y: 0.2, z: RZ + 30.4, yaw: Math.PI } }
+            entry: { x: RX, y: 0.2, z: RZ + 30.4, yaw: Math.PI } },
+
+  muraille:         { name: 'La Muraille Céleste', build: buildMuraille,
+                      entry: { x: PX, y: 0.2, z: -29.3, yaw: 0 } },
+  val_murmures:     { name: 'Le Val des Murmures', build: buildValMurmures,
+                      entry: { x: PX, y: 0.2, z: -150 - 29.3, yaw: 0 } },
+  carriere_sel:     { name: 'La Carrière de Sel', build: buildCarriereSel,
+                      entry: { x: PX, y: 0.2, z: -300 - 29.3, yaw: 0 } },
+  canyon_lames:     { name: 'Le Canyon des Lames', build: buildCanyonLames,
+                      entry: { x: PX, y: 0.2, z: -450 - 29.3, yaw: 0 } },
+  aqueduc_colossal: { name: 'L\'Aqueduc Colossal', build: buildAqueducColossal,
+                      entry: { x: PX, y: 15, z: -600 - 29.3, yaw: 0 } },
+  foret_obsidienne: { name: 'La Forêt d\'Obsidienne', build: buildForetObsidienne,
+                      entry: { x: PX, y: 0.2, z: -750 - 29.3, yaw: 0 } },
+  bastion_cendres:  { name: 'Le Bastion des Cendres', build: buildBastionCendres,
+                      entry: { x: PX, y: 0.2, z: -900 - 24.3, yaw: 0 } }
 };

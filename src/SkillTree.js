@@ -18,7 +18,20 @@ function pathOf(who) { return who === 2 ? p2.path : G.path; }
 /* Courbe d'XP durcie (retour joueur : on montait trop vite, full arts dès le
    tutoriel). ~+50 % au début, davantage ensuite — chaque niveau se mérite. */
 export function xpNeed(l) { return 60 + (l - 1) * 70 + (l - 1) * (l - 1) * 16; }
-export function gainXP(n) {
+/* v9.3 — décroissance d'XP à l'écart de niveau : un joueur qui écrase des
+   ombres bien plus faibles que lui n'apprend plus grand-chose (évite le
+   farming trivial dans les zones basses une fois le Grand Pèlerinage entamé).
+   Écart ≥3 niveaux → moitié d'XP ; écart ≥5 → aucune XP. */
+function xpDecay(playerLevel, enemyLevel) {
+  if (!enemyLevel) return 1;
+  const gap = playerLevel - enemyLevel;
+  if (gap >= 5) return 0;
+  if (gap >= 3) return 0.5;
+  return 1;
+}
+export function gainXP(n, enemyLevel) {
+  n = Math.round(n * xpDecay(G.level, enemyLevel));
+  if (n <= 0) return;
   G.xp += n;
   let up = false;
   while (G.xp >= xpNeed(G.level)) {
@@ -45,8 +58,10 @@ export function gainXP(n) {
 }
 /* v8.7 — expérience du JOUEUR 2 (coop) : mêmes règles que le J1, mais tout
    s'accumule dans p2 — il monte en niveau de son côté, en jouant ensemble. */
-export function gainXP2(n) {
+export function gainXP2(n, enemyLevel) {
   if (!S.COOP || !p2.mesh) return;
+  n = Math.round(n * xpDecay(p2.level, enemyLevel));
+  if (n <= 0) return;
   p2.xp += n;
   let up = false;
   while (p2.xp >= xpNeed(p2.level)) {

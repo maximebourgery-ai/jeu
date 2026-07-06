@@ -21,7 +21,7 @@ import { $, showMsg, travelTo } from './UI.js';
 import { lockPointer } from './Controls.js'; // cycle sûr : appel différé
 
 /* Emprise du monde (x : ouest→est, z : nord→sud — le nord est en HAUT) */
-const X0 = -66, X1 = 132, Z0 = -104, Z1 = 84;
+const X0 = -66, X1 = 260, Z0 = -104, Z1 = 84;
 let ctx = null, W = 0, H = 0, mapTimer = null;
 /* zones cliquables (recalculées à chaque dessin) : { x, y, camp } en px */
 let hotspots = [];
@@ -64,7 +64,16 @@ const ROOM_MAP = {
   biblio: { x: -38, z: 14,  name: 'la Bibliothèque' },
   aile:   { x: 38,  z: 14,  name: 'l\'Aile Est' },
   trone:  { x: 0,   z: -16, name: 'la Salle du Trône' },
-  cata:   { x: 96,  z: -6,  name: 'les Catacombes' }
+  cata:   { x: 96,  z: -6,  name: 'les Catacombes' },
+  /* v9.3 — le Grand Pèlerinage : sept salles hors-carte (site x≈-900),
+     alignées ici en chapelet à l'est du plan, loin de tout le reste. */
+  muraille:         { x: 144, z: 0, name: 'la Muraille Céleste' },
+  val_murmures:     { x: 160, z: 0, name: 'le Val des Murmures' },
+  carriere_sel:     { x: 176, z: 0, name: 'la Carrière de Sel' },
+  canyon_lames:     { x: 192, z: 0, name: 'le Canyon des Lames' },
+  aqueduc_colossal: { x: 208, z: 0, name: 'l\'Aqueduc Colossal' },
+  foret_obsidienne: { x: 224, z: 0, name: 'la Forêt d\'Obsidienne' },
+  bastion_cendres:  { x: 240, z: 0, name: 'le Bastion des Cendres' }
 };
 
 /* ---------------- primitives de dessin ---------------- */
@@ -124,6 +133,19 @@ const rev = (zs, cs) => (zs || []).some(id => zoneSeen[id]) || (cs || []).some(i
 /* étiquettes fines : seulement quand on zoome (la vue d'ensemble reste propre) */
 const fine = () => zoom >= 1.4;
 const roomTaken = (room, pid) => !!(G.rooms[room] && G.rooms[room].taken && G.rooms[room].taken[pid]);
+
+/* v9.3 — Le Grand Pèlerinage : sept arrêts, un seul cadre sur la carte
+   (voir REGIONS ci-dessous), chacun avec son propre repère interne. */
+const PILGRIM_STOPS = [
+  { id: 'muraille',         x: 144, icon: '⛩', name: 'Muraille Céleste' },
+  { id: 'val_murmures',     x: 160, icon: '❁', name: 'Val des Murmures' },
+  { id: 'carriere_sel',     x: 176, icon: '◇', name: 'Carrière de Sel' },
+  { id: 'canyon_lames',     x: 192, icon: '✕', name: 'Canyon des Lames' },
+  { id: 'aqueduc_colossal', x: 208, icon: '⌒', name: 'Aqueduc Colossal' },
+  { id: 'foret_obsidienne', x: 224, icon: '♠', name: 'Forêt d\'Obsidienne' },
+  { id: 'bastion_cendres',  x: 240, icon: '⚑', name: 'Bastion des Cendres' }
+];
+const PILGRIM_IDS = PILGRIM_STOPS.map(s => s.id);
 
 /* ---- LES RÉGIONS : contour muet + « ? » tant que non découvertes ---- */
 const REGIONS = [
@@ -234,6 +256,7 @@ const REGIONS = [
         label(-12, -30.5, '▴ passage scellé → trône', 'rgba(200,160,255,.75)', 8);
         label(-24, -43.5, 'ruines', 'rgba(190,165,140,.7)', 8);
         label(3, -47.8, '▾ ronces ardentes (givre)', 'rgba(255,150,90,.75)', 8);
+        label(42, -14, 'arche du Grand Pèlerinage ▸', 'rgba(143,200,255,.75)', 8);
       }
     } },
   { r: [-60, -90, 60, -48], f: 'rgba(28,72,44,.3)', s: 'rgba(70,125,80,.5)',
@@ -255,6 +278,28 @@ const REGIONS = [
       circle(0, -95, 3 + zoom, null, 'rgba(190,150,230,.6)');
       label(0, -93.6, '✦', 'rgba(255,217,122,.95)', 13);
       if (fine()) label(0, -88, 'l\'autel de la dernière Larme', 'rgba(200,170,235,.85)', 9);
+    } },
+  /* v9.3 — LE GRAND PÈLERINAGE : sept salles hors-carte (site réel x≈-900,
+     inaccessible à l'échelle du plan), déroulées en chapelet à l'est — un
+     seul grand cadre nommé, comme les Catacombes (une salle réelle, mais
+     plusieurs zones internes) : évite d'entasser sept noms complets côte
+     à côte. Chemin optionnel, sans rapport géographique avec le reste
+     du monde. */
+  { r: [134, -22, 254, 22], f: 'rgba(35,45,70,.26)', s: 'rgba(143,200,255,.45)', dash: true,
+    name: 'Le Grand Pèlerinage', lvl: '5-22', nz: -17,
+    on: () => rev(PILGRIM_IDS, []),
+    details() {
+      if (PILGRIM_IDS.some(id => id === S.roomId)) rect(134, -22, 254, 22, 'rgba(255,215,120,.1)', 'rgba(255,215,120,.8)', false, 2);
+      PILGRIM_STOPS.forEach(({ id, x, icon, name: nm }, i) => {
+        const seen = zoneSeen[id];
+        pillar(x, 0);
+        label(x, 6.5, seen ? icon : '?', seen ? 'rgba(180,215,255,.85)' : 'rgba(160,160,195,.55)', 11);
+        if (seen && fine()) label(x, 13.5, nm, 'rgba(200,220,240,.75)', 7.5);
+        if (id === 'bastion_cendres' && seen &&
+            !(G.rooms.bastion_cendres && G.rooms.bastion_cendres.flags && G.rooms.bastion_cendres.flags.reward)) {
+          label(x, -8, '✦', 'rgba(255,217,122,.95)', 12);
+        }
+      });
     } }
 ];
 

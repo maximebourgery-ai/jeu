@@ -20,7 +20,7 @@ import { questReach, openDialog, guide, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
 /* Seuils des salles instanciées (cycle sûr : appels différés, voir Rooms.js) */
-import { enterCastleHall, enterThroneFromLostLands, beyondOpened } from './Rooms.js';
+import { enterCastleHall, enterThroneFromLostLands, enterPilgrimage, beyondOpened } from './Rooms.js';
 
 /* ---------------- SCÈNE ---------------- */
 export function initScene() {
@@ -1221,6 +1221,19 @@ export function buildOpenWorld() {
   addPickup('mana', 48, 0, -18);
   addPickup('mana', -52, 0, -44);
   addPickup('heart', 52, 0, -44);
+
+  /* Seuil du Grand Pèlerinage — au-delà de la Flèche des Confins, une arche
+     de pierre pâle marque le début de la route des sept salles (Rooms.js,
+     site x≈-900). Optionnelle, non requise pour la trame principale. */
+  mkBox(1, 9, 1, 53, 0, -18, 'stoneD'); mkBox(1, 9, 1, 53, 0, -10, 'stoneD');
+  mkBox(6, 0.6, 1, 53, 8.7, -14, 'stoneD');
+  const pilgrimGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.45), new THREE.MeshBasicMaterial({ color: 0x8fc8ff }));
+  pilgrimGem.position.set(53, 9.4, -14); pilgrimGem.add(glow(0x8fc8ff, 2.4, 0.55));
+  S.scene.add(pilgrimGem); spinners.push(pilgrimGem);
+  torch(53, 0, -18.8, 0x8fc8ff, 1.15, 18); torch(53, 0, -9.2, 0x8fc8ff, 1.15, 18);
+  addInter(53, 0, -14, 3, 'Franchir l\'arche du Grand Pèlerinage', () => {
+    enterPilgrimage();
+  });
 
   /* Arbre-sanctuaire flétri (cellule r4c3) : la Bénédiction rouvre la voie */
   const groveDoor = mkDoor(6, 6, 2, -39, 0, -75, 'hedge');

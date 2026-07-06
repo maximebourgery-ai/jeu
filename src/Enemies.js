@@ -794,10 +794,10 @@ export function killEnemy(e) {
   S.scene.remove(e.g);
   // la nuit paie mieux : +50 % d'expérience au plus noir (risque → récompense)
   const xpGain = Math.round((e.xp || 12) * (1 + 0.5 * S.nightK));
-  gainXP(xpGain);
+  gainXP(xpGain, e.lvl);
   /* v8.7 — coop : la chute profite aux DEUX porteurs (XP plein pour chacun),
      et chacun monte ses niveaux de son côté (voir gainXP2, SkillTree.js) */
-  if (S.COOP && p2.mesh) gainXP2(xpGain);
+  if (S.COOP && p2.mesh) gainXP2(xpGain, e.lvl);
   dmgText(e.g.position.x, e.g.position.y + 1.4 * e.s, e.g.position.z, '+' + xpGain + ' XP', 'xp');
   if (e.onKilled) e.onKilled(e); // Maîtres d'Étage : clef, portail, raccourci
   if (hasN('a_dance')) {
