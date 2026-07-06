@@ -1,5 +1,5 @@
 /* ---------------- XP, NIVEAUX & ARBRE DES POUVOIRS ---------------- */
-import { G, S, IS_TOUCH, PATHS, TREE_COMMON, TREES, POWERS, PUPG, player } from './state.js';
+import { G, S, IS_TOUCH, PATHS, TREE_COMMON, TREES, POWERS, PUPG, player, equipTotals } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg } from './UI.js';
 import { spawnBurst } from './World.js';
@@ -37,10 +37,13 @@ export function coolMul() {
   if (hasN('a_shadow')) m *= 0.7;
   return m;
 }
-/* Statistiques d'attaque effectives de la voie, dérivées des nœuds acquis */
+/* Statistiques d'attaque effectives de la voie, dérivées des nœuds acquis.
+   v9 : les dégâts de BASE de la voie s'additionnent à ceux de l'ARME
+   équipée (G.equipment.weapon) AVANT les multiplicateurs de l'arbre —
+   l'arme monte le plancher, l'arbre garde son rôle de multiplicateur. */
 export function classAtk(path) {
   const B = PATHS[path];
-  const P = { melee: B.melee, range: B.range, dmg: B.dmg, pSpeed: B.pSpeed, path: path };
+  const P = { melee: B.melee, range: B.range, dmg: B.dmg + (equipTotals().dmg || 0), pSpeed: B.pSpeed, path: path };
   if (path === 'mage') {
     if (hasN('m_power')) P.dmg = Math.round(P.dmg * 1.6);
     if (hasN('m_pierce')) { P.pierce = true; P.pSpeed *= 1.35; }

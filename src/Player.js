@@ -1,6 +1,6 @@
 /* ---------------- JOUEURS (J1 clavier/souris · J2 manette en coop) ---------------- */
 import * as THREE from 'three';
-import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE } from './state.js';
+import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE, armorReduction, equipTotals } from './state.js';
 import { A } from './Audio.js';
 import { showMsg, gameOver } from './UI.js';
 import { slide, slideP, rayAABB, spawnBurst, safeZoneAt } from './World.js';
@@ -521,6 +521,8 @@ export function updatePlayer(dt) {
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'] || S.gpSprint || tmSprint;
   // Danse des ombres (hasteT) et Élixir du Traqueur (buffSpeedT) ne se cumulent pas
   let speed = (sprint ? 9.5 : 5.8) * (PATHS[G.path].move || 1) * (G.hasteT > 0 || G.buffSpeedT > 0 ? 1.2 : 1);
+  // v9 — célérité d'équipement (stat `speed`, en %) : plafonnée à +25 %
+  speed *= 1 + Math.min(25, equipTotals().speed) / 100;
   if (p.dashT > 0) {
     p.dashT -= dt;
     vx = p.dashDir.x; vz = p.dashDir.z;
@@ -733,6 +735,10 @@ export function hurt(d, src) {
   if (player.invuln > 0 || G.shieldT > 0) return;
   player.invuln = 0.5;
   if (G.path === 'paladin' && hasN('p_guard')) d = Math.round(d * 0.75); // Peau de pierre
+  /* v9 — armure d'équipement à RENDEMENTS DÉCROISSANTS : réduction =
+     armure / (armure + 100), plafonnée à 75 % (voir armorReduction,
+     state.js). Chaque coup inflige toujours au moins 1 point. */
+  d = Math.max(1, Math.round(d * (1 - armorReduction())));
   G.hp -= d; G.vig = 1;
   G.comboHits = 0; G.comboHitT = 0; // encaisser un coup brise l'enchaînement
   gainRage(d * 0.5); // Guerrier : la douleur nourrit la rage (+50 % des dégâts subis)
