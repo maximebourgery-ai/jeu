@@ -21,7 +21,7 @@ import { G, S, CTRL_ID, PEERSRV, PATHS, POWERS, tmMove, tm2Move, p2, settings, a
 import { A } from './Audio.js';
 import { $, showMsg, toggleInv, buildPowersUI } from './UI.js';
 import { dlgNext } from './Quests.js';
-import { tryInteract, tryInteractP2 } from './World.js';
+import { tryInteract, tryInteractP2, ensureP2Renderer, setCamAspects } from './World.js';
 import { castSpecific } from './Powers.js';
 import { remoteNav, anyPanelOpen } from './Controls.js';
 import { toggleTree, buyNode, upgradePower, xpNeed } from './SkillTree.js';
@@ -139,6 +139,7 @@ function doJoin(c, d) {
     if (G.started && !p2.mesh) setupCoopP2(); // entrée en jeu immédiate du J2
   }
   sendTo(c, { t: 'joined', player: n, path: n === 1 ? G.path : ((S.COOP && p2.mesh) ? p2.path : S.P2PATH) });
+  setCamAspects(); // v9 — la reprise/le relâchement du J2 peut faire basculer entre écran scindé local et rendu plein en ligne
   broadcastWelcome();
   updateQrStatus();
   const pn = n === 1 ? G.path : ((S.COOP && p2.mesh) ? p2.path : S.P2PATH);
@@ -154,20 +155,33 @@ function doJoin(c, d) {
    et acheté À DISTANCE (treereq/buynode/upgpower) — son écran l'affiche
    sans mettre le jeu de l'hôte en pause.
    ================================================================ */
-let netStream = null;
+/* v9 — deux flux distincts : celui du J1 (le canevas principal, que l'hôte
+   voit aussi localement) et celui du J2 EN LIGNE (canevas dédié, jamais
+   affiché localement — voir World.ensureP2Renderer). Chaque joueur en
+   ligne reçoit ainsi SON PROPRE écran plein, jamais une moitié d'écran
+   scindé, avec la même qualité de rendu (bloom compris) que l'hôte. */
+let netStream1 = null, netStream2 = null;
 function startNetVideo(c) {
   if (!S.renderer || !S.hostPeer) return;
   if (!A.ctx) A.init(); // le son du jeu part avec la vidéo
-  if (!netStream) {
+  const isP2 = c.player === 2;
+  if (isP2) {
+    ensureP2Renderer(); // crée le second rendu (une seule fois)
+    setCamAspects();    // les deux caméras repassent en plein écran (plus de scission)
+  }
+  let stream = isP2 ? netStream2 : netStream1;
+  if (!stream) {
     try {
-      netStream = S.renderer.domElement.captureStream(30);
+      const srcCanvas = isP2 ? S.renderer2.domElement : S.renderer.domElement;
+      stream = srcCanvas.captureStream(30);
       const as = A.stream();
-      if (as) for (const tr of as.getAudioTracks()) netStream.addTrack(tr);
+      if (as) for (const tr of as.getAudioTracks()) stream.addTrack(tr);
     } catch (e) { sendTo(c, { t: 'toast', msg: 'Vidéo indisponible sur cet hôte (' + e + ').' }); return; }
+    if (isP2) netStream2 = stream; else netStream1 = stream;
   }
   try {
     if (c.call) c.call.close();
-    c.call = S.hostPeer.call(c.conn.peer, netStream);
+    c.call = S.hostPeer.call(c.conn.peer, stream);
   } catch (e) {}
 }
 function sendTree(c) {
@@ -333,6 +347,7 @@ function dropCtrl(c) {
   try { if (c.call) c.call.close(); } catch (e) {} // referme le flux vidéo du joueur en ligne
   if (c.player === 2) { tm2Move.x = 0; tm2Move.z = 0; S.tm2BoltHeld = false; S.tm2JumpHeld = false; }
   else if (c.player === 1) { tmMove.x = 0; tmMove.z = 0; S.tmBoltHeld = false; S.tmJumpHeld = false; }
+  setCamAspects(); // v9 — si c'était le dernier J2 en ligne, retour au rendu scindé local (si un J2 local subsiste)
   updateQrStatus();
   broadcastWelcome();
   showMsg('📱 Manette smartphone déconnectée' + (c.player ? ' (Joueur ' + c.player + ')' : '') + '.', 3);

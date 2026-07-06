@@ -141,11 +141,43 @@ export function initScene() {
   });
   setTimeout(onResize, 300); // le viewport iOS se stabilise après le chargement
 }
+/* v9 — le joueur en ligne (2ᵉ PC, voir Network.startNetVideo) reçoit son
+   PROPRE rendu plein écran, jamais une moitié d'écran scindé : seule la
+   coop LOCALE (manette/téléphone sur LA MÊME machine, un seul écran
+   physique à se partager) garde encore le rendu scindé d'origine. */
+export function coopNetP2() { return S.COOP && S.ctrlConns.some(o => o.net && o.player === 2); }
 export function setCamAspects() {
-  S.camera.aspect = (S.COOP ? innerWidth / 2 : innerWidth) / innerHeight;
+  const halfScreen = S.COOP && !coopNetP2();
+  S.camera.aspect = (halfScreen ? innerWidth / 2 : innerWidth) / innerHeight;
   S.camera.updateProjectionMatrix();
-  S.cam2.aspect = (innerWidth / 2) / innerHeight;
+  S.cam2.aspect = (halfScreen ? innerWidth / 2 : innerWidth) / innerHeight;
   S.cam2.updateProjectionMatrix();
+  if (S.renderer2) S.renderer2.setSize(innerWidth, innerHeight);
+  if (S.composer2) S.composer2.setSize(innerWidth, innerHeight);
+}
+/* Second rendu, dédié au Joueur 2 en ligne : même pipeline (bloom compris)
+   que le J1, sur un canevas séparé — jamais affiché localement (opacity 0,
+   hors du flux visuel), seulement capturé (captureStream) et diffusé au
+   joueur distant. Créé une seule fois, à la première connexion en ligne
+   du J2 (voir Network.startNetVideo). */
+export function ensureP2Renderer() {
+  if (S.renderer2) return;
+  S.renderer2 = new THREE.WebGLRenderer({ antialias: true });
+  S.renderer2.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  S.renderer2.setSize(innerWidth, innerHeight);
+  S.renderer2.shadowMap.enabled = true;
+  S.renderer2.shadowMap.type = THREE.PCFSoftShadowMap;
+  S.renderer2.outputColorSpace = THREE.SRGBColorSpace;
+  S.renderer2.toneMapping = THREE.ACESFilmicToneMapping;
+  S.renderer2.toneMappingExposure = 1.05;
+  S.renderer2.domElement.style.cssText = 'position:fixed;inset:0;opacity:0;pointer-events:none;z-index:-1;';
+  document.body.appendChild(S.renderer2.domElement);
+  S.composer2 = new EffectComposer(S.renderer2);
+  S.renderPass2 = new RenderPass(S.scene, S.cam2);
+  S.bloomPass2 = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.62, 0.42, 0.95);
+  S.composer2.addPass(S.renderPass2);
+  S.composer2.addPass(S.bloomPass2);
+  S.composer2.addPass(new OutputPass());
 }
 
 /* ---------------- GÉOMÉTRIE & COLLISIONS ---------------- */

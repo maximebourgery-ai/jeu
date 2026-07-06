@@ -414,6 +414,10 @@ export const S = {
   // rendu
   scene: null, camera: null, cam2: null, renderer: null, clock: null,
   composer: null, renderPass: null, bloomPass: null,
+  /* v9 — second rendu (canevas séparé, jamais affiché localement) dédié au
+     Joueur 2 EN LIGNE : chacun voit alors son écran plein, sans scission
+     (voir World.ensureP2Renderer / coopNetP2, Network.startNetVideo). */
+  renderer2: null, composer2: null, renderPass2: null, bloomPass2: null,
   shieldMesh: null, dirLight: null, beacon: null, lumen: null,
   // portes / éléments nommés du monde
   libDoor: null, basementDoor: null, throneDoor: null, beyondDoor: null,

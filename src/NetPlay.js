@@ -124,20 +124,19 @@ export function startOnlineClientMode(code) {
   const st = { player: 2, path: 'mage', joined: false, treeOpen: false };
   let welcome = null, hud = null, msgT = 0;
 
-  /* ================= vidéo : recadrage sur SA moitié d'écran =================
-     L'hôte diffuse tout son canvas. En coop écran scindé, seule la moitié du
-     joueur distant est montrée ici, mise à l'échelle plein écran (J1 =
-     gauche, J2 = droite). Hors coop : image entière. */
+  /* ================= vidéo : image plein écran, jamais scindée =================
+     v9 — l'hôte diffuse désormais un rendu DÉDIÉ à ce joueur (son propre
+     canevas, sa propre caméra — voir World.ensureP2Renderer côté hôte) :
+     l'image reçue ici est déjà complète, jamais une moitié d'écran scindé
+     à recadrer. On se contente de l'ajuster (letterbox) à CET écran. */
   function fitVideo() {
     if (!vid.videoWidth) return;
     const vw = innerWidth, vh = innerHeight;
-    const half = !!(hud && hud.coop && hud.started);
-    const srcW = half ? vid.videoWidth / 2 : vid.videoWidth, srcH = vid.videoHeight;
-    const k = Math.min(vw / srcW, vh / srcH);
-    const dw = srcW * k, dh = srcH * k;
-    vid.style.width = (half ? dw * 2 : dw) + 'px';
+    const k = Math.min(vw / vid.videoWidth, vh / vid.videoHeight);
+    const dw = vid.videoWidth * k, dh = vid.videoHeight * k;
+    vid.style.width = dw + 'px';
     vid.style.height = dh + 'px';
-    vid.style.left = ((vw - dw) / 2 - (half && st.player !== 1 ? dw : 0)) + 'px';
+    vid.style.left = ((vw - dw) / 2) + 'px';
     vid.style.top = ((vh - dh) / 2) + 'px';
   }
   vid.addEventListener('loadedmetadata', fitVideo);

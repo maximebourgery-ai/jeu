@@ -9,7 +9,7 @@ import { G, S, CTRL_ID, JOIN_CODE, PEERSRV, IS_TOUCH, IS_IOS, IS_STANDALONE, PAT
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
+import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac, coopNetP2 } from './World.js';
 import { updateDayNight } from './DayNight.js';
 import { buildPlayer, setupCoopP2, updatePlayer, updateP2, updateCamera, updateCamera2, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
@@ -76,9 +76,18 @@ function loop() {
   updateCamera();
   if (S.COOP && p2.mesh) updateCamera2();
   updateHUD(dt);
-  if (S.COOP) {
-    /* Coop : rendu scissor multi-caméra d'origine (le bloom plein écran
-       n'est pas compatible avec le découpage en deux viewports). */
+  if (coopNetP2()) {
+    /* v9 — coop EN LIGNE (2 PC) : chacun voit SON écran plein, jamais
+       scindé. Le J1 (l'hôte) est rendu ici normalement (bloom compris,
+       comme en solo) ; le J2 est rendu À PART (canevas dédié, même
+       qualité) et cette seconde image est celle diffusée au joueur
+       distant — voir Network.startNetVideo / World.ensureP2Renderer. */
+    S.composer.render();
+    S.composer2.render();
+  } else if (S.COOP) {
+    /* Coop LOCALE (manette/téléphone sur LA MÊME machine, un seul écran
+       physique) : rendu scissor multi-caméra d'origine (le bloom plein
+       écran n'est pas compatible avec le découpage en deux viewports). */
     const w = innerWidth, h = innerHeight, hw = Math.floor(w / 2);
     S.renderer.setScissorTest(true);
     S.renderer.setViewport(0, 0, hw, h); S.renderer.setScissor(0, 0, hw, h);
@@ -255,12 +264,13 @@ async function initGame() {
     const { travelTo, toggleInv } = await import('./UI.js');
     const { openMap, closeMap } = await import('./WorldMap.js');
     const { setupCoopP2 } = await import('./Player.js');
-    const { tryInteractP2 } = await import('./World.js');
+    const { tryInteractP2, coopNetP2, ensureP2Renderer, setCamAspects } = await import('./World.js');
     const { toggleTree } = await import('./SkillTree.js');
     const { openDialog } = await import('./Quests.js');
     window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, doors,
       tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap,
-      p1Busy, p2Busy, worldFrozen, setupCoopP2, toggleInv, toggleTree, openDialog, tryInteractP2, tm2Move };
+      p1Busy, p2Busy, worldFrozen, setupCoopP2, toggleInv, toggleTree, openDialog, tryInteractP2, tm2Move,
+      coopNetP2, ensureP2Renderer, setCamAspects };
   }
   loop();
 }
