@@ -88,6 +88,8 @@ export function startOnlineClientMode(code) {
     /* ---------- Forge locale (enclume, E) ---------- */
     '#oforge{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(760px,94vw);max-height:88vh;overflow-y:auto;background:rgba(5,7,15,.92);border:1px solid rgba(232,224,204,.2);border-radius:14px;padding:22px 26px;z-index:9;display:none;pointer-events:auto}' +
     '#oforge h3{color:#ffd97a;font-weight:normal;letter-spacing:4px;font-size:15px;margin-bottom:6px}' +
+    '#oforgehelp{background:rgba(255,217,122,.08);border:1px solid rgba(255,217,122,.3);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;font-family:Verdana,sans-serif;line-height:1.6;color:#e8e0cc}' +
+    '#oforgehelp b{color:#ffd97a}' +
     '#oforge .ftop{font-size:11px;font-family:Verdana,sans-serif;color:#7f8bb0;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(232,224,204,.1)}' +
     '#oforge .ftop b{color:#ffd97a;font-weight:normal}' +
     '#oforge .br{color:#8fc8ff;font-size:11px;letter-spacing:3px;margin:14px 0 8px;text-transform:uppercase}' +
@@ -100,6 +102,8 @@ export function startOnlineClientMode(code) {
     '.gearcard .gn{font-size:13px}' +
     '.gearcard .gn em{font-style:normal;font-size:9px;font-family:Verdana,sans-serif;opacity:.8;margin-left:4px}' +
     '.gearcard .gs{font-size:10px;font-family:Verdana,sans-serif;color:#8791b4;line-height:1.5;margin-top:4px}' +
+    '.gcmp{font-size:9.5px;font-family:Verdana,sans-serif;margin-bottom:5px}' +
+    '.gcmp.up{color:#7ade8c}.gcmp.eq{color:#8fa0c8}.gcmp.dn{color:#c89ab0}' +
     '.gearcard button,.forgebtn{margin-top:7px;font-family:Georgia,serif;font-size:12px;color:#ffd97a;background:#1a2142;border:1px solid rgba(255,217,122,.5);border-radius:7px;padding:5px 10px;cursor:pointer}' +
     '.forgebtn{width:214px;text-align:left}' +
     '.forgebtn small{display:block;font-size:9px;font-family:Verdana,sans-serif;color:#8791b4;margin-top:3px}' +
@@ -414,14 +418,25 @@ export function startOnlineClientMode(code) {
      d'appuyer sur E près d'une enclume) : SON équipement, sur SON écran,
      jamais celui de l'hôte. Le sac de forge et les ressources restent un
      pot commun aux deux porteurs. */
-  function gearCardHtml(it, action) {
+  /* `curIt` (optionnel) : la pièce actuellement portée dans CE slot — si
+     fourni, affiche un comparatif « mieux / moins bon » (v9.1, retour
+     joueur : « on ne comprend rien à la Forge »). */
+  function gearCardHtml(it, action, curIt) {
     const R = RARITIES[it.rarity];
     const stats = Object.keys(it.stats)
       .map(k => ({ dmg: '⚔', armor: '🛡', hp: '♥', mana: '❂', speed: '➶' }[k] + ' +' + it.stats[k] + (k === 'speed' ? ' %' : '')))
       .join(' · ');
+    let cmp = '';
+    if (curIt !== undefined) {
+      const curTier = curIt ? RARITY_ORDER.indexOf(curIt.rarity) : -1;
+      const tier = RARITY_ORDER.indexOf(it.rarity);
+      cmp = tier > curTier ? '<div class="gcmp up">↑ meilleur que ce que vous portez' + (curIt ? '' : ' (emplacement vide)') + '</div>'
+        : tier === curTier ? '<div class="gcmp eq">≈ même palier que ce que vous portez</div>'
+        : '<div class="gcmp dn">↓ moins bon que ce que vous portez</div>';
+    }
     return '<div class="gearcard" style="border-color:' + R.css + '">'
       + '<div class="gn" style="color:' + R.css + '">' + it.icon + ' ' + it.name + ' <em>' + R.name + '</em></div>'
-      + '<div class="gs">' + stats + '</div>' + action + '</div>';
+      + '<div class="gs">' + stats + '</div>' + cmp + action + '</div>';
   }
   function forgeCostText(res, cost) {
     return Object.keys(cost).map(k => RES[k].icon + ' ' + (res[k] || 0) + '/' + cost[k]).join(' · ');
@@ -430,22 +445,32 @@ export function startOnlineClientMode(code) {
     if (!st.forgeOpen) return;
     const t = el('oforge');
     let h = '<h3>⚒ LA FORGE D\'OMBRECIEL — JOUEUR ' + d.who + '</h3>';
+    h += '<div id="oforgehelp">Comment ça marche : <b>1.</b> Tuez des ombres pour du butin, ou FAÇONNEZ une pièce Commune '
+      + 'ci-dessous contre des ressources. <b>2.</b> ÉQUIPEZ une pièce du sac sur vous : Arme / Armure / Accessoire. '
+      + '<b>3.</b> Avec 3 pièces de la MÊME rareté, FUSIONNEZ-les en une seule, plus puissante. Plus votre équipement est '
+      + 'rare (Commun → Rare → Épique → Légendaire), plus il est fort. Le sac de forge et les ressources sont COMMUNS aux '
+      + 'deux porteurs ; l\'équipement que vous portez est SEULEMENT le vôtre.</div>';
     h += '<div class="ftop">Score d\'équipement : <b>' + d.score + '</b> / 450 · Voie : <b>' + PATHS[d.path].name + '</b></div>';
-    h += '<div class="br">ÉQUIPEMENT PORTÉ</div><div class="gearrow">';
+    h += '<div class="br">1. ÉQUIPEMENT PORTÉ <small>(ce que vous avez sur vous en ce moment)</small></div><div class="gearrow">';
     for (const slot of ['weapon', 'armor', 'accessory']) {
       const it = d.equipment[slot];
       h += '<div class="gearslot"><div class="gsl">' + SLOT_DEFS[slot].name + '</div>'
         + (it ? gearCardHtml(it, '<button data-unequip="' + slot + '">Retirer</button>')
-              : '<div class="gearempty">— vide —</div>')
+              : '<div class="gearempty">— vide : équipez une pièce du sac ci-dessous —</div>')
         + '</div>';
     }
     h += '</div>';
-    h += '<div class="br">FAÇONNER — pièce Commune adaptée au ' + PATHS[d.path].name + '</div><div class="gearrow">';
+    h += '<div class="br">2. SAC DE FORGE — ' + d.gearBag.length
+      + ' <small>(butin commun aux deux porteurs : cliquez « Équiper » pour porter une pièce)</small></div><div class="gearlist">';
+    if (!d.gearBag.length) h += '<div class="gearempty">Le sac est vide : façonnez une pièce ci-dessous, ou arrachez-en aux ombres.</div>';
+    d.gearBag.forEach((it, i) => { h += gearCardHtml(it, '<button data-equip="' + i + '">Équiper</button>', d.equipment[it.slot]); });
+    h += '</div>';
+    h += '<div class="br">3. FAÇONNER — pièce Commune adaptée au ' + PATHS[d.path].name + '</div><div class="gearrow">';
     for (const slot of ['weapon', 'armor', 'accessory'])
       h += '<button class="forgebtn" data-forge="' + slot + '">⚒ ' + SLOT_DEFS[slot].name
-        + '<small>' + forgeCostText(d.res, FORGE_COST) + '</small></button>';
+        + '<small>' + forgeCostText(d.res, FORGE_COST) + ' — va au sac, à équiper ensuite</small></button>';
     h += '</div>';
-    h += '<div class="br">FUSION — 3 pièces de même rareté + ressources → rareté supérieure</div><div class="gearrow">';
+    h += '<div class="br">4. FUSION — améliorez votre butin <small>(3 pièces de MÊME rareté + ressources → 1 pièce de rareté supérieure)</small></div><div class="gearrow">';
     for (let i = 0; i < RARITY_ORDER.length - 1; i++) {
       const rar = RARITY_ORDER[i], next = RARITY_ORDER[i + 1];
       const n = d.gearBag.filter(x => x.rarity === rar).length;
@@ -453,10 +478,6 @@ export function startOnlineClientMode(code) {
         + '3× ' + RARITIES[rar].name + ' (' + Math.min(n, 3) + '/3) → <b style="color:' + RARITIES[next].css + '">'
         + RARITIES[next].name + '</b><small>' + forgeCostText(d.res, FUSE_COSTS[next]) + '</small></button>';
     }
-    h += '</div>';
-    h += '<div class="br">SAC DE FORGE — ' + d.gearBag.length + ' <small>(commun aux deux porteurs)</small></div><div class="gearlist">';
-    if (!d.gearBag.length) h += '<div class="gearempty">Le sac est vide : façonnez une pièce, ou arrachez-en aux ombres.</div>';
-    d.gearBag.forEach((it, i) => { h += gearCardHtml(it, '<button data-equip="' + i + '">Équiper</button>'); });
     h += '</div>';
     h += '<div style="text-align:center;margin-top:14px"><button id="oforgeclose">Refermer (Échap)</button></div>';
     t.innerHTML = h;

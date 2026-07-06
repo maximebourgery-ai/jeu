@@ -446,12 +446,22 @@ body.is-touch .overlay .controls{display:none}
 
 /* --- v9 : la Forge (équipement, fusion) --- */
 #forgetop{color:#c8d2ea;font-size:13px;margin-bottom:10px;opacity:.9}
+/* v9.1 (retour joueur « on ne comprend rien ») : mode d'emploi en 3 étapes,
+   toujours visible en haut du panneau. */
+#forgehelp{background:rgba(255,217,122,.08);border:1px solid rgba(255,217,122,.3);border-radius:8px;
+  padding:8px 12px;margin-bottom:14px;font-size:12px;line-height:1.6;color:#e8e0cc}
+#forgehelp b{color:#ffd97a}
 #forge .gearrow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
 #forge .gearlist{display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto}
 .gearcard{border:1px solid #666;border-radius:8px;padding:7px 9px;background:rgba(10,12,26,.6);min-width:170px;flex:1 1 170px;max-width:240px}
 .gearcard .gn{font-size:13px;margin-bottom:3px}
 .gearcard .gn em{opacity:.75;font-size:11px;font-style:normal;margin-left:4px}
 .gearcard .gs{font-size:11.5px;color:#aeb8d8;font-family:Verdana,sans-serif;margin-bottom:5px}
+/* v9.1 : mieux/moins bon que la pièce actuellement portée, en un coup d'œil */
+.gcmp{font-size:10.5px;font-family:Verdana,sans-serif;margin-bottom:5px}
+.gcmp.up{color:#7ade8c}
+.gcmp.eq{color:#8fa0c8}
+.gcmp.dn{color:#a8809a}
 .gearcard button,.gearslot button{font-size:11.5px;padding:3px 10px}
 .gearslot{flex:1 1 170px;max-width:240px}
 .gearslot .gsl{font-size:11px;letter-spacing:2px;color:#8fa0c8;margin-bottom:4px}

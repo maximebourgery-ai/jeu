@@ -378,40 +378,61 @@ export function refreshForge() {
   if (CraftMod) buildForgeHTML(CraftMod);
   else import('./Crafting.js').then(m => { CraftMod = m; buildForgeHTML(m); });
 }
-function gearCard(it, action) {
+/* `curIt` (optionnel) : la pièce actuellement portée dans CE slot — si
+   fourni, affiche un comparatif « mieux / moins bon » (v9.1, retour joueur :
+   « on ne comprend rien à la Forge »). */
+function gearCard(it, action, curIt) {
   const R = RARITIES[it.rarity];
   const stats = Object.keys(it.stats)
     .map(k => ({ dmg: '⚔', armor: '🛡', hp: '♥', mana: '❂', speed: '➶' }[k] + ' +' + it.stats[k] + (k === 'speed' ? ' %' : '')))
     .join(' · ');
+  let cmp = '';
+  if (curIt !== undefined) {
+    const curTier = curIt ? RARITY_ORDER.indexOf(curIt.rarity) : -1;
+    const tier = RARITY_ORDER.indexOf(it.rarity);
+    cmp = tier > curTier ? '<div class="gcmp up">↑ meilleur que ce que vous portez' + (curIt ? '' : ' (emplacement vide)') + '</div>'
+      : tier === curTier ? '<div class="gcmp eq">≈ même palier que ce que vous portez</div>'
+      : '<div class="gcmp dn">↓ moins bon que ce que vous portez</div>';
+  }
   return '<div class="gearcard" style="border-color:' + R.css + '">'
     + '<div class="gn" style="color:' + R.css + '">' + it.icon + ' ' + it.name + ' <em>' + R.name + '</em></div>'
-    + '<div class="gs">' + stats + '</div>' + action + '</div>';
+    + '<div class="gs">' + stats + '</div>' + cmp + action + '</div>';
 }
 function buildForgeHTML(C) {
   const t = $('forge'); if (!t) return;
   const tot = equipTotals();
   let h = '<h3>⚒ LA FORGE D\'OMBRECIEL</h3>';
+  h += '<div id="forgehelp">Comment ça marche : <b>1.</b> Tuez des ombres pour du butin, ou FAÇONNEZ une pièce Commune '
+    + 'ci-dessous contre des ressources. <b>2.</b> ÉQUIPEZ une pièce du sac sur vous : Arme / Armure / Accessoire. '
+    + '<b>3.</b> Avec 3 pièces de la MÊME rareté, FUSIONNEZ-les en une seule, plus puissante. Plus votre équipement est '
+    + 'rare (Commun → Rare → Épique → Légendaire), plus il est fort.</div>';
   h += '<div id="forgetop">Score d\'équipement : <b>' + gearScore() + '</b> / 450'
     + ' · Armure ' + tot.armor + ' (−' + Math.round(armorReduction() * 100) + '% des coups)'
     + ' · Arme +' + tot.dmg + ' dégâts · Voie : <b>' + PATHS[G.path].name + '</b></div>';
   /* --- équipement porté --- */
-  h += '<div class="tbranch"><div class="bt">ÉQUIPEMENT PORTÉ</div><div class="gearrow">';
+  h += '<div class="tbranch"><div class="bt">1. ÉQUIPEMENT PORTÉ <small>(ce que vous avez sur vous en ce moment)</small></div><div class="gearrow">';
   for (const slot of ['weapon', 'armor', 'accessory']) {
     const it = G.equipment[slot];
     h += '<div class="gearslot"><div class="gsl">' + SLOT_DEFS[slot].name + '</div>'
       + (it ? gearCard(it, '<button data-unequip="' + slot + '">Retirer</button>')
-            : '<div class="gearempty">— vide —</div>')
+            : '<div class="gearempty">— vide : équipez une pièce du sac ci-dessous —</div>')
       + '</div>';
   }
   h += '</div></div>';
+  /* --- sac de forge (juste après l'équipement porté : la comparaison saute aux yeux) --- */
+  h += '<div class="tbranch"><div class="bt">2. SAC DE FORGE — ' + G.gearBag.length + ' / ' + C.BAG_MAX
+    + ' <small>(butin des ombres et pièces façonnées : cliquez « Équiper » pour les porter)</small></div><div class="gearlist">';
+  if (!G.gearBag.length) h += '<div class="gearempty">Le sac est vide : façonnez une pièce ci-dessous, ou arrachez-en aux ombres.</div>';
+  G.gearBag.forEach((it, i) => { h += gearCard(it, '<button data-equip="' + i + '">Équiper</button>', G.equipment[it.slot]); });
+  h += '</div></div>';
   /* --- façonnage (Commun, adapté à la Voie) --- */
-  h += '<div class="tbranch"><div class="bt">FAÇONNER — pièce Commune adaptée au ' + PATHS[G.path].name
-    + ' <small>(coût : ' + C.fuseCostText(C.FORGE_COST) + ')</small></div><div class="gearrow">';
+  h += '<div class="tbranch"><div class="bt">3. FAÇONNER — pièce Commune adaptée au ' + PATHS[G.path].name
+    + ' <small>(coût : ' + C.fuseCostText(C.FORGE_COST) + ' — va directement au sac de forge, à équiper ensuite)</small></div><div class="gearrow">';
   for (const slot of ['weapon', 'armor', 'accessory'])
     h += '<button class="forgebtn" data-forge="' + slot + '">⚒ ' + SLOT_DEFS[slot].name + '</button>';
   h += '</div></div>';
   /* --- fusion 3 → 1 --- */
-  h += '<div class="tbranch"><div class="bt">FUSION — 3 pièces de même rareté + ressources → rareté supérieure</div><div class="gearrow">';
+  h += '<div class="tbranch"><div class="bt">4. FUSION — améliorez votre butin <small>(3 pièces de MÊME rareté + ressources → 1 pièce de rareté supérieure)</small></div><div class="gearrow">';
   for (let i = 0; i < RARITY_ORDER.length - 1; i++) {
     const rar = RARITY_ORDER[i], next = RARITY_ORDER[i + 1];
     const n = G.gearBag.filter(x => x.rarity === rar).length;
@@ -419,12 +440,6 @@ function buildForgeHTML(C) {
       + '3× ' + RARITIES[rar].name + ' (' + Math.min(n, 3) + '/3) → <b style="color:' + RARITIES[next].css + '">'
       + RARITIES[next].name + '</b><small>' + C.fuseCostText(C.FUSE_COSTS[next]) + '</small></button>';
   }
-  h += '</div></div>';
-  /* --- sac de forge --- */
-  h += '<div class="tbranch"><div class="bt">SAC DE FORGE — ' + G.gearBag.length + ' / ' + C.BAG_MAX
-    + ' <small>(le butin des ombres et vos pièces façonnées)</small></div><div class="gearlist">';
-  if (!G.gearBag.length) h += '<div class="gearempty">Le sac est vide : façonnez une pièce, ou arrachez-en aux ombres.</div>';
-  G.gearBag.forEach((it, i) => { h += gearCard(it, '<button data-equip="' + i + '">Équiper</button>'); });
   h += '</div></div>';
   h += '<button id="forgeclose">Refermer la Forge</button>';
   t.innerHTML = h;

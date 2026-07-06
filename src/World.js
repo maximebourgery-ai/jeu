@@ -152,8 +152,12 @@ export function coopNetP2() { return S.COOP && S.ctrlConns.some(o => o.net && o.
    ensuite en visio — à bitrate égal, plus de pixels à compresser ne donne
    qu'une image PLUS FLOUE. On le plafonne à une résolution confortable
    pour le streaming, en conservant le ratio d'affichage de l'hôte
-   (dimensions paires : plus sûr pour l'encodeur H.264/VP8). */
-const NET_MAX_DIM = 1600;
+   (dimensions paires : plus sûr pour l'encodeur H.264/VP8).
+   v9.1 (retour joueur) — ramené de 1600 à 1280 : sur une partie EN TEMPS
+   RÉEL, moins de pixels à encoder à chaque image laisse à l'encodeur toute
+   la marge nécessaire pour rester fluide (voir tuneVideoQuality, Network.js)
+   au lieu d'accumuler du retard sur une liaison modeste. */
+const NET_MAX_DIM = 1280;
 function netP2Size() {
   let w = innerWidth, h = innerHeight;
   const ar = w / h;

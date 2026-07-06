@@ -161,15 +161,19 @@ function doJoin(c, d) {
    ligne reçoit ainsi SON PROPRE écran plein, jamais une moitié d'écran
    scindé, avec la même qualité de rendu (bloom compris) que l'hôte. */
 let netStream1 = null, netStream2 = null;
-/* Le flux WebRTC par défaut vise ~2 Mbit/s et laisse le navigateur choisir
-   librement la résolution d'encodage : sur un canevas de jeu très détaillé
-   (texte du HUD, particules), ça se traduit par une image visiblement floue
-   chez le joueur distant. On relève franchement le débit visé et on indique
-   à l'encodeur de privilégier la NETTETÉ (contentHint 'detail' + résolution
-   maintenue plutôt que sacrifiée en premier sous contrainte de bande passante). */
+/* v9.1 (retour joueur) — un premier réglage visant la NETTETÉ maximale
+   (débit élevé + résolution toujours maintenue) s'est révélé pire pour une
+   PARTIE EN TEMPS RÉEL : dès que la liaison réelle (souvent relayée par un
+   serveur TURN gratuit derrière une box/4G) ne suit pas le débit visé,
+   l'encodeur s'entête à garder l'image nette au prix d'un retard qui
+   s'accumule — plein de saccades et de latence. Priorité inversée :
+   la FLUIDITÉ prime (contentHint 'motion' + maintain-framerate, la
+   résolution cède la première sous contrainte), avec un débit plafonné
+   plus raisonnable — combiné à la résolution déjà réduite (netP2Size,
+   World.js), l'image reste correcte sans faire déborder une liaison modeste. */
 function tuneVideoQuality(call, stream) {
   const track = stream.getVideoTracks()[0];
-  if (track && 'contentHint' in track) track.contentHint = 'detail';
+  if (track && 'contentHint' in track) track.contentHint = 'motion';
   const apply = () => {
     const pc = call && call.peerConnection;
     if (!pc) return false;
@@ -177,8 +181,8 @@ function tuneVideoQuality(call, stream) {
     if (!sender) return false;
     const params = sender.getParameters();
     if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-    params.encodings[0].maxBitrate = 4_000_000; // ~4 Mbit/s : largement au-dessus du défaut
-    params.degradationPreference = 'maintain-resolution';
+    params.encodings[0].maxBitrate = 2_200_000; // ~2,2 Mbit/s : plafond, pas une cible forcée
+    params.degradationPreference = 'maintain-framerate';
     sender.setParameters(params).catch(() => {});
     return true;
   };
