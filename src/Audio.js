@@ -14,6 +14,16 @@ export const A = {
       this.ambient();
     } catch (e) {}
   },
+  /* v8.8 — jeu en ligne : le son du jeu est capturé dans un MediaStream et
+     envoyé au joueur distant avec la vidéo (voir startNetVideo, Network.js). */
+  stream() {
+    if (!this.ctx || !this.master) return null;
+    if (!this._dest) {
+      this._dest = this.ctx.createMediaStreamDestination();
+      this.master.connect(this._dest);
+    }
+    return this._dest.stream;
+  },
   t() { return this.ctx.currentTime; },
   env(g, a, peak, dur) {
     const t = this.t();

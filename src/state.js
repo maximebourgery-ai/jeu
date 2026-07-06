@@ -7,6 +7,13 @@
 /* Mode manette smartphone : si l'URL contient ?controller=ID, l'application
    devient l'interface de la manette (voir Network.js / startControllerMode). */
 export const CTRL_ID = new URLSearchParams(location.search).get('controller');
+/* v8.8 — JEU EN LIGNE (2 PC) : si l'URL contient ?join=CODE, l'application
+   devient le poste du joueur distant — vidéo du jeu en streaming WebRTC +
+   clavier/souris qui pilotent son personnage (voir NetPlay.js). */
+export const JOIN_CODE = new URLSearchParams(location.search).get('join');
+/* Serveur de signalement PeerJS alternatif (?peersrv=hote:port) — utile pour
+   les tests locaux ou un hébergement personnel ; vide = nuage PeerJS. */
+export const PEERSRV = new URLSearchParams(location.search).get('peersrv');
 /* Mode tactile : détecté si l'appareil a un écran tactile "grossier" (téléphone/tablette). */
 export const IS_TOUCH = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
 /* iOS (iPhone/iPod + iPadOS qui se déguise en Mac) : pas d'API plein écran,

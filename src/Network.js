@@ -17,13 +17,14 @@
    ================================================================ */
 import Peer from 'peerjs';
 import QRCode from 'qrcode';
-import { G, S, CTRL_ID, PATHS, POWERS, tmMove, tm2Move, p2, settings, applyPath } from './state.js';
+import { G, S, CTRL_ID, PEERSRV, PATHS, POWERS, tmMove, tm2Move, p2, settings, applyPath } from './state.js';
+import { A } from './Audio.js';
 import { $, showMsg, toggleInv, buildPowersUI } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { tryInteract, tryInteractP2 } from './World.js';
 import { castSpecific } from './Powers.js';
 import { remoteNav, anyPanelOpen } from './Controls.js';
-import { toggleTree } from './SkillTree.js';
+import { toggleTree, buyNode, upgradePower, xpNeed } from './SkillTree.js';
 import { toggleMap, mapPan } from './WorldMap.js';
 import { craftAction } from './Crafting.js';
 import { refreshPlayerVisual, setupCoopP2 } from './Player.js';
@@ -38,6 +39,26 @@ const ICE_CONFIG = { iceServers: [
   { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
 ] };
+/* v8.8 — options PeerJS partagées (hôte, manettes, joueur en ligne).
+   ?peersrv=hote:port bascule sur un serveur de signalement personnel. */
+export function peerOpts() {
+  const o = { config: ICE_CONFIG };
+  if (PEERSRV) {
+    const [h, p] = PEERSRV.split(':');
+    o.host = h; o.port = +p || 9000; o.path = '/'; o.secure = false;
+  }
+  return o;
+}
+/* Code de partie : 4 caractères sans ambiguïté (pas de I/O/0/1) — il devient
+   l'identifiant PeerJS de l'hôte ('ombreciel-CODE'), affiché à l'écran et
+   saisi tel quel par le joueur distant (« Rejoindre une partie en ligne »). */
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export function makeRoomCode() {
+  let c = '';
+  for (let i = 0; i < 4; i++) c += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return c;
+}
+export const ROOM_PREFIX = 'ombreciel-';
 
 /* ================================================================
    CÔTÉ HÔTE (le PC qui affiche le jeu)
@@ -66,10 +87,11 @@ function updateQrStatus() {
   const el = $('qrstatus'); if (!el) return;
   const n = S.ctrlConns.length;
   if (!n) { el.textContent = 'Scannez le QR code avec votre smartphone'; return; }
-  const who = p => S.ctrlConns.some(o => o.player === p) ? '📱' : '—';
-  el.textContent = '✓ ' + n + ' manette' + (n > 1 ? 's' : '') + ' connectée' + (n > 1 ? 's' : '')
+  /* 📱 = manette smartphone · 🌐 = joueur en ligne (2ᵉ PC, v8.8) */
+  const who = p => { const c = S.ctrlConns.find(o => o.player === p); return c ? (c.net ? '🌐' : '📱') : '—'; };
+  el.textContent = '✓ ' + n + ' connexion' + (n > 1 ? 's' : '')
     + ' · J1 ' + who(1) + ' · J2 ' + who(2)
-    + ' — un autre téléphone peut encore scanner ce même QR.';
+    + ' — téléphone (QR) ou PC (code), il reste de la place.';
 }
 
 /* Un téléphone réclame un personnage (et sa voie). Un personnage ne peut
@@ -123,6 +145,65 @@ function doJoin(c, d) {
   showMsg('📱 Un téléphone contrôle le Joueur ' + n + ' (' + PATHS[pn].name + ').', 3.5);
 }
 
+/* ================================================================
+   v8.8 — JOUEUR EN LIGNE (2ᵉ PC) : mêmes messages que la manette
+   smartphone, PLUS la vidéo du jeu en retour (canvas + son capturés en
+   MediaStream, envoyés par un appel PeerJS) et un HUD répliqué (barres,
+   objectif, dialogues, recharges — pushNetHud) rendu localement sur
+   l'écran distant. L'arbre des pouvoirs du joueur distant est consulté
+   et acheté À DISTANCE (treereq/buynode/upgpower) — son écran l'affiche
+   sans mettre le jeu de l'hôte en pause.
+   ================================================================ */
+let netStream = null;
+function startNetVideo(c) {
+  if (!S.renderer || !S.hostPeer) return;
+  if (!A.ctx) A.init(); // le son du jeu part avec la vidéo
+  if (!netStream) {
+    try {
+      netStream = S.renderer.domElement.captureStream(30);
+      const as = A.stream();
+      if (as) for (const tr of as.getAudioTracks()) netStream.addTrack(tr);
+    } catch (e) { sendTo(c, { t: 'toast', msg: 'Vidéo indisponible sur cet hôte (' + e + ').' }); return; }
+  }
+  try {
+    if (c.call) c.call.close();
+    c.call = S.hostPeer.call(c.conn.peer, netStream);
+  } catch (e) {}
+}
+function sendTree(c) {
+  const isP2 = c.player !== 1;
+  const prog = isP2 ? p2 : G;
+  sendTo(c, { t: 'treedata', who: isP2 ? 2 : 1, path: isP2 ? p2.path : G.path,
+    level: prog.level, sp: prog.sp, xp: Math.round(prog.xp), need: xpNeed(prog.level),
+    shards: prog.shards, nodes: prog.nodes, pupg: prog.pupg, powers: G.powers });
+}
+/* HUD répliqué du joueur en ligne : ~10 envois/s, uniquement s'il y en a un */
+let hudAcc = 0;
+export function pushNetHud(dt) {
+  if (!S.ctrlConns.some(o => o.net)) return;
+  hudAcc += dt;
+  if (hudAcc < 0.1) return;
+  hudAcc = 0;
+  const vis = id => { const el = $(id); return el && !el.classList.contains('hidden'); };
+  for (const c of S.ctrlConns) {
+    if (!c.net) continue;
+    const isP2 = c.player !== 1;
+    const pr = isP2 ? p2 : G;
+    const cd = {};
+    for (const k in pr.cd) if (pr.cd[k] > 0.05) cd[k] = +pr.cd[k].toFixed(2);
+    sendTo(c, { t: 'hud',
+      hp: Math.round(pr.hp), mhp: pr.maxHp, mp: Math.round(pr.mana), mmp: pr.maxMana,
+      xp: Math.round(pr.xp), need: xpNeed(pr.level), lvl: pr.level, sp: pr.sp,
+      cd, potions: G.potions, pl: c.player || 2, path: isP2 ? p2.path : G.path,
+      obj: ($('objective') || { textContent: '' }).textContent,
+      msg: G.msgT > 0 ? $('msg').textContent : '',
+      dlg: G.dialog ? { n: $('dlg-name').textContent, x: $('dlg-text').textContent } : null,
+      paused: G.paused, coop: S.COOP && !!p2.mesh, started: G.started, over: G.over,
+      end: vis('truewin') ? 'truewin' : vis('win') ? 'win' : null
+    });
+  }
+}
+
 /* Toutes les commandes envoyées par un téléphone, routées vers SON joueur. */
 function handleCtrlMsg(c, d) {
   if (typeof d === 'string') {
@@ -131,6 +212,17 @@ function handleCtrlMsg(c, d) {
   if (!d || !d.t) return;
   if (d.t === 'hello') { sendTo(c, welcomeMsg()); return; }
   if (d.t === 'join') { doJoin(c, d); return; }
+  /* --- messages propres au joueur en ligne (2ᵉ PC) --- */
+  if (d.t === 'video') { c.net = true; startNetVideo(c); return; }
+  if (c.net) {
+    if (d.t === 'tree' || d.t === 'treereq') { sendTree(c); return; } // son arbre, sur SON écran
+    if (d.t === 'buynode') { buyNode(String(d.id), c.player === 1 ? 1 : 2); sendTree(c); return; }
+    if (d.t === 'upgpower') { upgradePower(String(d.id), c.player === 1 ? 1 : 2); sendTree(c); return; }
+    if (d.t === 'bag' || d.t === 'map') {
+      sendTo(c, { t: 'toast', msg: (d.t === 'bag' ? 'Le sac-atelier' : 'La carte') + ' se consulte sur l\'écran de l\'hôte pour l\'instant.' });
+      return;
+    }
+  }
   /* pavé de navigation : pilote les menus (écran-titre, pause, sac, carte...) */
   if (d.t === 'nav') { remoteNav(String(d.d)); return; }
   /* Aiguillage : ce téléphone parle POUR SON personnage — jamais pour
@@ -195,6 +287,7 @@ function dropCtrl(c) {
   const i = S.ctrlConns.indexOf(c);
   if (i < 0) return;
   S.ctrlConns.splice(i, 1);
+  try { if (c.call) c.call.close(); } catch (e) {} // referme le flux vidéo du joueur en ligne
   if (c.player === 2) { tm2Move.x = 0; tm2Move.z = 0; S.tm2BoltHeld = false; S.tm2JumpHeld = false; }
   else if (c.player === 1) { tmMove.x = 0; tmMove.z = 0; S.tmBoltHeld = false; S.tmJumpHeld = false; }
   updateQrStatus();
@@ -233,7 +326,11 @@ export function openManettePanel() {
   }
   $('qrstatus').textContent = 'Initialisation...';
   clearTimeout(S.hostConnTimer); // évite qu'un délai d'attente d'un pair précédent n'écrase ce nouveau statut
-  S.hostPeer = new Peer(undefined, { config: ICE_CONFIG });
+  /* v8.8 — l'identifiant du pair EST le code de partie ('ombreciel-CODE') :
+     le même pair sert les manettes smartphone (QR) ET le joueur en ligne
+     (saisie du code sur l'autre PC). Code déjà pris → on en retire un autre. */
+  const code = makeRoomCode();
+  S.hostPeer = new Peer(ROOM_PREFIX + code, peerOpts());
   S.hostPeer.on('open', id => {
     const url = location.origin + location.pathname + '?controller=' + id;
     $('qrlink').textContent = url;
@@ -241,6 +338,8 @@ export function openManettePanel() {
       if (err) { $('qrstatus').textContent = 'Erreur de génération du QR code.'; return; }
       $('qrcode').innerHTML = '<img src="' + dataUrl + '" width="180" height="180" alt="QR manette"/>';
     });
+    const rc = $('roomcode');
+    if (rc) rc.innerHTML = '🌐 Code de partie en ligne : <b>' + code + '</b><small>Sur l\'autre PC : ouvrez le jeu → « Rejoindre une partie en ligne » → entrez ce code.</small>';
     $('qrstatus').textContent = 'Scannez le QR code avec votre smartphone';
     clearTimeout(S.hostConnTimer);
     S.hostConnTimer = setTimeout(() => {
@@ -266,6 +365,8 @@ export function openManettePanel() {
     try { S.hostPeer.reconnect(); } catch (e) {}
   });
   S.hostPeer.on('error', e => {
+    /* code de partie déjà pris sur le réseau : on en retire un autre */
+    if (e.type === 'unavailable-id') { retryManette(); return; }
     $('qrstatus').textContent = 'Erreur : ' + e.type + '. Vérifiez la connexion internet des deux appareils, ou réessayez.';
     $('btn-qrretry').classList.remove('hidden');
   });

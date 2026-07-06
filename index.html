@@ -136,13 +136,16 @@
   </div>
   <button id="btn-start">Commencer l'aventure</button>
   <button id="btn-continue" class="hidden">Continuer la partie sauvegardée</button>
-  <button id="btn-manette-title">📱 Connecter des manettes smartphone (QR code)</button>
+  <button id="btn-manette-title">📱 Manettes smartphone &amp; partie en ligne (QR + code)</button>
+  <!-- v8.8 — jeu en ligne sur 2 PC : ce poste rejoint la partie d'un autre PC via son code -->
+  <button id="btn-join-title">🌐 Rejoindre une partie en ligne (code)</button>
   <div class="controls">
     <b>ZQSD / WASD</b> se déplacer · <b>Souris</b> caméra · <b>Clic gauche</b> attaquer · <b>Espace</b> saut · <b>Shift</b> sprint · <b>E</b> interagir<br/>
     <b>1-8</b> sorts · <b>Tab</b> sac &amp; atelier (met le jeu en pause) · <b>M</b> carte du monde · <b>H</b> boire une potion · <b>K</b> arbre des pouvoirs · <b>V</b> vue 1ʳᵉ pers. · <b>Échap</b> pause<br/>
     ⚔ <b>Combat :</b> les projectiles <b>retombent avec la distance</b> (visez plus haut de loin !) · coups critiques <b>en pleine tête</b> ou <b>dans le dos</b> · enchaînez les coups sans en subir pour monter votre <b>COMBO</b> (+5 % de dégâts par coup)<br/>
     🎮 Manette Xbox/PS reconnue automatiquement — A saut, B agir, <b>X attaque</b>, sorts assignables sur Y/LB/RB/LT/RT, croix haut/bas = arts de l'Outre-Ciel<br/>
     📱 <b>Manette smartphone :</b> scannez le QR (bouton ci-dessus ou menu pause) — <b>plusieurs téléphones</b> possibles, chacun choisit <b>son personnage (J1/J2)</b> et <b>sa voie</b> depuis le téléphone ; toutes les commandes y sont (sorts, sac, carte, pouvoirs, potion, menus)<br/>
+    🌐 <b>Jeu en ligne (2 PC) :</b> l'hôte ouvre le panneau 📱 ci-dessus et lit son <b>code de partie</b> ; l'autre PC clique « Rejoindre une partie en ligne », entre le code — il voit sa moitié d'écran en direct et joue au clavier/souris<br/>
     📱 <b>Mobile :</b> un bouton par sort sous le pouce droit · glissez le bouton d'attaque pour viser en tirant · <b>touchez un ennemi</b> pour le verrouiller (visée aimantée)<br/>
     Sensibilité de visée, zone morte, luminosité nocturne et <b>assignation des sorts</b> dans <b>⚙ Réglages</b> (menu pause)
   </div>
@@ -218,9 +221,11 @@
 </div>
 
 <div id="qrpanel" class="hidden">
-  <h3>MANETTE SMARTPHONE</h3>
+  <h3>MANETTES &amp; JEU EN LIGNE</h3>
   <div id="qrcode"></div>
   <div id="qrstatus">—</div>
+  <!-- v8.8 — le code de partie : l'autre PC le saisit via « Rejoindre une partie en ligne » -->
+  <div id="roomcode"></div>
   <div id="qrlink"></div>
   <button id="btn-qrretry" class="hidden">Réessayer</button>
   <button id="btn-qrclose">Fermer</button>

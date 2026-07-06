@@ -5,7 +5,7 @@
    mode dual jeu / manette smartphone (?controller=ID).
    ================================================================ */
 import './style.css';
-import { G, S, CTRL_ID, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, tm2Move, applyPath, loadSettings } from './state.js';
+import { G, S, CTRL_ID, JOIN_CODE, PEERSRV, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, tm2Move, applyPath, loadSettings } from './state.js';
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
@@ -19,7 +19,8 @@ import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad, initSettingsUI } from './Controls.js';
 import { initMap } from './WorldMap.js';
-import { openManettePanel, retryManette, startControllerMode, pushCtrlState } from './Network.js';
+import { openManettePanel, retryManette, startControllerMode, pushCtrlState, pushNetHud } from './Network.js';
+import { startOnlineClientMode } from './NetPlay.js';
 import { saveGame, hasSave, loadGame } from './SaveSystem.js';
 import { buildTowerGate, updateTower } from './Tower.js';
 
@@ -31,6 +32,7 @@ function loop() {
   const dt = Math.min(S.clock.getDelta(), 0.05);
   updateGamepad(dt);
   pushCtrlState(); // manettes smartphone : état des menus/sorts poussé sur changement
+  pushNetHud(dt);  // joueur en ligne (2ᵉ PC) : HUD répliqué ~10 Hz (barres, objectif, dialogues...)
   const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen;
   // ✦ tactile ou manette smartphone : toujours l'attaque de base (les sorts ont leurs boutons dédiés)
   if (S.tmBoltHeld && canAct) castSpecific('bolt');
@@ -147,6 +149,16 @@ function wireMenus() {
   $('btn-qrretry').addEventListener('click', () => {
     retryManette();
   });
+  /* v8.8 — REJOINDRE UNE PARTIE EN LIGNE (2ᵉ PC) : on saisit le code affiché
+     sur l'écran de l'hôte (panneau 📱/🌐), la page devient le poste du
+     joueur distant (vidéo + clavier/souris — voir NetPlay.js). */
+  $('btn-join-title').addEventListener('click', () => {
+    const raw = prompt('Code de la partie en ligne (affiché sur l\'écran de l\'hôte, bouton « Connecter des manettes ») :');
+    if (!raw) return;
+    const c = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!c) return;
+    location.href = location.pathname + '?join=' + c + (PEERSRV ? '&peersrv=' + encodeURIComponent(PEERSRV) : '');
+  });
   $('btn-qrclose').addEventListener('click', () => {
     $('qrpanel').classList.add('hidden');
   });
@@ -247,6 +259,10 @@ async function initGame() {
 if (CTRL_ID) {
   /* Cette page a été ouverte depuis le QR code : on devient la manette. */
   startControllerMode();
+} else if (JOIN_CODE) {
+  /* v8.8 — ?join=CODE : cette page devient le poste du joueur EN LIGNE
+     (vidéo du jeu en streaming + clavier/souris, voir NetPlay.js). */
+  startOnlineClientMode(JOIN_CODE);
 } else {
   initGame();
 }

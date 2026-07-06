@@ -215,8 +215,12 @@ canvas{display:block;touch-action:none}
 #qrlink{margin-top:8px;font-size:10px;font-family:Verdana,sans-serif;color:#5f6b8c;word-break:break-all;max-width:280px}
 #qrpanel button{margin-top:14px;background:#1a2142;color:#cfd8f2;border:1px solid rgba(150,180,255,.35);border-radius:8px;padding:8px 22px;font-family:Georgia,serif;font-size:14px;cursor:pointer}
 /* bouton d'appairage des manettes smartphone, discret sous « Commencer » */
-#btn-manette-title{font-size:14px;letter-spacing:1px;color:#cfd8f2;background:#1a2142;border:1px solid rgba(150,180,255,.35);box-shadow:none;padding:9px 22px;margin-top:10px}
-#btn-manette-title:hover{background:#232c56;filter:none}
+#btn-manette-title,#btn-join-title{font-size:14px;letter-spacing:1px;color:#cfd8f2;background:#1a2142;border:1px solid rgba(150,180,255,.35);box-shadow:none;padding:9px 22px;margin-top:10px}
+#btn-manette-title:hover,#btn-join-title:hover{background:#232c56;filter:none}
+/* v8.8 — code de partie en ligne (affiché dans le panneau QR de l'hôte) */
+#roomcode{margin-top:12px;font-size:15px;color:#8fe8c8;letter-spacing:1px}
+#roomcode b{font-size:26px;letter-spacing:8px;color:#9fffd8;text-shadow:0 0 14px rgba(90,255,190,.5)}
+#roomcode small{display:block;margin-top:5px;font-size:10.5px;font-family:Verdana,sans-serif;color:#7f8bb0;max-width:300px;line-height:1.5}
 /* ---------- Coop écran scindé ---------- */
 #modes{display:flex;gap:12px;margin:6px 0 4px}
 .modebtn{background:rgba(10,13,28,.85);border:1px solid rgba(150,180,255,.3);border-radius:10px;padding:10px 20px;color:#cfd8f2;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:1px}
