@@ -319,11 +319,18 @@ export function rollEquipment(slot, rarity, cls) {
     score: R.score
   };
 }
+/* v9.1 — ÉQUIPEMENT PAR JOUEUR : le sac de forge et les ressources restent
+   un pot commun (G.gearBag, G.herbs, G.shadows...), mais chaque porteur a
+   SES trois emplacements (G.equipment pour le J1, p2.equipment pour le
+   J2) — équiper une arme sur l'un ne change rien à l'autre. Toutes les
+   fonctions ci-dessous prennent `who` (1 = J1 par défaut, 2 = J2). */
+function equipOf(who) { return who === 2 ? p2.equipment : G.equipment; }
 /* Somme des stats portées — LA source de vérité de la puissance d'équipement */
-export function equipTotals() {
+export function equipTotals(who) {
+  const eq = equipOf(who);
   const t = { dmg: 0, armor: 0, hp: 0, mana: 0, speed: 0 };
-  for (const k in G.equipment) {
-    const it = G.equipment[k];
+  for (const k in eq) {
+    const it = eq[k];
     if (!it) continue;
     for (const s in it.stats) t[s] = (t[s] || 0) + it.stats[s];
   }
@@ -331,16 +338,17 @@ export function equipTotals() {
 }
 /* Rendements décroissants (soft cap) : 100 d'armure = 50 % de réduction,
    200 = 66 %... plafond DUR à 75 % — l'invincibilité est impossible. */
-export function armorReduction() {
-  const a = equipTotals().armor;
+export function armorReduction(who) {
+  const a = equipTotals(who).armor;
   return Math.min(0.75, a / (a + 100));
 }
-/* Score d'Équipement global (0 à 450) : lu par l'IA adaptative, le gear
-   check des salles et le directeur de renforts (étapes 4-5). */
-export function gearScore() {
+/* Score d'Équipement (0 à 450) DE CE PORTEUR : lu par l'IA adaptative, le
+   gear check des salles et le directeur de renforts (étapes 4-5). */
+export function gearScore(who) {
+  const eq = equipOf(who);
   let s = 0;
-  for (const k in G.equipment) {
-    const it = G.equipment[k];
+  for (const k in eq) {
+    const it = eq[k];
     if (it) s += it.score || (RARITIES[it.rarity] ? RARITIES[it.rarity].score : 0);
   }
   return s;
@@ -348,28 +356,30 @@ export function gearScore() {
 /* Équipe un objet dans son emplacement et RETOURNE l'ancien (pour le sac ou
    la fusion). Les bonus PV/PM max s'appliquent en delta — jamais de double
    comptage au fil des échanges, et la sauvegarde reste cohérente. */
-export function equipItem(item) {
-  if (!item || !(item.slot in G.equipment)) return null;
-  const prev = G.equipment[item.slot];
+export function equipItem(item, who) {
+  const eq = equipOf(who), pr = who === 2 ? p2 : G;
+  if (!item || !(item.slot in eq)) return null;
+  const prev = eq[item.slot];
   const delta = k => (item.stats[k] || 0) - ((prev && prev.stats[k]) || 0);
   const dHp = delta('hp'), dMana = delta('mana');
-  G.equipment[item.slot] = item;
-  G.maxHp += dHp;
-  G.hp = Math.max(1, Math.min(G.maxHp, G.hp + Math.max(0, dHp)));
-  G.maxMana += dMana;
-  G.mana = Math.max(0, Math.min(G.maxMana, G.mana + Math.max(0, dMana)));
+  eq[item.slot] = item;
+  pr.maxHp += dHp;
+  pr.hp = Math.max(1, Math.min(pr.maxHp, pr.hp + Math.max(0, dHp)));
+  pr.maxMana += dMana;
+  pr.mana = Math.max(0, Math.min(pr.maxMana, pr.mana + Math.max(0, dMana)));
   return prev;
 }
 /* Retire l'objet d'un emplacement (et rend ses PV/PM max) — Corpse Run
    (étape 3) et fusion à la Forge (étape 2) s'appuient dessus. */
-export function unequipSlot(slot) {
-  const it = G.equipment[slot];
+export function unequipSlot(slot, who) {
+  const eq = equipOf(who), pr = who === 2 ? p2 : G;
+  const it = eq[slot];
   if (!it) return null;
-  G.equipment[slot] = null;
-  G.maxHp -= it.stats.hp || 0;
-  G.hp = Math.max(1, Math.min(G.hp, G.maxHp));
-  G.maxMana -= it.stats.mana || 0;
-  G.mana = Math.max(0, Math.min(G.mana, G.maxMana));
+  eq[slot] = null;
+  pr.maxHp -= it.stats.hp || 0;
+  pr.hp = Math.max(1, Math.min(pr.hp, pr.maxHp));
+  pr.maxMana -= it.stats.mana || 0;
+  pr.mana = Math.max(0, Math.min(pr.mana, pr.maxMana));
   return it;
 }
 
@@ -420,7 +430,11 @@ export const p2 = {
   /* v9 — INDÉPENDANCE DES JOUEURS : le Joueur 2 (manette locale ou joueur en
      ligne, 2ᵉ PC) a SA PROPRE pause — la pause du J1 ne fige plus son
      personnage (voir p1Busy/p2Busy/worldFrozen ci-dessous et main.js). */
-  paused: false
+  paused: false,
+  /* SON PROPRE équipement (voir equipTotals/gearScore/equipItem plus bas,
+     paramétrés par `who`) : le sac de forge et les ressources restent un
+     pot commun aux deux joueurs, mais chacun porte SES trois emplacements. */
+  equipment: { weapon: null, armor: null, accessory: null }
 };
 
 /* ---- Joueur 1 ---- */

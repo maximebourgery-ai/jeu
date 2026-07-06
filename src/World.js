@@ -147,25 +147,45 @@ export function initScene() {
    coop LOCALE (manette/téléphone sur LA MÊME machine, un seul écran
    physique à se partager) garde encore le rendu scindé d'origine. */
 export function coopNetP2() { return S.COOP && S.ctrlConns.some(o => o.net && o.player === 2); }
+/* Le canevas du J2 en ligne n'est JAMAIS affiché localement (voir plus bas) :
+   inutile de le rendre à la résolution retina de l'hôte pour l'envoyer
+   ensuite en visio — à bitrate égal, plus de pixels à compresser ne donne
+   qu'une image PLUS FLOUE. On le plafonne à une résolution confortable
+   pour le streaming, en conservant le ratio d'affichage de l'hôte
+   (dimensions paires : plus sûr pour l'encodeur H.264/VP8). */
+const NET_MAX_DIM = 1600;
+function netP2Size() {
+  let w = innerWidth, h = innerHeight;
+  const ar = w / h;
+  if (Math.max(w, h) > NET_MAX_DIM) {
+    if (w >= h) { w = NET_MAX_DIM; h = Math.round(w / ar); }
+    else { h = NET_MAX_DIM; w = Math.round(h * ar); }
+  }
+  w -= w % 2; h -= h % 2;
+  return { w, h };
+}
 export function setCamAspects() {
   const halfScreen = S.COOP && !coopNetP2();
   S.camera.aspect = (halfScreen ? innerWidth / 2 : innerWidth) / innerHeight;
   S.camera.updateProjectionMatrix();
   S.cam2.aspect = (halfScreen ? innerWidth / 2 : innerWidth) / innerHeight;
   S.cam2.updateProjectionMatrix();
-  if (S.renderer2) S.renderer2.setSize(innerWidth, innerHeight);
-  if (S.composer2) S.composer2.setSize(innerWidth, innerHeight);
+  if (S.renderer2) { const { w, h } = netP2Size(); S.renderer2.setSize(w, h); }
+  if (S.composer2) { const { w, h } = netP2Size(); S.composer2.setSize(w, h); }
 }
 /* Second rendu, dédié au Joueur 2 en ligne : même pipeline (bloom compris)
    que le J1, sur un canevas séparé — jamais affiché localement (opacity 0,
    hors du flux visuel), seulement capturé (captureStream) et diffusé au
    joueur distant. Créé une seule fois, à la première connexion en ligne
-   du J2 (voir Network.startNetVideo). */
+   du J2 (voir Network.startNetVideo). Résolution plafonnée (netP2Size) :
+   ne sert qu'au streaming, pas à un affichage local, pas la peine de payer
+   le prix (bande passante, netteté) d'un rendu retina. */
 export function ensureP2Renderer() {
   if (S.renderer2) return;
+  const { w, h } = netP2Size();
   S.renderer2 = new THREE.WebGLRenderer({ antialias: true });
-  S.renderer2.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  S.renderer2.setSize(innerWidth, innerHeight);
+  S.renderer2.setPixelRatio(1);
+  S.renderer2.setSize(w, h);
   S.renderer2.shadowMap.enabled = true;
   S.renderer2.shadowMap.type = THREE.PCFSoftShadowMap;
   S.renderer2.outputColorSpace = THREE.SRGBColorSpace;
@@ -175,7 +195,7 @@ export function ensureP2Renderer() {
   document.body.appendChild(S.renderer2.domElement);
   S.composer2 = new EffectComposer(S.renderer2);
   S.renderPass2 = new RenderPass(S.scene, S.cam2);
-  S.bloomPass2 = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.62, 0.42, 0.95);
+  S.bloomPass2 = new UnrealBloomPass(new THREE.Vector2(w, h), 0.62, 0.42, 0.95);
   S.composer2.addPass(S.renderPass2);
   S.composer2.addPass(S.bloomPass2);
   S.composer2.addPass(new OutputPass());
@@ -601,8 +621,8 @@ export function updatePickups(dt) {
 }
 
 /* ---------------- INTERACTIONS ---------------- */
-export function addInter(x, y, z, r, label, fn) {
-  const it = { x, y, z, r, label, fn, on: true };
+export function addInter(x, y, z, r, label, fn, kind) {
+  const it = { x, y, z, r, label, fn, on: true, kind: kind || null };
   inter.push(it);
   return it;
 }
@@ -1415,7 +1435,11 @@ export function mkAnvil(x, y, z) {
   light.position.set(x, y + 1.1, z);
   S.scene.add(light);
   flames.push({ flame: ember, light, halo, base: 1.3 * LIGHT_SCALE, seed: Math.random() * 10 });
-  addInter(x, y, z, 2.8, '⚒ Forge — façonner et fusionner l\'équipement', () => toggleForge());
+  /* `kind: 'forge'` : le J2 EN LIGNE (2ᵉ PC) n'ouvre jamais ce panneau
+     (celui de l'hôte) — Network.js reconnaît cette interaction à son
+     `kind` et lui pousse SA PROPRE Forge, sur SON écran (voir sendForge,
+     rendue côté client par NetPlay.js). */
+  addInter(x, y, z, 2.8, '⚒ Forge — façonner et fusionner l\'équipement', () => toggleForge(), 'forge');
   anvilSpots.push({ x, y, z });
 }
 /* Guide du porteur — la Forge, à la première approche (pas seulement à

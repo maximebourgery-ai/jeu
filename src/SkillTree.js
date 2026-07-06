@@ -87,12 +87,12 @@ export function bonusMul() {
 /* Statistiques d'attaque effectives de la voie, dérivées des nœuds acquis
    PAR CE JOUEUR (who : 1 = J1, 2 = J2 — chacun son arbre en coop).
    v9 : les dégâts de BASE de la voie s'additionnent à ceux de l'ARME
-   équipée (G.equipment.weapon) AVANT les multiplicateurs de l'arbre —
-   l'arme monte le plancher, l'arbre garde son rôle de multiplicateur.
-   L'équipement appartient au J1 (le porteur) : le J2 n'en profite pas. */
+   équipée AVANT les multiplicateurs de l'arbre — l'arme monte le plancher,
+   l'arbre garde son rôle de multiplicateur. v9.1 : chaque porteur a SON
+   PROPRE équipement (equipTotals(who), state.js) — le J2 en profite aussi. */
 export function classAtk(path, who) {
   const B = PATHS[path];
-  const P = { melee: B.melee, range: B.range, dmg: B.dmg + (who === 2 ? 0 : (equipTotals().dmg || 0)), pSpeed: B.pSpeed, path: path };
+  const P = { melee: B.melee, range: B.range, dmg: B.dmg + (equipTotals(who).dmg || 0), pSpeed: B.pSpeed, path: path };
   if (path === 'mage') {
     if (hasN('m_power', who)) P.dmg = Math.round(P.dmg * 1.6);
     if (hasN('m_pierce', who)) { P.pierce = true; P.pSpeed *= 1.35; }

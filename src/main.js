@@ -87,7 +87,13 @@ function loop() {
        scindé. Le J1 (l'hôte) est rendu ici normalement (bloom compris,
        comme en solo) ; le J2 est rendu À PART (canevas dédié, même
        qualité) et cette seconde image est celle diffusée au joueur
-       distant — voir Network.startNetVideo / World.ensureP2Renderer. */
+       distant — voir Network.startNetVideo / World.ensureP2Renderer.
+       Le viewport/scissor plein écran est RÉAFFIRMÉ à chaque frame : sans
+       ça, un scissor resté à moitié d'écran (rendu scindé LOCAL, juste
+       avant qu'un joueur en ligne rejoigne) reste actif sur le renderer
+       et laisse une bande verticale figée au milieu de l'image de l'hôte. */
+    S.renderer.setScissorTest(false);
+    S.renderer.setViewport(0, 0, innerWidth, innerHeight);
     S.composer.render();
     S.composer2.render();
   } else if (S.COOP) {
@@ -102,7 +108,12 @@ function loop() {
     S.renderer.render(S.scene, S.cam2);
     S.renderer.setScissorTest(false);
   } else {
-    /* Solo : EffectComposer (RenderPass + UnrealBloomPass + OutputPass) */
+    /* Solo : EffectComposer (RenderPass + UnrealBloomPass + OutputPass).
+       Même réaffirmation du viewport/scissor plein écran qu'en coop en
+       ligne : un J2 qui quitte le rendu scindé local ne doit pas laisser
+       de bande figée au milieu de l'écran du J1. */
+    S.renderer.setScissorTest(false);
+    S.renderer.setViewport(0, 0, innerWidth, innerHeight);
     S.composer.render();
   }
 }

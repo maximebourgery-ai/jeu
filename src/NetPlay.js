@@ -16,7 +16,8 @@
    L'hôte reste 100 % autorité : physique, combats, XP, sauvegarde.
    ================================================================ */
 import Peer from 'peerjs';
-import { PATHS, POWERS, TREE_COMMON, TREES, PUPG, SAVE_KEY } from './state.js';
+import { PATHS, POWERS, TREE_COMMON, TREES, PUPG, SAVE_KEY, RARITIES, RARITY_ORDER, SLOT_DEFS } from './state.js';
+import { RES, FORGE_COST, FUSE_COSTS } from './Crafting.js';
 import { peerOpts, ROOM_PREFIX } from './Network.js';
 
 export function startOnlineClientMode(code) {
@@ -84,6 +85,25 @@ export function startOnlineClientMode(code) {
     '.ond .tr{font-size:9px;font-family:Verdana,sans-serif;color:#5c6788;margin-top:6px;padding-top:5px;border-top:1px solid rgba(232,224,204,.07)}' +
     '.ond .stars{color:#8feaff;font-size:10px;letter-spacing:2px;margin-left:5px}' +
     '@media (max-width:900px){.ond{width:100%}}' +
+    /* ---------- Forge locale (enclume, E) ---------- */
+    '#oforge{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(760px,94vw);max-height:88vh;overflow-y:auto;background:rgba(5,7,15,.92);border:1px solid rgba(232,224,204,.2);border-radius:14px;padding:22px 26px;z-index:9;display:none;pointer-events:auto}' +
+    '#oforge h3{color:#ffd97a;font-weight:normal;letter-spacing:4px;font-size:15px;margin-bottom:6px}' +
+    '#oforge .ftop{font-size:11px;font-family:Verdana,sans-serif;color:#7f8bb0;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(232,224,204,.1)}' +
+    '#oforge .ftop b{color:#ffd97a;font-weight:normal}' +
+    '#oforge .br{color:#8fc8ff;font-size:11px;letter-spacing:3px;margin:14px 0 8px;text-transform:uppercase}' +
+    '#oforge .gearrow{display:flex;gap:9px;flex-wrap:wrap}' +
+    '#oforge .gearlist{display:flex;gap:9px;flex-wrap:wrap}' +
+    '.gearslot{width:214px}' +
+    '.gsl{font-size:10px;font-family:Verdana,sans-serif;color:#7f8bb0;margin-bottom:4px}' +
+    '.gearempty{font-size:11px;font-family:Verdana,sans-serif;color:#5c6788;font-style:italic}' +
+    '.gearcard{width:214px;background:rgba(255,255,255,.03);border:1px solid rgba(150,180,255,.14);border-radius:10px;padding:10px 11px;text-align:left}' +
+    '.gearcard .gn{font-size:13px}' +
+    '.gearcard .gn em{font-style:normal;font-size:9px;font-family:Verdana,sans-serif;opacity:.8;margin-left:4px}' +
+    '.gearcard .gs{font-size:10px;font-family:Verdana,sans-serif;color:#8791b4;line-height:1.5;margin-top:4px}' +
+    '.gearcard button,.forgebtn{margin-top:7px;font-family:Georgia,serif;font-size:12px;color:#ffd97a;background:#1a2142;border:1px solid rgba(255,217,122,.5);border-radius:7px;padding:5px 10px;cursor:pointer}' +
+    '.forgebtn{width:214px;text-align:left}' +
+    '.forgebtn small{display:block;font-size:9px;font-family:Verdana,sans-serif;color:#8791b4;margin-top:3px}' +
+    '@media (max-width:900px){.gearslot,.gearcard,.forgebtn{width:100%}}' +
     '</style>');
   document.body.innerHTML =
     '<div id="owrap"><video id="ovideo" autoplay playsinline></video></div>' +
@@ -99,6 +119,7 @@ export function startOnlineClientMode(code) {
     '</div>' +
     '<div id="odlg"><div class="n"></div><div class="x"></div><div class="h">E ou clic pour continuer…</div></div>' +
     '<div id="otree"></div>' +
+    '<div id="oforge"></div>' +
     '<div id="oveil"></div>' +
     '<div id="osetup">' +
     '<h2>🌐 PARTIE EN LIGNE — LES TOURS D\'OMBRECIEL</h2>' +
@@ -121,7 +142,7 @@ export function startOnlineClientMode(code) {
   const setupMsg = t => { el('osetupmsg').textContent = t || ''; };
 
   /* ---- état local ---- */
-  const st = { player: 2, path: 'mage', joined: false, treeOpen: false };
+  const st = { player: 2, path: 'mage', joined: false, treeOpen: false, forgeOpen: false };
   let welcome = null, hud = null, msgT = 0;
 
   /* ================= vidéo : image plein écran, jamais scindée =================
@@ -238,6 +259,14 @@ export function startOnlineClientMode(code) {
         else if (d.t === 'toast') { el('omsg').textContent = d.msg || ''; msgT = 30; }
         else if (d.t === 'hud') applyHud(d);
         else if (d.t === 'treedata') renderTree(d);
+        /* v9.1 — SA PROPRE FORGE : poussée par l'hôte quand ce joueur
+           interagit (E) avec une enclume — s'ouvre directement sur SON
+           écran, jamais sur celui de l'hôte (voir Network.sendForge). */
+        else if (d.t === 'forgedata') {
+          st.forgeOpen = true;
+          if (document.exitPointerLock) document.exitPointerLock();
+          renderForge(d);
+        }
         else if (d.t === 'ui') {
           if (d.powers) POWERS.forEach(p => {
             const b = el('osp-' + p.id);
@@ -380,13 +409,77 @@ export function startOnlineClientMode(code) {
     }
   }
 
+  /* ================= Forge locale (enclume, E) =================
+     v9.1 — s'ouvre quand l'hôte pousse forgedata (ce joueur vient
+     d'appuyer sur E près d'une enclume) : SON équipement, sur SON écran,
+     jamais celui de l'hôte. Le sac de forge et les ressources restent un
+     pot commun aux deux porteurs. */
+  function gearCardHtml(it, action) {
+    const R = RARITIES[it.rarity];
+    const stats = Object.keys(it.stats)
+      .map(k => ({ dmg: '⚔', armor: '🛡', hp: '♥', mana: '❂', speed: '➶' }[k] + ' +' + it.stats[k] + (k === 'speed' ? ' %' : '')))
+      .join(' · ');
+    return '<div class="gearcard" style="border-color:' + R.css + '">'
+      + '<div class="gn" style="color:' + R.css + '">' + it.icon + ' ' + it.name + ' <em>' + R.name + '</em></div>'
+      + '<div class="gs">' + stats + '</div>' + action + '</div>';
+  }
+  function forgeCostText(res, cost) {
+    return Object.keys(cost).map(k => RES[k].icon + ' ' + (res[k] || 0) + '/' + cost[k]).join(' · ');
+  }
+  function renderForge(d) {
+    if (!st.forgeOpen) return;
+    const t = el('oforge');
+    let h = '<h3>⚒ LA FORGE D\'OMBRECIEL — JOUEUR ' + d.who + '</h3>';
+    h += '<div class="ftop">Score d\'équipement : <b>' + d.score + '</b> / 450 · Voie : <b>' + PATHS[d.path].name + '</b></div>';
+    h += '<div class="br">ÉQUIPEMENT PORTÉ</div><div class="gearrow">';
+    for (const slot of ['weapon', 'armor', 'accessory']) {
+      const it = d.equipment[slot];
+      h += '<div class="gearslot"><div class="gsl">' + SLOT_DEFS[slot].name + '</div>'
+        + (it ? gearCardHtml(it, '<button data-unequip="' + slot + '">Retirer</button>')
+              : '<div class="gearempty">— vide —</div>')
+        + '</div>';
+    }
+    h += '</div>';
+    h += '<div class="br">FAÇONNER — pièce Commune adaptée au ' + PATHS[d.path].name + '</div><div class="gearrow">';
+    for (const slot of ['weapon', 'armor', 'accessory'])
+      h += '<button class="forgebtn" data-forge="' + slot + '">⚒ ' + SLOT_DEFS[slot].name
+        + '<small>' + forgeCostText(d.res, FORGE_COST) + '</small></button>';
+    h += '</div>';
+    h += '<div class="br">FUSION — 3 pièces de même rareté + ressources → rareté supérieure</div><div class="gearrow">';
+    for (let i = 0; i < RARITY_ORDER.length - 1; i++) {
+      const rar = RARITY_ORDER[i], next = RARITY_ORDER[i + 1];
+      const n = d.gearBag.filter(x => x.rarity === rar).length;
+      h += '<button class="forgebtn" data-fuse="' + rar + '" style="border-color:' + RARITIES[next].css + '">'
+        + '3× ' + RARITIES[rar].name + ' (' + Math.min(n, 3) + '/3) → <b style="color:' + RARITIES[next].css + '">'
+        + RARITIES[next].name + '</b><small>' + forgeCostText(d.res, FUSE_COSTS[next]) + '</small></button>';
+    }
+    h += '</div>';
+    h += '<div class="br">SAC DE FORGE — ' + d.gearBag.length + ' <small>(commun aux deux porteurs)</small></div><div class="gearlist">';
+    if (!d.gearBag.length) h += '<div class="gearempty">Le sac est vide : façonnez une pièce, ou arrachez-en aux ombres.</div>';
+    d.gearBag.forEach((it, i) => { h += gearCardHtml(it, '<button data-equip="' + i + '">Équiper</button>'); });
+    h += '</div>';
+    h += '<div style="text-align:center;margin-top:14px"><button id="oforgeclose">Refermer (Échap)</button></div>';
+    t.innerHTML = h;
+    t.style.display = 'block';
+    t.querySelectorAll('[data-forge]').forEach(b => b.addEventListener('click', () => send({ t: 'forgecraft', slot: b.dataset.forge })));
+    t.querySelectorAll('[data-fuse]').forEach(b => b.addEventListener('click', () => send({ t: 'forgefuse', rarity: b.dataset.fuse })));
+    t.querySelectorAll('[data-equip]').forEach(b => b.addEventListener('click', () => send({ t: 'forgeequip', idx: +b.dataset.equip })));
+    t.querySelectorAll('[data-unequip]').forEach(b => b.addEventListener('click', () => send({ t: 'forgeunequip', slot: b.dataset.unequip })));
+    el('oforgeclose').addEventListener('click', closeLocalForge);
+  }
+  function closeLocalForge() {
+    st.forgeOpen = false;
+    el('oforge').style.display = 'none';
+    lockMouse();
+  }
+
   /* ================= clavier + souris → messages manette ================= */
   function lockMouse() {
-    if (!st.joined || st.treeOpen) return;
+    if (!st.joined || st.treeOpen || st.forgeOpen) return;
     try { document.body.requestPointerLock(); } catch (e) {}
   }
   document.addEventListener('pointerlockchange', syncVeil);
-  el('owrap').addEventListener('click', () => { if (st.joined && !st.treeOpen) lockMouse(); });
+  el('owrap').addEventListener('click', () => { if (st.joined && !st.treeOpen && !st.forgeOpen) lockMouse(); });
 
   /* déplacement : ZQSD/WASD (codes physiques — AZERTY compris), envoyé 20 Hz */
   const keys = {};
@@ -396,6 +489,7 @@ export function startOnlineClientMode(code) {
     if (keys[e.code]) return;
     keys[e.code] = true;
     if (!st.joined) return;
+    if (st.forgeOpen) { if (e.code === 'Escape') closeLocalForge(); return; }
     if (e.code === 'KeyK') { toggleLocalTree(); return; }
     if (st.treeOpen) { if (e.code === 'Escape') toggleLocalTree(); return; }
     if (e.code === 'Space') send({ t: 'jumpdown' });
@@ -429,7 +523,7 @@ export function startOnlineClientMode(code) {
     lookDY += e.movementY * 0.46;
   });
   addEventListener('mousedown', e => {
-    if (!st.joined || st.treeOpen) return;
+    if (!st.joined || st.treeOpen || st.forgeOpen) return;
     if (!document.pointerLockElement) return;
     if (e.button === 0) send({ t: 'atkdown' });
   });

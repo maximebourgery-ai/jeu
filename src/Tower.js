@@ -347,13 +347,15 @@ function gotoPalier(n) {
      conseillé) → alerte claire, et les ombres du palier sont ×3 en PV et
      dégâts. Les Maîtres d'Étage, calibrés à la main, restent inchangés. */
   const rec = PALIER_GEAR[n] || 0;
-  if (rec && gearScore() < rec * 0.4) {
+  // v9.1 — chacun son équipement : le palier juge le MIEUX équipé des porteurs présents
+  const gs = Math.max(gearScore(1), dragP2 ? gearScore(2) : 0);
+  if (rec && gs < rec * 0.4) {
     for (let i = snap.enemies; i < enemies.length; i++) {
       const e = enemies[i];
       if (e.dead || e.fsm) continue;
       e.hp *= 3; e.maxHp *= 3; e.dmg = Math.round(e.dmg * 3);
     }
-    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gearScore() + ' / ' + rec
+    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gs + ' / ' + rec
       + ' conseillé) : les ombres y frappent TROIS FOIS plus fort. Forgez votre panoplie à une enclume !');
   }
   S.inTower = true; S.palier = n;

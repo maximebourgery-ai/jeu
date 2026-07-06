@@ -17,16 +17,16 @@
    ================================================================ */
 import Peer from 'peerjs';
 import QRCode from 'qrcode';
-import { G, S, CTRL_ID, PEERSRV, PATHS, POWERS, tmMove, tm2Move, p2, settings, applyPath } from './state.js';
+import { G, S, CTRL_ID, PEERSRV, PATHS, POWERS, tmMove, tm2Move, p2, settings, applyPath, gearScore } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg, toggleInv, buildPowersUI } from './UI.js';
 import { dlgNext } from './Quests.js';
-import { tryInteract, tryInteractP2, ensureP2Renderer, setCamAspects } from './World.js';
+import { tryInteract, tryInteractP2, ensureP2Renderer, setCamAspects, nearInterP } from './World.js';
 import { castSpecific } from './Powers.js';
 import { remoteNav, anyPanelOpen } from './Controls.js';
 import { toggleTree, buyNode, upgradePower, xpNeed } from './SkillTree.js';
 import { toggleMap, mapPan } from './WorldMap.js';
-import { craftAction } from './Crafting.js';
+import { craftAction, forgeGear, fuseGear, equipFromBag, unequipToBag } from './Crafting.js';
 import { refreshPlayerVisual, setupCoopP2 } from './Player.js';
 
 /* Serveurs STUN + TURN publics (Open Relay Project) : le TURN est ce qui
@@ -161,6 +161,30 @@ function doJoin(c, d) {
    ligne reçoit ainsi SON PROPRE écran plein, jamais une moitié d'écran
    scindé, avec la même qualité de rendu (bloom compris) que l'hôte. */
 let netStream1 = null, netStream2 = null;
+/* Le flux WebRTC par défaut vise ~2 Mbit/s et laisse le navigateur choisir
+   librement la résolution d'encodage : sur un canevas de jeu très détaillé
+   (texte du HUD, particules), ça se traduit par une image visiblement floue
+   chez le joueur distant. On relève franchement le débit visé et on indique
+   à l'encodeur de privilégier la NETTETÉ (contentHint 'detail' + résolution
+   maintenue plutôt que sacrifiée en premier sous contrainte de bande passante). */
+function tuneVideoQuality(call, stream) {
+  const track = stream.getVideoTracks()[0];
+  if (track && 'contentHint' in track) track.contentHint = 'detail';
+  const apply = () => {
+    const pc = call && call.peerConnection;
+    if (!pc) return false;
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+    if (!sender) return false;
+    const params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+    params.encodings[0].maxBitrate = 4_000_000; // ~4 Mbit/s : largement au-dessus du défaut
+    params.degradationPreference = 'maintain-resolution';
+    sender.setParameters(params).catch(() => {});
+    return true;
+  };
+  // le RTCPeerConnection de PeerJS n'est pas toujours prêt à l'instant du call()
+  if (!apply()) setTimeout(apply, 300);
+}
 function startNetVideo(c) {
   if (!S.renderer || !S.hostPeer) return;
   if (!A.ctx) A.init(); // le son du jeu part avec la vidéo
@@ -182,6 +206,7 @@ function startNetVideo(c) {
   try {
     if (c.call) c.call.close();
     c.call = S.hostPeer.call(c.conn.peer, stream);
+    tuneVideoQuality(c.call, stream);
   } catch (e) {}
 }
 function sendTree(c) {
@@ -190,6 +215,19 @@ function sendTree(c) {
   sendTo(c, { t: 'treedata', who: isP2 ? 2 : 1, path: isP2 ? p2.path : G.path,
     level: prog.level, sp: prog.sp, xp: Math.round(prog.xp), need: xpNeed(prog.level),
     shards: prog.shards, nodes: prog.nodes, pupg: prog.pupg, powers: G.powers });
+}
+/* v9.1 — LA FORGE DU JOUEUR EN LIGNE : le sac de forge et les ressources
+   restent un pot COMMUN aux deux joueurs (comme les potions), mais CET
+   équipement (armes/armure/accessoire) est propre à qui le porte — rendue
+   sur SON écran par NetPlay.js (renderForge), jamais sur celui de l'hôte. */
+function sendForge(c) {
+  const isP2 = c.player !== 1;
+  const who = isP2 ? 2 : 1;
+  sendTo(c, { t: 'forgedata', who, path: isP2 ? p2.path : G.path,
+    equipment: isP2 ? p2.equipment : G.equipment,
+    gearBag: G.gearBag, score: gearScore(who),
+    res: { herbs: G.herbs, shadows: G.shadows, orbes: G.orbes,
+      feathers: G.feathers, bones: G.bones, threads: G.threads, nightHearts: G.nightHearts } });
 }
 /* v9 — SAUVEGARDE INDÉPENDANTE DU JOUEUR EN LIGNE : à chaque sauvegarde de
    l'hôte (auto-save, bouton, écran de chargement), on renvoie une copie de
@@ -210,6 +248,7 @@ export function broadcastSaveToNet(s) {
       payload = Object.assign({}, s, {
         path: pr.path, xp: pr.xp, level: pr.level, sp: pr.sp,
         shards: pr.shards, nodes: pr.nodes, pupg: pr.pupg,
+        equipment: pr.equipment || p2.equipment, // v9.1 : SON équipement, pas celui du J1
         coop: false, p2prog: null,
         hp: p2.hp, maxHp: p2.maxHp, mana: p2.mana, maxMana: p2.maxMana,
         px: p2.pos ? p2.pos.x : s.px, py: p2.pos ? p2.pos.y : s.py, pz: p2.pos ? p2.pos.z : s.pz,
@@ -263,6 +302,14 @@ function handleCtrlMsg(c, d) {
     if (d.t === 'tree' || d.t === 'treereq') { sendTree(c); return; } // son arbre, sur SON écran
     if (d.t === 'buynode') { buyNode(String(d.id), c.player === 1 ? 1 : 2); sendTree(c); return; }
     if (d.t === 'upgpower') { upgradePower(String(d.id), c.player === 1 ? 1 : 2); sendTree(c); return; }
+    /* v9.1 — SA PROPRE Forge, sur SON écran (voir renderForge, NetPlay.js) :
+       le sac de forge et les ressources sont un pot commun, mais l'objet
+       façonné/fusionné est adapté à sa Voie et va dans SON équipement. */
+    if (d.t === 'forge' || d.t === 'forgereq') { sendForge(c); return; }
+    if (d.t === 'forgecraft') { forgeGear(String(d.slot), c.player === 1 ? 1 : 2); sendForge(c); return; }
+    if (d.t === 'forgefuse') { fuseGear(String(d.rarity), c.player === 1 ? 1 : 2); sendForge(c); return; }
+    if (d.t === 'forgeequip') { equipFromBag(+d.idx, c.player === 1 ? 1 : 2); sendForge(c); return; }
+    if (d.t === 'forgeunequip') { unequipToBag(String(d.slot), c.player === 1 ? 1 : 2); sendForge(c); return; }
     if (d.t === 'bag' || d.t === 'map') {
       sendTo(c, { t: 'toast', msg: (d.t === 'bag' ? 'Le sac-atelier' : 'La carte') + ' se consulte sur l\'écran de l\'hôte pour l\'instant.' });
       return;
@@ -316,7 +363,17 @@ function handleCtrlMsg(c, d) {
   }
   else if (d.t === 'atkup') { if (isP2) S.tm2BoltHeld = false; else S.tmBoltHeld = false; }
   else if (d.t === 'interact') {
-    if (isP2) { if (!p2.paused && p2live) tryInteractP2(); }
+    if (isP2) {
+      if (!p2.paused && p2live) {
+        /* v9.1 — le J2 EN LIGNE (2ᵉ PC) qui interagit avec une enclume reçoit
+           SA PROPRE Forge (sur son écran) au lieu d'ouvrir celle de l'hôte. */
+        if (c.net) {
+          const it = nearInterP(p2);
+          if (it && it.kind === 'forge') { sendForge(c); return; }
+        }
+        tryInteractP2();
+      }
+    }
     else if (!G.paused) tryInteract();
   }
   else if (d.t === 'cast' && POWERS.some(p => p.id === d.id)) {

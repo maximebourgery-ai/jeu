@@ -166,13 +166,13 @@ export function loadRoom(id, spawn, who) {
   /* v9 — GEAR CHECK des salles profondes du château : très sous-équipé
      (< 40 % du Score conseillé) → alerte + ombres de la salle ×3. */
   const rec = ROOM_GEAR[id] || 0;
-  if (rec && gearScore() < rec * 0.4) {
+  if (rec && gearScore(w) < rec * 0.4) {
     for (let i = snap.enemies; i < enemies.length; i++) {
       const e = enemies[i];
       if (!e || e.dead || e.fsm) continue;
       e.hp *= 3; e.maxHp *= 3; e.dmg = Math.round(e.dmg * 3);
     }
-    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gearScore() + ' / ' + rec
+    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gearScore(w) + ' / ' + rec
       + ' conseillé) : les ombres y frappent TROIS FOIS plus fort. Forgez votre panoplie à une enclume !');
   }
   setFlag(id, 'visited'); // les prochaines visites seront moins peuplées

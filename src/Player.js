@@ -448,6 +448,8 @@ export function updateP2(dt) {
   const ml = Math.hypot(vx, vz);
   if (ml > 1) { vx /= ml; vz /= ml; }
   let speed = (p.input.sprint ? 9.5 : 5.8) * (PATHS[p.path].move || 1);
+  // v9.1 — célérité de SON PROPRE équipement (plafonnée à +25 %, comme le J1)
+  speed *= 1 + Math.min(25, equipTotals(2).speed) / 100;
   if (p.dashT > 0) {
     p.dashT -= dt;
     vx = p.dashDir.x; vz = p.dashDir.z;
@@ -820,6 +822,8 @@ export function hurt(d, src) {
 export function hurtP2(d, src) {
   if (p2.invuln > 0 || p2.shieldT > 0) return;
   p2.invuln = 0.5;
+  // v9.1 — armure de SON PROPRE équipement, même rendements décroissants que le J1
+  d = Math.max(1, Math.round(d * (1 - armorReduction(2))));
   p2.hp -= d; G.vig = 1;
   A.hurt();
   if (src) {

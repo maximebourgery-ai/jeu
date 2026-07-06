@@ -23,7 +23,8 @@ import { gainXP, gainXP2, hasN } from './SkillTree.js';
      même dans les zones de début de jeu.
    ================================================================ */
 export function calculateEnemyThreatLevel() {
-  const gs = gearScore();
+  // v9.1 — chaque porteur a SON équipement : le monde réagit au MIEUX équipé des deux
+  const gs = Math.max(gearScore(1), S.COOP && p2.mesh ? gearScore(2) : 0);
   if (gs >= GEAR_THRESHOLDS.legend) return 2;
   if (gs >= GEAR_THRESHOLDS.threat) return 1;
   return 0;

@@ -53,7 +53,8 @@ export function saveGame(silent) {
          avec la partie (niveaux, points, arbre, Forge) */
       coop: !!(S.COOP && p2.mesh),
       p2prog: (S.COOP && p2.mesh) ? { path: p2.path, xp: p2.xp, level: p2.level,
-        sp: p2.sp, shards: p2.shards, nodes: p2.nodes, pupg: p2.pupg } : null,
+        sp: p2.sp, shards: p2.shards, nodes: p2.nodes, pupg: p2.pupg,
+        equipment: p2.equipment } : null, // v9.1 : équipement propre au J2
       questI: S.questI, tut: Object.assign({}, tut),
       px: inTw ? TER.x : player.pos.x, py: inTw ? TER.y : player.pos.y, pz: inTw ? TER.z : player.pos.z,
       yaw: S.yaw, pitch: S.pitch,
@@ -138,6 +139,7 @@ export function loadGame() {
     p2.shards = (typeof s.p2prog.shards === 'number') ? s.p2prog.shards : Math.max(0, p2.level - 1);
     p2.nodes = s.p2prog.nodes || {};
     Object.assign(p2.pupg, s.p2prog.pupg || {});
+    if (s.p2prog.equipment) Object.assign(p2.equipment, s.p2prog.equipment); // v9.1
     document.querySelectorAll('.modebtn').forEach(b => b.classList.toggle('sel', b.dataset.mode === 'coop'));
     document.querySelectorAll('.p2btn').forEach(b => b.classList.toggle('sel', b.dataset.p2path === S.P2PATH));
     const row = document.getElementById('p2row'); if (row) row.classList.remove('hidden');

@@ -195,19 +195,29 @@ export function addGearToBag(item, silent) {
   if (!silent) showMsg('⚒ Butin : ' + item.icon + ' ' + item.name + ' (' + RARITIES[item.rarity].name + ') — rangé au sac de forge.', 3);
   return true;
 }
-export function forgeGear(slot) {
+/* v9.1 — FORGE PARTAGÉE, ÉQUIPEMENT PROPRE : le sac de forge et les
+   ressources (shadows, bones...) restent un pot COMMUN aux deux joueurs
+   (comme les potions) — mais l'objet façonné/fusionné est adapté à LA
+   VOIE de celui qui forge, et equipFromBag/unequipToBag ciblent SES
+   PROPRES emplacements (equipItem/unequipSlot, state.js, paramétrés par
+   `who`). Chaque joueur peut forger et s'équiper depuis SON écran sans
+   jamais bloquer ni modifier l'équipement de l'autre. */
+function actorOf(who) { return who === 2 ? p2 : player; }
+function pathOf(who) { return who === 2 ? p2.path : G.path; }
+export function forgeGear(slot, who) {
   if (!SLOT_DEFS[slot]) return;
   if (!costOk(FORGE_COST)) { showMsg('La forge réclame ' + fuseCostText(FORGE_COST) + ' — les Ombres ordinaires en lâchent.', 3); return; }
   if (G.gearBag.length >= BAG_MAX) { showMsg('Sac de forge plein (' + BAG_MAX + ' pièces) : équipez ou fusionnez d\'abord.', 3); return; }
   payCost(FORGE_COST);
-  const it = rollEquipment(slot, 'common', G.path); // adapté à la Voie du joueur
+  const it = rollEquipment(slot, 'common', pathOf(who)); // adapté à la Voie du forgeron
   G.gearBag.push(it);
   A.power();
-  spawnBurst(player.pos.x, player.pos.y + 1.2, player.pos.z, 0xc8cede, 14);
+  const pos = actorOf(who).pos;
+  spawnBurst(pos.x, pos.y + 1.2, pos.z, 0xc8cede, 14);
   showMsg('⚒ ' + it.icon + ' ' + it.name + ' façonné(e) — au sac de forge.', 2.8);
   refreshForge();
 }
-export function fuseGear(rarity) {
+export function fuseGear(rarity, who) {
   const idx = RARITY_ORDER.indexOf(rarity);
   if (idx < 0 || idx >= RARITY_ORDER.length - 1) return;
   const next = RARITY_ORDER[idx + 1];
@@ -225,26 +235,27 @@ export function fuseGear(rarity) {
   for (let k = eaten.length - 1; k >= 0; k--) G.gearBag.splice(eaten[k], 1);
   const slot = slots.sort((a, b) =>
     slots.filter(s => s === b).length - slots.filter(s => s === a).length)[0];
-  const it = rollEquipment(slot, next, G.path); // toujours adapté à la Voie
+  const it = rollEquipment(slot, next, pathOf(who)); // toujours adapté à la Voie du forgeron
   G.gearBag.push(it);
   A.power();
-  spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, RARITIES[next].color, 26);
+  const pos = actorOf(who).pos;
+  spawnBurst(pos.x, pos.y + 1.4, pos.z, RARITIES[next].color, 26);
   showMsg('✦ FUSION : trois pièces ' + RARITIES[rarity].name + ' renaissent en ' + it.name + ' (' + RARITIES[next].name + ') !', 4);
   refreshForge();
 }
-export function equipFromBag(i) {
+export function equipFromBag(i, who) {
   const it = G.gearBag[i];
   if (!it) return;
   G.gearBag.splice(i, 1);
-  const prev = equipItem(it);
+  const prev = equipItem(it, who);
   if (prev) G.gearBag.push(prev); // l'ancienne pièce retourne au sac
   A.pickup();
   showMsg(it.icon + ' ' + it.name + ' équipé(e)' + (prev ? ' — ' + prev.name + ' rangé(e) au sac.' : '.'), 2.6);
   refreshForge();
 }
-export function unequipToBag(slot) {
+export function unequipToBag(slot, who) {
   if (G.gearBag.length >= BAG_MAX) { showMsg('Sac de forge plein : impossible de retirer cette pièce.', 2.6); return; }
-  const it = unequipSlot(slot);
+  const it = unequipSlot(slot, who);
   if (!it) return;
   G.gearBag.push(it);
   A.pickup();
