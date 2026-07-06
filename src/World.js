@@ -1337,12 +1337,35 @@ export function buildHerbs() {
    revenir le chercher, sinon il se dissout dans la nuit.
    ================================================================ */
 export function mkAnvil(x, y, z) {
-  mkBox(0.9, 0.55, 0.6, x, y, z, 'iron');
-  const top = mkBox(1.25, 0.22, 0.42, x, y + 0.55, z, 'iron', false);
-  top.castShadow = true;
-  const halo = glow(0xffb84a, 2, 0.35);
-  halo.position.set(x, y + 1.2, z);
+  /* Silhouette d'enclume RECONNAISSABLE (socle → taille → table plate +
+     corne), en fer sombre, sur un petit foyer de braises — bien plus
+     grande et bien plus éclairée que la v9.0 (invisible en pratique :
+     0,77 m de haut, aucune lumière propre). Échelle et éclairage calqués
+     sur torch()/bivouac() : c'est un point de repère du monde, il doit
+     se voir de loin, de jour comme de nuit. */
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.45, metalness: 0.85 });
+  mkBox(0.62, 0.5, 0.5, x, y, z, ironMat);              // socle
+  mkBox(0.4, 0.32, 0.34, x, y + 0.5, z, ironMat, false); // taille (col resserré)
+  const table = mkBox(1.5, 0.26, 0.58, x, y + 0.82, z, ironMat, false); // table de travail
+  table.castShadow = true;
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.72, 8),
+    ironMat);
+  horn.rotation.z = Math.PI / 2;
+  horn.position.set(x + 1.05, y + 0.9, z);
+  horn.castShadow = true;
+  S.scene.add(horn);
+  // braises rougeoyantes incrustées dans la table (le forgeron travaille encore)
+  const emberMat = new THREE.MeshBasicMaterial({ color: 0xff8a3a });
+  const ember = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.3, 6), emberMat);
+  ember.position.set(x - 0.3, y + 1.02, z);
+  S.scene.add(ember);
+  const halo = glow(0xffb05a, 3.2, 0.6); // large et intense : visible de loin, jour comme nuit
+  halo.position.set(x - 0.3, y + 1.15, z);
   S.scene.add(halo);
+  const light = new THREE.PointLight(0xff8c3a, 1.3 * LIGHT_SCALE, 16, 2);
+  light.position.set(x, y + 1.1, z);
+  S.scene.add(light);
+  flames.push({ flame: ember, light, halo, base: 1.3 * LIGHT_SCALE, seed: Math.random() * 10 });
   addInter(x, y, z, 2.8, '⚒ Forge — façonner et fusionner l\'équipement', () => toggleForge());
 }
 
