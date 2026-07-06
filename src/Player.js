@@ -407,9 +407,15 @@ export function buildPlayer2() {
    HUD coop (barres, ligne de partage, viseurs) et caméras recalculées. */
 export function setupCoopP2() {
   S.COOP = true;
+  const firstEntry = !p2.mesh; // première entrée en jeu du J2 (et pas une resynchronisation)
   p2.path = S.P2PATH; // AVANT buildPlayer2 : le corps 3D reflète la voie choisie
   buildPlayer2();
-  p2.maxHp = 100 + (PATHS[p2.path].hpBonus || 0);
+  /* v8.7 — les stats du J2 dérivent de SA progression (niveaux gagnés +
+     nœuds d'arbre), recalculées ici pour survivre à une reconnexion ou au
+     chargement d'une sauvegarde coop. */
+  p2.maxHp = 100 + (PATHS[p2.path].hpBonus || 0) + 8 * ((p2.level || 1) - 1)
+    + (p2.nodes.g_vit ? 40 : 0) + (p2.nodes.w_titan ? 30 : 0) + (p2.nodes.p_avatar ? 40 : 0);
+  p2.maxMana = 100 + 6 * ((p2.level || 1) - 1) + (p2.nodes.g_wis ? 40 : 0);
   p2.hp = p2.maxHp; p2.mana = p2.maxMana;
   p2.pos.set(player.pos.x + 1.6, player.pos.y + 0.05, player.pos.z + 0.8);
   p2.yaw = S.yaw; p2.mesh.position.copy(p2.pos);
@@ -417,9 +423,20 @@ export function setupCoopP2() {
   $('splitline').style.display = 'block';
   $('cross2').style.display = 'block';
   $('cross').style.left = '25%';
-  $('crystals').style.top = '118px';
-  $('clock').style.top = '154px'; // sous les barres du J2 en coop
+  $('crystals').style.top = '146px';
+  $('clock').style.top = '182px'; // sous les barres (PV/PM/XP/niveau) du J2 en coop
   if (G.hasWings) addWingsToPlayer();
+  /* v8.7 — DIFFICULTÉ COOP : à deux porteurs, les ombres déjà en place se
+     renforcent aussitôt (+60 % PV/dégâts) — celles qui naîtront ensuite
+     reçoivent le même traitement à la source (mkEnemy, Enemies.js). */
+  if (firstEntry) {
+    for (const e of enemies) {
+      if (e.dead) continue;
+      e.hp = Math.round(e.hp * 1.6);
+      e.maxHp = Math.round(e.maxHp * 1.6);
+      e.dmg = Math.round(e.dmg * 1.6);
+    }
+  }
   setCamAspects();
 }
 /* Physique et animation du Joueur 2 (mêmes règles que le J1) */
@@ -780,7 +797,8 @@ export function hurtP2(d, src) {
 export function healSelf(pl) {
   pl = pl || player;
   A.pickup();
-  const heal = 40 + 12 * (G.pupg.heal || 0); // Forge des Arts : rangs de Bénédiction
+  // Forge des Arts : rangs de Bénédiction DU LANCEUR (J1 et J2 forgent chacun les leurs)
+  const heal = 40 + 12 * ((pl === p2 ? p2 : G).pupg.heal || 0);
   if (pl === p2) p2.hp = Math.min(p2.maxHp, p2.hp + heal);
   else G.hp = Math.min(G.maxHp, G.hp + heal);
   spawnBurst(pl.pos.x, pl.pos.y + 1.2, pl.pos.z, 0x9fffb0, 16);

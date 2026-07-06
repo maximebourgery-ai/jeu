@@ -468,6 +468,11 @@ export function updateHUD(dt) {
     $('mp2fill').style.width = Math.max(0, p2.mana / p2.maxMana * 100) + '%';
     $('hp2num').textContent = Math.max(0, Math.round(p2.hp)) + ' / ' + p2.maxHp;
     $('mp2num').textContent = Math.max(0, Math.round(p2.mana)) + ' / ' + p2.maxMana;
+    /* v8.7 : la progression du J2 se lit sous ses barres (XP, niveau, points) */
+    $('xp2fill').style.width = Math.min(100, p2.xp / xpNeed(p2.level) * 100) + '%';
+    $('xp2num').textContent = Math.round(p2.xp) + ' / ' + xpNeed(p2.level) + ' XP';
+    $('lvl2txt').innerHTML = 'Niveau <b>' + p2.level + '</b> — ' + PATHS[p2.path].name
+      + (p2.sp > 0 ? ' · <b>' + p2.sp + ' point' + (p2.sp > 1 ? 's' : '') + ' (✥ téléphone)</b>' : '');
     const pw2 = POWERS.find(q => q.id === p2.sel);
     $('p2power').textContent = pw2 ? (p2.sel === 'bolt' ? PATHS[p2.path].boltName : pw2.name) : '';
   }

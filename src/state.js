@@ -269,6 +269,12 @@ export const PUPG = {
 /* ---- Coop écran scindé : joueur 2 (manette) ---- */
 export const p2 = {
   path: 'mage', hp: 100, maxHp: 100, mana: 100, maxMana: 100, sel: 'bolt',
+  /* v8.7 — PROGRESSION INDÉPENDANTE du Joueur 2 : il gagne SA propre
+     expérience, monte SES niveaux, dépense SES points dans SON arbre des
+     pouvoirs et SES Éclats à la Forge des Arts (voir gainXP2, SkillTree.js).
+     Fini le J2 spectateur de la progression du J1. */
+  xp: 0, level: 1, sp: 0, shards: 0, nodes: {},
+  pupg: { bolt: 0, dash: 0, shield: 0, frost: 0, heal: 0 },
   cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0, nova: 0, meteor: 0 },
   yaw: 0, pitch: -0.22, shieldT: 0, invuln: 0, dashT: 0, stepT: 0, walkT: 0,
   grounded: false, airJumped: false, jumpQ: 0,

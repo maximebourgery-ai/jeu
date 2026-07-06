@@ -8,7 +8,7 @@ import { showMsg, dmgText } from './UI.js';
 import { slashArc, groundRing, impactFlash } from './Animations.js';
 import { spawnBurst, addPickup, pointSolid, openDoor, safeZoneAt } from './World.js';
 import { glow } from './AssetManager.js';
-import { gainXP, hasN } from './SkillTree.js';
+import { gainXP, gainXP2, hasN } from './SkillTree.js';
 import { hurt, hurtP2 } from './Player.js';
 import { questReach } from './Quests.js';
 
@@ -170,11 +170,16 @@ export function mkEnemy(x, z, floorY, wps, opt) {
      suivent une pente relevée (v8.3 : 0,26/niv au lieu de 0,22 — retour
      joueur : les ombres ne mordaient pas assez fort en fin de partie). */
   const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.26 * (lvl - 1);
+  /* v8.7 — GRANDE PASSE DE DIFFICULTÉ : +10 % de PV et de dégâts sur TOUTES
+     les ombres (boss compris), et EN COOP LOCAL ×1,6 supplémentaire — à deux
+     porteurs de flamme, la nuit mord deux fois plus fort. Les ombres déjà en
+     place quand le J2 rejoint reçoivent le même boost (setupCoopP2). */
+  const diffK = 1.1 * (S.COOP ? 1.6 : 1);
   /* opt.hpMul : les renforts invoqués la nuit sont plus coriaces (directeur) */
-  const hp0 = opt.hp || Math.round(T.hp * mul * (opt.hpMul || 1) * sizeK * (elite ? 2.2 : 1));
+  const hp0 = Math.round((opt.hp || T.hp * mul * (opt.hpMul || 1) * sizeK * (elite ? 2.2 : 1)) * diffK);
   const en = {
     g, cloakMat, charMats, mixer, spinG, floorY, wps, wi: 0, state: 'patrol',
-    hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul * (elite ? 1.5 : 1)),
+    hp: hp0, maxHp: hp0, dmg: Math.round((opt.dmg || T.dmg * dmul * (elite ? 1.5 : 1)) * diffK),
     speed: opt.speed || T.speed, chaseSpeed: opt.chase || T.chase,
     atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '', elite,
     spawn: { x, z }, alerted: false,
@@ -693,6 +698,9 @@ export function killEnemy(e) {
   // la nuit paie mieux : +50 % d'expérience au plus noir (risque → récompense)
   const xpGain = Math.round((e.xp || 12) * (1 + 0.5 * S.nightK));
   gainXP(xpGain);
+  /* v8.7 — coop : la chute profite aux DEUX porteurs (XP plein pour chacun),
+     et chacun monte ses niveaux de son côté (voir gainXP2, SkillTree.js) */
+  if (S.COOP && p2.mesh) gainXP2(xpGain);
   dmgText(e.g.position.x, e.g.position.y + 1.4 * e.s, e.g.position.z, '+' + xpGain + ' XP', 'xp');
   if (e.onKilled) e.onKilled(e); // Maîtres d'Étage : clef, portail, raccourci
   if (hasN('a_dance')) {
@@ -808,10 +816,14 @@ export function updateDirector(dt) {
   if (S.graceT > 0) return; // période de grâce post-chargement : pas d'invocation
   if (safeZoneAt(player.pos)) return; // jamais d'invocation quand le joueur est au sanctuaire d'un feu
   let alive = 0; for (const e of enemies) if (!e.dead) alive++;
-  if (alive >= 30) return; // plafond global relevé avec les caps de zone (v8.1)
-  const cap = z.cap + Math.floor(S.questI / 5);
+  /* v8.7 — coop local : ×1,7 d'ombres (plafond global ET caps de zone) —
+     deux porteurs de flamme attirent bien plus de nuit sur eux */
+  const coopN = S.COOP ? 1.7 : 1;
+  if (alive >= Math.round(30 * coopN)) return; // plafond global relevé avec les caps de zone (v8.1)
+  const cap = Math.round((z.cap + Math.floor(S.questI / 5)) * coopN);
   if (aliveIn(z) >= cap) return;
-  for (let t = 0; t < 8; t++) {
+  let want = S.COOP ? 2 : 1; // en coop, le flot arrive par paires
+  for (let t = 0; t < (S.COOP ? 12 : 8); t++) {
     const a = Math.random() * Math.PI * 2, d = 10 + Math.random() * 6;
     const x = player.pos.x + Math.cos(a) * d, zz = player.pos.z + Math.sin(a) * d;
     if (Math.hypot(x - z.x, zz - z.z) > z.r) continue;
@@ -825,6 +837,7 @@ export function updateDirector(dt) {
     e.state = 'chase'; e.alerted = true;
     spawnBurst(x, z.y + 1, zz, 0x6a4a9e, 14);
     A.alert();
-    break;
+    want--;
+    if (want <= 0 || aliveIn(z) >= cap) break;
   }
 }

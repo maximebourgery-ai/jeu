@@ -51,8 +51,11 @@ function welcomeMsg() {
   return {
     t: 'welcome', started: G.started, coop: S.COOP,
     paths: Object.keys(PATHS).map(id => ({ id, name: PATHS[id].name, icon: PATHS[id].icon })),
-    p1: { taken: S.ctrlConns.some(o => o.player === 1), path: G.path },
-    p2: { taken: S.ctrlConns.some(o => o.player === 2), path: (S.COOP && p2.mesh) ? p2.path : S.P2PATH },
+    /* locked : la voie de ce personnage est FIGÉE (partie lancée, classe déjà
+       choisie) — le téléphone qui rescanne la reprend sans la redemander. */
+    p1: { taken: S.ctrlConns.some(o => o.player === 1), path: G.path, locked: G.started },
+    p2: { taken: S.ctrlConns.some(o => o.player === 2), path: (S.COOP && p2.mesh) ? p2.path : S.P2PATH,
+          locked: !!(G.started && S.COOP && p2.mesh) },
     powers: G.powers
   };
 }
@@ -72,13 +75,20 @@ function updateQrStatus() {
 /* Un téléphone réclame un personnage (et sa voie). Un personnage ne peut
    être tenu que par UN téléphone à la fois ; réclamer le Joueur 2 bascule
    en 2 joueurs — à l'écran-titre comme EN PLEINE PARTIE (le J2 apparaît
-   aussitôt à côté du J1, écran scindé). */
+   aussitôt à côté du J1, écran scindé).
+   v8.7 — RECONNEXION : si le personnage est déjà tenu par une autre
+   connexion (souvent un téléphone planté qui a rescanné le QR), la manette
+   est RÉATTRIBUÉE au téléphone qui réclame — plus jamais de « déjà assigné »
+   qui bloque tout. L'ancienne connexion est libérée et prévenue. */
 function doJoin(c, d) {
   const n = d.player === 2 ? 2 : 1;
-  if (S.ctrlConns.some(o => o !== c && o.player === n)) {
-    sendTo(c, { t: 'deny', reason: 'Le Joueur ' + n + ' est déjà tenu par un autre téléphone.' });
-    sendTo(c, welcomeMsg());
-    return;
+  const holder = S.ctrlConns.find(o => o !== c && o.player === n);
+  if (holder) {
+    holder.player = null;
+    sendTo(holder, { t: 'released', reason: 'Un autre téléphone a repris le Joueur ' + n + '. Choisissez un personnage pour rejouer.' });
+    /* on relâche les entrées que tenait l'ancien téléphone */
+    if (n === 2) { tm2Move.x = 0; tm2Move.z = 0; S.tm2BoltHeld = false; S.tm2JumpHeld = false; }
+    else { tmMove.x = 0; tmMove.z = 0; S.tmBoltHeld = false; S.tmJumpHeld = false; }
   }
   const path = PATHS[d.path] ? d.path : null;
   c.player = n;
@@ -168,7 +178,9 @@ function handleCtrlMsg(c, d) {
     else castSpecific(d.id);
   }
   else if (d.t === 'bag') toggleInv();       // 🎒 sac-atelier (fige le jeu)
-  else if (d.t === 'tree') toggleTree();     // ✥ arbre des pouvoirs / améliorations
+  /* ✥ arbre des pouvoirs : celui DU JOUEUR qui appuie — le téléphone du J2
+     ouvre l'arbre du J2 (ses points, ses nœuds, ses Éclats), v8.7 */
+  else if (d.t === 'tree') toggleTree(isP2 && p2live ? 2 : 1);
   else if (d.t === 'map') {                  // 🗺 carte d'Ombreciel
     if (!G.paused && !G.inv && !G.treeOpen && !G.travelOpen) toggleMap();
   }
@@ -290,6 +302,9 @@ export function startControllerMode() {
     '.nopt.sel{border-color:#ffd97a;box-shadow:0 0 14px rgba(255,215,120,.4);color:#ffd97a}' +
     '.nopt .ntaken{display:block;font-size:10px;font-family:Verdana,sans-serif;color:#ff9a7a;margin-top:3px}' +
     '.nopt small{display:block;font-size:10px;font-family:Verdana,sans-serif;color:#94a0c4;margin-top:3px}' +
+    /* voie figée (reconnexion en pleine partie) : les autres voies s'estompent */
+    '.nopt.lockedpath{opacity:.35}' +
+    '#npathnote{font-size:10px;font-family:Verdana,sans-serif;color:#94a0c4;margin-top:8px;min-height:13px}' +
     '#n-go{margin-top:16px;background:#1a2142;color:#ffd97a;border:1px solid #ffd97a;border-radius:10px;' +
       'padding:12px 30px;font-family:Georgia,serif;font-size:16px;letter-spacing:1px}' +
     '#nsetupmsg{margin-top:10px;color:#ff9a7a;font-family:Verdana,sans-serif;font-size:11px;min-height:15px}' +
@@ -346,6 +361,7 @@ export function startControllerMode() {
     '</div>' +
     '<div class="nsec">QUELLE VOIE ?</div>' +
     '<div class="nrow" id="npaths"></div>' +
+    '<div id="npathnote"></div>' +
     '<button id="n-go">🎮 PRENDRE LA MANETTE</button>' +
     '<div id="nsetupmsg"></div>' +
     '</div>' +
@@ -410,12 +426,20 @@ export function startControllerMode() {
       ? 'Carte : ▲▼◀▶ déplacer · ＋/− zoom · OK centrer · ↩ fermer'
       : 'Un menu est ouvert sur l\'écran — ▲▼ choisir · OK valider · ↩ fermer';
   }
+  /* la voie du personnage choisi est-elle déjà FIGÉE côté jeu ? (partie en
+     cours : on reprend la classe saisie au début, sans la redemander) */
+  function lockedPathFor(playerN) {
+    if (!welcome) return null;
+    const info = playerN === 1 ? welcome.p1 : welcome.p2;
+    return (info && info.locked && info.path) ? info.path : null;
+  }
   function renderSetup() {
-    /* personnages : marque « déjà pris » (par UN AUTRE téléphone) */
+    /* personnages : marque « tenu » (par UN AUTRE téléphone) — le choisir le
+       REPREND (reconnexion après plantage : plus aucun blocage, v8.7) */
     el('nplayers').querySelectorAll('.nopt').forEach(b => {
       const n = +b.dataset.player;
       const taken = !!welcome && (n === 1 ? welcome.p1.taken : welcome.p2.taken) && !(st.joined && st.player === n);
-      b.querySelector('.ntaken').textContent = taken ? '⛔ déjà tenu par un autre téléphone' : '';
+      b.querySelector('.ntaken').textContent = taken ? '↺ tenu par un autre téléphone — le choisir le reprend ici' : '';
       b.classList.toggle('sel', st.player === n);
     });
     /* voies : le téléphone charge la même application que le jeu — PATHS
@@ -426,11 +450,25 @@ export function startControllerMode() {
         const b = document.createElement('button');
         b.className = 'nopt'; b.dataset.path = id;
         b.innerHTML = PATHS[id].icon + ' ' + PATHS[id].name;
-        b.addEventListener('click', () => { st.path = id; buzz(8); renderSetup(); });
+        b.addEventListener('click', () => {
+          if (lockedPathFor(st.player)) { buzz(30); return; } // voie figée : reconnexion
+          st.path = id; buzz(8); renderSetup();
+        });
         box.appendChild(b);
       }
     }
-    box.querySelectorAll('.nopt').forEach(b => b.classList.toggle('sel', b.dataset.path === st.path));
+    /* reconnexion en pleine partie : la voie déjà assignée est reprise telle
+       quelle — pas de re-choix de classe (elle a été saisie au début du jeu) */
+    const lockP = lockedPathFor(st.player);
+    if (lockP && PATHS[lockP]) st.path = lockP;
+    box.querySelectorAll('.nopt').forEach(b => {
+      b.classList.toggle('sel', b.dataset.path === st.path);
+      b.classList.toggle('lockedpath', !!lockP && b.dataset.path !== lockP);
+    });
+    const note = el('npathnote');
+    if (note) note.textContent = lockP
+      ? 'Partie en cours : la voie de ce personnage a déjà été choisie — elle est conservée pour la reconnexion.'
+      : '';
     if (welcome) setConn(welcome.started
       ? '✓ Connecté — partie en cours' + (welcome.coop ? ' (2 joueurs)' : '')
       : '✓ Connecté — le jeu est à l\'écran-titre : tout se choisit d\'ici !');
@@ -480,6 +518,9 @@ export function startControllerMode() {
           buzz(30);
         }
         else if (d.t === 'deny') { st.joined = false; setupMsg(d.reason || 'Personnage indisponible.'); showScreen('setup'); buzz(60); }
+        /* v8.7 : un autre téléphone a repris ce personnage (rescan du QR) —
+           cette manette retourne à l'écran de choix, sans rien bloquer */
+        else if (d.t === 'released') { st.joined = false; setupMsg(d.reason || 'Personnage repris par un autre téléphone.'); showScreen('setup'); buzz(60); }
         else if (d.t === 'toast') { setupMsg(d.msg); setStatus(d.msg); }
         else if (d.t === 'ui') applyUi(d);
       });

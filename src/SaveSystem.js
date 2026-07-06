@@ -5,7 +5,7 @@
    Auto-sauvegarde toutes les 25 s + bouton dans le menu pause.
    Clé v8 (ombreciel_save_v8) : les index d'objets/interactions ont changé.
    ================================================================ */
-import { G, S, SAVE_KEY, player, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, PLATES, zoneSeen, applyPath } from './state.js';
+import { G, S, SAVE_KEY, player, p2, tut, pickups, enemies, doors, inter, tkCubes, pedestals, spinners, PLATES, zoneSeen, applyPath } from './state.js';
 import { showMsg, buildPowersUI, refreshPowers } from './UI.js';
 import { openDoor, syncCube, runRestores } from './World.js';
 import { refreshPlayerVisual, addWingsToPlayer } from './Player.js';
@@ -45,6 +45,11 @@ export function saveGame(silent) {
       hour: G.hour, // horloge d'Ombreciel (cycle jour/nuit)
       xp: G.xp, level: G.level, sp: G.sp, nodes: G.nodes, maxMana: G.maxMana,
       shards: G.shards, pupg: G.pupg, // Forge des Arts (Éclats + rangs forgés)
+      /* v8.7 — coop : la progression INDÉPENDANTE du Joueur 2 est sauvegardée
+         avec la partie (niveaux, points, arbre, Forge) */
+      coop: !!(S.COOP && p2.mesh),
+      p2prog: (S.COOP && p2.mesh) ? { path: p2.path, xp: p2.xp, level: p2.level,
+        sp: p2.sp, shards: p2.shards, nodes: p2.nodes, pupg: p2.pupg } : null,
       questI: S.questI, tut: Object.assign({}, tut),
       px: inTw ? TER.x : player.pos.x, py: inTw ? TER.y : player.pos.y, pz: inTw ? TER.z : player.pos.z,
       yaw: S.yaw, pitch: S.pitch,
@@ -107,6 +112,20 @@ export function loadGame() {
   // Forge des Arts — anciennes sauvegardes : 1 Éclat rétroactif par niveau gagné
   G.shards = (typeof s.shards === 'number') ? s.shards : Math.max(0, G.level - 1);
   Object.assign(G.pupg, s.pupg || {});
+  /* v8.7 — sauvegarde coop : on restaure la progression du Joueur 2 et le
+     mode 2 joueurs (setupCoopP2 recalculera ses PV/PM depuis ces niveaux). */
+  if (s.coop && s.p2prog) {
+    S.COOP = true;
+    S.P2PATH = s.p2prog.path || 'mage';
+    p2.path = S.P2PATH;
+    p2.xp = s.p2prog.xp || 0; p2.level = s.p2prog.level || 1; p2.sp = s.p2prog.sp || 0;
+    p2.shards = (typeof s.p2prog.shards === 'number') ? s.p2prog.shards : Math.max(0, p2.level - 1);
+    p2.nodes = s.p2prog.nodes || {};
+    Object.assign(p2.pupg, s.p2prog.pupg || {});
+    document.querySelectorAll('.modebtn').forEach(b => b.classList.toggle('sel', b.dataset.mode === 'coop'));
+    document.querySelectorAll('.p2btn').forEach(b => b.classList.toggle('sel', b.dataset.p2path === S.P2PATH));
+    const row = document.getElementById('p2row'); if (row) row.classList.remove('hidden');
+  }
   refreshPlayerVisual();
   G.maxMana = s.maxMana || (100 + (G.nodes.g_wis ? 40 : 0));
   G.mana = Math.min(G.mana, G.maxMana);

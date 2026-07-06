@@ -152,8 +152,9 @@ export function castSpecific(id, pl) {
 export function frostNova(pl) {
   pl = pl || player;
   A.shield();
-  /* Forge des Arts : chaque rang élargit la nova et mord plus fort */
-  const uLvl = G.pupg.frost || 0;
+  /* Forge des Arts : chaque rang élargit la nova et mord plus fort
+     (les rangs du lanceur — J1 et J2 forgent chacun les leurs) */
+  const uLvl = (pl === p2 ? p2 : G).pupg.frost || 0;
   const R = 6.5 + 0.5 * uLvl, dmgF = Math.round(14 * (1 + 0.18 * uLvl));
   spawnBurst(pl.pos.x, pl.pos.y + 1, pl.pos.z, 0xbfe8ff, 20);
   groundRing(pl.pos.x, pl.pos.y, pl.pos.z, 0xbfe8ff, R); // onde de givre lisible au sol
@@ -181,22 +182,23 @@ export function castPowerP2() {
     p2.cd.tk = 1; return;
   }
   if (pw.id === 'bolt') {
-    const B = PATHS[p2.path], P = classAtk(p2.path);
+    /* v8.7 : l'attaque du J2 est dérivée de SON arbre et de SA Forge (who=2) */
+    const B = PATHS[p2.path], P = classAtk(p2.path, 2);
     if (p2.mana < B.cost) { return; }
-    p2.mana -= B.cost; p2.cd.bolt = B.cool * coolMul();
+    p2.mana -= B.cost; p2.cd.bolt = B.cool * coolMul(2);
     if (P.melee) meleeStrike(P, p2, camDirVec2());
     else fireBolt(P, p2, camDirVec2(), aimPoint2());
     return;
   }
   if (p2.mana < pw.cost) return;
   p2.mana -= pw.cost;
-  /* mêmes règles que J1 : coolMul (arbre) + rangs de la Forge des Arts partagés */
-  let cool2 = ((pw.id === 'dash') ? PATHS[p2.path].dashCool : pw.cool) * coolMul();
-  if (pw.id === 'dash') cool2 *= 1 - 0.07 * (G.pupg.dash || 0);
+  /* mêmes règles que J1, mais avec SON arbre (coolMul) et SES rangs forgés */
+  let cool2 = ((pw.id === 'dash') ? PATHS[p2.path].dashCool : pw.cool) * coolMul(2);
+  if (pw.id === 'dash') cool2 *= 1 - 0.07 * (p2.pupg.dash || 0);
   p2.cd[pw.id] = cool2;
   if (pw.id === 'dash') doDashP2();
   else if (pw.id === 'shield') {
-    p2.shieldT = 2.8 + 0.5 * (G.pupg.shield || 0); A.shield();
+    p2.shieldT = 2.8 + 0.5 * (p2.pupg.shield || 0); A.shield();
     groundRing(p2.pos.x, p2.pos.y, p2.pos.z, 0x66c8ff, 2.8);
     spawnBurst(p2.pos.x, p2.pos.y + 1, p2.pos.z, 0x9fdcff, 12);
   }
@@ -391,7 +393,7 @@ export function meleeStrike(P, pl, f) {
   }
   if (rageReady) rageBurst(P, pl);
   else if (touched) gainRage(12 + 3 * (touched - 1), pl);
-  if (touched && hasN('w_fury')) G.furyT = 2;
+  if (touched && pl === player && hasN('w_fury')) G.furyT = 2; // Fureur : nœud du J1 uniquement
   if (touched && P.lifesteal) {
     if (pl === player) G.hp = Math.min(G.maxHp, G.hp + dealt * P.lifesteal);
     else p2.hp = Math.min(p2.maxHp, p2.hp + dealt * P.lifesteal);
