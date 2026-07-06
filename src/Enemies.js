@@ -181,12 +181,39 @@ export function mkEnemy(x, z, floorY, wps, opt) {
     /* v8.3 — arsenal des lourds : charge dévastatrice (chargeT) et jet de
        roche à distance (rockT) — voir CHARGE / stepCharge plus bas */
     charge: null, chargeT: 2 + Math.random() * 2, rockT: 2 + Math.random() * 2,
+    /* v8.4 — anti perma-stun : stunRes = fenêtre de RÉSISTANCE après chaque
+       étourdissement subi (voir applyStun) · slowT = ralentissement (Séisme,
+       Souffle glacé) — le contrôle qui remplace l'étourdissement en chaîne */
+    stunRes: 0, slowT: 0,
     lvl: lvl, ranged: !!T.ranged, shot: 1.2, windup: false, mAtk: null, stunT: 0, dotT: 0, dotDps: 0, dotCol: 0, dyn: !!opt.dyn,
     xp: Math.round((T.xp || 12) * (1 + 0.5 * (lvl - 1)) * (elite ? 2.5 : 1)),
     tKey: opt.type || 'sentinel', tName: elite ? T.name + ' Alpha' : T.name
   };
   enemies.push(en);
   return en;
+}
+/* ================================================================
+   v8.4 — ÉTOURDISSEMENT À RENDEMENT DÉCROISSANT (anti « stun-lock »)
+   Retour joueur : les sorts qui étourdissent (Tempête astrale, Nova,
+   Astre...) figeaient les ombres EN PERMANENCE — le jeu se gagnait sans
+   qu'elles puissent bouger. Désormais :
+   · toute ombre fraîchement étourdie devient RÉSISTANTE quelques
+     secondes (stunRes) : impossible de ré-enchaîner un étourdissement ;
+   · les Maîtres d'Étage (e.fsm) sont TOTALEMENT INSENSIBLES aux stuns
+     du porteur — seuls leurs étourdissements SCRIPTÉS fonctionnent
+     (bloc runique du Chevalier, Bénédiction sur la Racine, Nova sur
+     l'Avale-Lune : ils posent boss.stunT directement, sans passer ici).
+   Toutes les sources de stun DU JOUEUR passent par ce point d'entrée.
+   ================================================================ */
+export function applyStun(e, dur) {
+  if (e.dead || !dur) return;
+  if (e.fsm || e.stunRes > 0) {
+    // l'ombre RÉSISTE (boss, ou fraîchement étourdie) : petit éclat gris
+    spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, 0x8891b0, 3);
+    return;
+  }
+  e.stunT = Math.max(e.stunT || 0, dur);
+  e.stunRes = dur + 4; // fenêtre de résistance : ~4 s sans nouveau stun possible
 }
 /* Flash d'état sur le personnage partagé : hex=null restaure la lueur
    de base du rôle (méchant) mémorisée dans le matériau. */
@@ -299,8 +326,14 @@ const CHARGE = {
   brute:    { wind: 0.55, speed: 16, range: 12, dmgMul: 1.25, cool: 5.5, col: 0xff8a4a },
   obsidian: { wind: 0.65, speed: 15, range: 13, dmgMul: 1.3,  cool: 6,   col: 0xff5a2a }
 };
+/* v8.4 — les Maîtres d'Étage chargent AUSSI : chaque boss reçoit son propre
+   profil de ruée via e.chargeProf (posé dans Tower.js). Pour les ombres
+   ordinaires, le profil vient de la table CHARGE (lourds uniquement). */
+export function chargeProfOf(e) {
+  return e.chargeProf || (!e.fsm && CHARGE[e.tKey]) || null;
+}
 function startCharge(e) {
-  const P = CHARGE[e.tKey];
+  const P = chargeProfOf(e);
   e.charge = { P, ph: 'wind', t: 0, dx: 0, dz: 0, traveled: 0, hitDone: false };
   // télégraphe appuyé : anneau au sol + gerbe — la ruée s'annonce de loin
   groundRing(e.g.position.x, e.floorY, e.g.position.z, P.col, 3.2);
@@ -368,6 +401,13 @@ export function updateEnemies(dt) {
         Math.hypot(player.pos.x - e.g.position.x, player.pos.z - e.g.position.z) < 16 &&
         Math.abs(player.pos.y - e.floorY) < 5) S.combatT = 0.8;
     e.atk -= dt; e.hitT -= dt; e.chargeT -= dt; e.rockT -= dt;
+    if (e.stunRes > 0) e.stunRes -= dt;
+    if (e.slowT > 0) {
+      e.slowT -= dt;
+      // le ralentissement se voit : givre/poussière qui s'échappe des pas
+      if (Math.random() < dt * 5)
+        spawnBurst(e.g.position.x, e.g.position.y - 0.4, e.g.position.z, 0xbfd8e8, 2);
+    }
     if (e.mixer && e.stunT <= 0) e.mixer.update(dt);
     if (e.dotT > 0) {
       e.dotT -= dt; e.hp -= e.dotDps * dt;
@@ -435,14 +475,15 @@ export function updateEnemies(dt) {
       }
       /* v8.3 — double pouvoir des lourds : hors de portée de charge, le
          Colosse/Titan ARRACHE UN BLOC du sol et le lance (projectile lourd) */
-      const CH = !e.fsm && CHARGE[e.tKey];
-      if (CH && sameLevel && distP > CH.range && distP < 18 && e.rockT <= 0) {
+      const CH = chargeProfOf(e);
+      if (CH && !e.fsm && sameLevel && distP > CH.range && distP < 18 && e.rockT <= 0) {
         e.rockT = 4.5;
         spawnBurst(e.g.position.x, e.g.position.y + 1, e.g.position.z, CH.col, 10);
         fireHostile(e, tp, { speed: 11, size: 0.36, dmgMul: 0.7, color: CH.col });
       }
       if (!e.fsm && (distP > 22 || (!sameLevel && distP > 8))) e.state = 'return';
-      /* à mi-distance et prête : la CHARGE télégraphiée des lourds s'arme */
+      /* à mi-distance et prêt : la CHARGE télégraphiée s'arme (lourds ET
+         Maîtres d'Étage à profil — leur ruée traverse l'arène) */
       else if (CH && e.chargeT <= 0 && sameLevel && distP > 4 && distP < CH.range) startCharge(e);
       /* à portée de coup et prêt : la mêlée télégraphiée s'arme (les Maîtres
          d'Étage — e.fsm — gardent leur propre FSM d'attaque, voir Tower.js) */
@@ -455,6 +496,7 @@ export function updateEnemies(dt) {
       if (distP < 8 && sameLevel && !tSafe && S.graceT <= 0) e.state = 'chase';
     }
     if (tx !== null) {
+      if (e.slowT > 0) sp *= 0.5; // Séisme / Souffle glacé : jambes prises
       const mdx = tx - e.g.position.x, mdz = tz - e.g.position.z;
       const l = Math.hypot(mdx, mdz) || 1;
       /* Les ombres respectent les murs : chaque axe n'est appliqué que si la
@@ -605,7 +647,7 @@ export function chainLightning(from, dmg, n, stun) {
     hitset.add(best);
     lightningFX(src, best.g.position);
     damageEnemy(best, Math.round(dmg * 0.6), null);
-    if (stun && !best.dead) best.stunT = Math.max(best.stunT || 0, 1);
+    if (stun && !best.dead) applyStun(best, 0.5);
     src = best.g.position.clone();
   }
 }

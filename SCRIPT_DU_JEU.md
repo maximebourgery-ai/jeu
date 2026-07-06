@@ -685,6 +685,46 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
 
 ---
 
+## 9 ter. v8.4 — Anti stun-lock, braises des bivouacs, boss enragés, vraie fin
+
+- **Étourdissement à rendement décroissant** (retour joueur : « le stun est
+  trop cheater, le Séisme surtout ») : toute ombre fraîchement étourdie
+  RÉSISTE ~4 s à tout nouvel étourdissement (`applyStun`, Enemies.js). Les
+  durées sont réduites (Tempête astrale 1 s → 0,5 s, Nova 0,9 s, Astre 0,8 s)
+  et les **Maîtres d'Étage sont totalement insensibles** aux stuns du porteur
+  — seuls leurs contre-jeux scriptés les étourdissent encore (bloc runique,
+  Bénédiction, Nova d'Aurore).
+- **Séisme retravaillé** : plus aucun étourdissement — l'onde élargie
+  PROJETTE les ombres au loin et les RALENTIT 2 s. Le Souffle glacé ralentit
+  aussi (2,5 s) : le ralentissement (`slowT`) remplace le stun-lock comme
+  contrôle de zone.
+- **Nova d'Aurore & Astre d'Aube au niveau du porteur** : dégâts de base
+  46 → 115 et 85 → 200, désormais multipliés par les bonus globaux
+  (`bonusMul` : Aura, Couronne, Sceaux, Éveils, Faveur des Étoiles) comme
+  l'attaque de base. Visuels renforcés (flash d'aube, comète et télégraphe
+  élargis).
+- **Maîtres d'Étage enragés** : chacun a désormais sa **RUÉE** télégraphiée
+  (profil `chargeProf` par boss, même machine que la charge des Colosses) et
+  invoque ses sbires **deux par deux** (Traqueurs d'encre, rejetons de sève,
+  garnison d'armures vides, Échos — jusqu'à 4 actifs). L'**Avale-Lune** gagne
+  deux armes : le **RAYON DE NUIT** (laser au ras du sol qui tourne autour de
+  la bête — il se saute) et les **GLOBES DE NUIT** (grosses bombes en cloche,
+  télégraphiées, dont l'éclat ignore l'esquive : **seule l'Égide le bloque**) ;
+  ses orbes de bordée sont devenus gros et bien lisibles.
+- **La braise des bivouacs** (anti-camping) : un feu ne rend les forces
+  qu'UNE fois, puis sa braise refroidit — plus de soin, plus de sommeil, et
+  son cercle **ne repousse plus les ombres**. La braise se ravive en voyageant
+  vers ce feu (matrice) ou en gagnant un niveau. Toute régénération passive
+  près des feux est supprimée, et le bivouac de la Veille (salle du boss
+  final) est retiré.
+- **HUD dégagé** : bandeau d'objectif compact, aide-mémoire clavier qui
+  s'efface après ~30 s de jeu (les commandes restent au menu pause).
+- **La VRAIE FIN** : après l'épilogue de la Couronne de l'Aube, un écran
+  « BIEN JOUÉ, PORTEUR D'AUBE » (id `truewin`) arrête vraiment le jeu —
+  stats de la partie, puis « exploration libre » ou « recommencer ».
+
+---
+
 ## 10. Résumé du fil rouge en une ligne par étape
 
 Réveil aux jardins → Lumen raconte la Nuit sans lune → purger les jardins (herse) →

@@ -18,6 +18,9 @@ export function gainXP(n) {
     G.maxHp += 8; G.maxMana += 6;
     G.hp = Math.min(G.maxHp, G.hp + Math.round(G.maxHp * 0.4));
     G.mana = G.maxMana;
+    /* v8.4 : gagner un niveau RAVIVE les braises de tous les bivouacs —
+       chaque feu peut de nouveau soigner une fois (voir World.bivouac) */
+    G.campHeal = {};
   }
   if (up) {
     A.power();
@@ -37,6 +40,20 @@ export function coolMul() {
   if (hasN('a_shadow')) m *= 0.7;
   return m;
 }
+/* v8.4 — Multiplicateur des bonus « globaux » du porteur (Faveur des Étoiles,
+   Aura, Couronne, Sceaux du Cœur de nuit, Éveils d'obscurité). L'attaque de
+   base en profitait déjà via classAtk ; la Nova d'Aurore et l'Astre d'Aube
+   (touches 7-8) le partagent désormais — les arts perdus grandissent AVEC le
+   porteur au lieu de rester bloqués à leurs dégâts de découverte. */
+export function bonusMul() {
+  let m = 1;
+  if (G.upgrades.starBoost) m *= 1.15;
+  if (G.tower && G.tower.aura) m *= 1.15;
+  if (G.tower && G.tower.crown) m *= 1.1;
+  if (G.nightSeals) m *= 1 + 0.1 * G.nightSeals;
+  if (G.orbAwaken) m *= 1 + 0.06 * G.orbAwaken;
+  return m;
+}
 /* Statistiques d'attaque effectives de la voie, dérivées des nœuds acquis */
 export function classAtk(path) {
   const B = PATHS[path];
@@ -45,7 +62,7 @@ export function classAtk(path) {
     if (hasN('m_power')) P.dmg = Math.round(P.dmg * 1.6);
     if (hasN('m_pierce')) { P.pierce = true; P.pSpeed *= 1.35; }
     if (hasN('m_chain')) P.chain = hasN('m_storm') ? 4 : 2;
-    if (hasN('m_storm')) P.stun = 1;
+    if (hasN('m_storm')) P.stun = 0.5; // v8.4 : 1 s → 0,5 s + rendement décroissant
     if (hasN('m_aoe')) P.aoe = true;
     if (hasN('m_cata')) { P.aoeR = 5; P.burn = true; }
     if (hasN('m_ascend')) P.dmg = Math.round(P.dmg * 1.25);

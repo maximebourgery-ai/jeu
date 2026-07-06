@@ -8,9 +8,9 @@ import { A } from './Audio.js';
 import { showMsg, refreshPowers } from './UI.js';
 import { spawnBurst, spawnTrail, pointSolid, rayAABB, openDoor, syncCube } from './World.js';
 import { glow } from './AssetManager.js';
-import { coolMul, classAtk, hasN } from './SkillTree.js';
+import { coolMul, classAtk, hasN, bonusMul } from './SkillTree.js';
 import { camDirVec, camDirVec2, hurt, hurtP2, healSelf } from './Player.js';
-import { damageEnemy, chainLightning } from './Enemies.js';
+import { damageEnemy, chainLightning, applyStun } from './Enemies.js';
 import { questReach } from './Quests.js';
 
 /* ================================================================
@@ -164,7 +164,12 @@ export function frostNova(pl) {
   for (const e of enemies) {
     if (e.dead) continue;
     const dx = e.g.position.x - pl.pos.x, dz = e.g.position.z - pl.pos.z;
-    if (Math.hypot(dx, dz) < R) damageEnemy(e, dmgF, { x: pl.pos.x, z: pl.pos.z });
+    if (Math.hypot(dx, dz) < R) {
+      damageEnemy(e, dmgF, { x: pl.pos.x, z: pl.pos.z });
+      /* v8.4 — le givre RALENTIT (2,5 s) au lieu de compter sur les stuns :
+         le vrai contrôle de zone du porteur, sans figer le combat */
+      if (!e.dead) e.slowT = Math.max(e.slowT || 0, 2.5);
+    }
   }
 }
 /* ---- Sorts du Joueur 2 (manette, coop) ---- */
@@ -206,23 +211,30 @@ export function castPowerP2() {
 export function dawnNova(pl) {
   pl = pl || player;
   A.power(); A.impact();
-  if (pl === player) S.camKick = 0.4;
+  if (pl === player) S.camKick = 0.5;
   const x = pl.pos.x, y = pl.pos.y, z = pl.pos.z;
-  lightPillar(x, y, z, 0xffd97a, 2.2, 9, 0.8);
+  lightPillar(x, y, z, 0xffd97a, 2.6, 11, 0.9);
+  impactFlash(x, y + 1.2, z, 0xfff2c8, 3.2); // le lever de soleil SE VOIT
   groundRing(x, y, z, 0xffd97a, 10.5);
   setTimeout(() => groundRing(x, y, z, 0xfff2b0, 8), 120);
   setTimeout(() => groundRing(x, y, z, 0xffb05a, 12.5), 260);
-  spawnBurst(x, y + 1.2, z, 0xfff2b0, 30);
-  spawnBurst(x, y + 0.3, z, 0xffd97a, 22);
+  spawnBurst(x, y + 1.2, z, 0xfff2b0, 34);
+  spawnBurst(x, y + 0.3, z, 0xffd97a, 26);
+  /* v8.4 — la Nova pèse enfin son rang d'art perdu : dégâts de base 46 → 115,
+     et elle PROFITE des bonus du porteur (bonusMul : Aura, Couronne, Sceaux,
+     Éveils, Faveur des Étoiles) comme l'attaque de base. L'étourdissement
+     passe par applyStun (rendement décroissant, fini le stun-lock) et la
+     brûlure d'aube mord deux fois plus fort. */
+  const dmgNova = 115 * bonusMul();
   for (const e of enemies) {
     if (e.dead) continue;
     const dx = e.g.position.x - x, dz = e.g.position.z - z;
     const d = Math.hypot(dx, dz);
     if (d < 10.5 && Math.abs(e.g.position.y - (y + 1)) < 4.5) {
-      damageEnemy(e, Math.round(46 * (1 - d / 22)), { x: dx, z: dz });
+      damageEnemy(e, Math.round(dmgNova * (1 - d / 22)), { x: dx, z: dz });
       if (!e.dead) {
-        e.stunT = Math.max(e.stunT || 0, 1.3);
-        e.dotT = 2.5; e.dotDps = 8; e.dotCol = 0xffd97a; // brûlure d'aube
+        applyStun(e, 0.9);
+        e.dotT = 3; e.dotDps = 16; e.dotCol = 0xffd97a; // brûlure d'aube
       }
     }
   }
@@ -237,17 +249,20 @@ export function castMeteor(pl) {
   const t = (pl === player) ? aimPoint() : aimPoint2();
   A.alert();
   if (pl === player) S.camKick = 0.22;
-  groundRing(t.x, t.y, t.z, 0xffe9a8, 6.5); // télégraphe : l'astre tombe ICI
+  groundRing(t.x, t.y, t.z, 0xffe9a8, 7.5); // télégraphe : l'astre tombe ICI
   const start = new THREE.Vector3(t.x + 6, t.y + 26, t.z - 4);
   const dir = t.clone().sub(start).normalize();
-  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0),
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.65, 0),
     new THREE.MeshStandardMaterial({ color: 0xfff2c8, emissive: 0xffb05a, emissiveIntensity: 1.6, roughness: 0.3 }));
-  core.add(glow(0xffd97a, 4.2, 0.85));
+  core.add(glow(0xffd97a, 4.8, 0.85));
   core.add(new THREE.PointLight(0xffc86a, 2.2 * LIGHT_SCALE, 26, 2));
   core.position.copy(start);
   S.scene.add(core);
+  /* v8.4 — l'Astre d'Aube frappe comme une étoile qui tombe : 85 → 200 de
+     base, amplifié par les bonus du porteur (bonusMul), zone élargie. Le
+     stun passe par applyStun (voir updateProjectiles). */
   projectiles.push({ mesh: core, vel: dir.multiplyScalar(30), life: 3,
-    dmg: 85, aoe: true, aoeR: 6.5, burn: true, pillar: true, stun: 1, spinP: 7,
+    dmg: Math.round(200 * bonusMul()), aoe: true, aoeR: 7.5, burn: true, pillar: true, stun: 0.8, spinP: 7,
     trailCol: 0xffd97a, ox: start.x, oy: start.y, oz: start.z });
 }
 /* Élan du Pas du vent : direction du déplacement en cours, sinon droit
@@ -298,7 +313,7 @@ export function rageBurst(P, pl) {
     const d = Math.hypot(dx, dz);
     if (d < 7 && Math.abs(e.g.position.y - (pl.pos.y + 1)) < 3.5) {
       damageEnemy(e, Math.round(P.dmg * 2), { x: dx, z: dz });
-      if (!e.dead) e.stunT = Math.max(e.stunT || 0, 0.8);
+      if (!e.dead) applyStun(e, 0.6);
     }
   }
 }
@@ -390,7 +405,16 @@ export function meleeStrike(P, pl, f) {
       const d = Math.hypot(dx, dz);
       if (d < P.shock && Math.abs(e.g.position.y - (pl.pos.y + 1)) < 3.2) {
         damageEnemy(e, Math.round(P.dmg * 0.5), { x: dx, z: dz });
-        if (P.quake && !e.dead) e.stunT = Math.max(e.stunT || 0, 0.7);
+        /* v8.4 — Séisme retravaillé : fini l'étourdissement en chaîne
+           (« trop cheater ») — l'onde PROJETTE les ombres (grand recul,
+           murs respectés) et les RALENTIT 2 s. Le contrôle reste, le
+           stun-lock disparaît. */
+        if (P.quake && !e.dead) {
+          e.slowT = Math.max(e.slowT || 0, 2);
+          const l = d || 1;
+          const kx = e.g.position.x + dx / l * 1.4, kz = e.g.position.z + dz / l * 1.4;
+          if (!pointSolid(kx, e.floorY + 1.0, kz)) { e.g.position.x = kx; e.g.position.z = kz; }
+        }
       }
     }
   }
@@ -539,7 +563,8 @@ export function updateProjectiles(dt) {
       }
     }
     if (!hit && pr.hostile) {
-      const near = (pp) => Math.hypot(pos.x - pp.x, pos.z - pp.z) < 0.65 && Math.abs(pos.y - (pp.y + 1.1)) < 1.3;
+      const near = (pp) => Math.hypot(pos.x - pp.x, pos.z - pp.z) < (pr.hitR || 0.65) &&
+        Math.abs(pos.y - (pp.y + 1.1)) < Math.max(1.3, pr.hitR || 0);
       if (near(player.pos)) {
         if (G.shieldT > 0) { spawnBurst(pos.x, pos.y, pos.z, 0x66c8ff, 7); A.impact(); }
         else hurt(pr.dmg, pos);
@@ -587,7 +612,7 @@ export function updateProjectiles(dt) {
           damageEnemy(e, Math.round(dmg), pr.vel, { crit: crit > 1, label: critLabel });
           if (pr.owner === 1) { G.comboHits++; G.comboHitT = 2.2; }
           if (!e.dead) {
-            if (pr.stun) e.stunT = Math.max(e.stunT || 0, pr.stun);
+            if (pr.stun) applyStun(e, pr.stun); // rendement décroissant (v8.4)
             if (pr.poison) { e.dotT = 3; e.dotDps = 6; e.dotCol = 0x7ade5a; }
           }
           if (pr.chain) chainLightning(e, pr.dmg || 16, pr.chain, pr.stun > 0);
@@ -619,7 +644,7 @@ export function updateProjectiles(dt) {
           if (d < (pr.aoeR || 3.4)) {
             damageEnemy(e, Math.round((pr.dmg || 16) * 0.6), { x: e.g.position.x - pos.x, z: e.g.position.z - pos.z });
             if (pr.burn && !e.dead) { e.dotT = 3; e.dotDps = 7; e.dotCol = 0xff9a3a; }
-            if (pr.stun && !e.dead) e.stunT = Math.max(e.stunT || 0, pr.stun);
+            if (pr.stun && !e.dead) applyStun(e, pr.stun); // rendement décroissant (v8.4)
           }
         }
       }

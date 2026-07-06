@@ -187,6 +187,14 @@ function wireMenus() {
     showMsg('Un passage s\'est ouvert au fond de la salle du trône. Les Terres Perdues vous attendent, porteur de flamme.', 5);
     if (!IS_TOUCH && !G.paused) lockPointer();
   });
+  /* v8.4 — écran de la VRAIE FIN (Avale-Lune + Couronne de l'Aube) */
+  $('btn-truewin-again').addEventListener('click', () => location.reload());
+  $('btn-truewin-explore').addEventListener('click', () => {
+    $('truewin').classList.add('hidden');
+    G.over = false;
+    showMsg('Ombreciel est en paix : la lune veille à nouveau. Le monde est à vous, porteur d\'aube.', 5);
+    if (!IS_TOUCH && !G.paused) lockPointer();
+  });
 }
 
 /* ---------------- INIT ---------------- */

@@ -740,6 +740,10 @@ export const SAFE_R = 9;
 export function safeZoneAt(pos) {
   if (!pos) return null;
   for (const c of CAMPS) {
+    /* v8.4 — braises froides (campHeal[id] === false) : le feu ne repousse
+       PLUS les ombres. Le sanctuaire ne protège que tant que sa braise n'a
+       pas été consommée — fini le camping éternel derrière le cercle. */
+    if (G.campHeal[c.id] === false) continue;
     if (Math.abs(pos.y - c.y) < 3.2 && Math.hypot(pos.x - c.x, pos.z - c.z) < (c.safeR || SAFE_R)) return c;
   }
   return null;
@@ -782,18 +786,28 @@ export function bivouac(x, y, z, label, id, travel, r) {
   }
   addInter(x, y, z, 2.6, 'Se reposer au bivouac', () => {
     G.checkpoint = { x: x + 1, y: y + 0.2, z };
-    G.hp = G.maxHp; G.mana = G.maxMana;
-    if (S.COOP && p2.pos) { p2.hp = p2.maxHp; p2.mana = p2.maxMana; }
-    A.pickup();
-    spawnBurst(x, y + 1, z, 0xffc06a, 12);
+    /* v8.4 — LA BRAISE : chaque feu ne soigne qu'UNE fois. Elle se ravive en
+       voyageant vers ce feu (matrice) ou en gagnant un niveau. Une fois
+       froide, le feu reste un point de renaissance + voyage rapide, mais ne
+       soigne plus ET ne repousse plus les ombres (safeZoneAt). */
+    const charged = G.campHeal[camp.id] !== false;
     const first = !G.camps[camp.id];
     G.camps[camp.id] = true;
-    showMsg('Vous vous reposez près du feu' + (label ? ' — ' + label : '') + '. Vous renaîtrez ici.', 3.5);
+    if (charged) {
+      G.campHeal[camp.id] = false; // braise consommée
+      G.hp = G.maxHp; G.mana = G.maxMana;
+      if (S.COOP && p2.pos) { p2.hp = p2.maxHp; p2.mana = p2.maxMana; }
+      A.pickup();
+      spawnBurst(x, y + 1, z, 0xffc06a, 12);
+      showMsg('Vous vous reposez près du feu' + (label ? ' — ' + label : '') + '. La braise vous rend vos forces... puis pâlit : elle ne soignera plus avant de se raviver.', 4);
+    } else {
+      showMsg('Les braises sont froides : le feu marque votre point de renaissance, mais ne soigne plus — et son cercle ne repousse plus les ombres. (Se ravive : voyage rapide vers ce feu, ou prochain niveau.)', 4.5);
+    }
     guide('camp', [
-      'BIVOUAC 🔥 — votre seul point de renaissance. Se reposer soigne entièrement, fixe votre point de retour... et ouvre le voyage rapide entre les feux découverts.',
-      'Les bivouacs sont RARES à Ombreciel. Si les ombres vous submergent, vous rouvrirez les yeux au dernier feu où vous vous êtes reposé — tout le chemin parcouru depuis sera à refaire. Avancez prudemment, soignez-vous avant d\'être aux abois, et fabriquez des potions d\'avance au sac (Tab).'
+      'BIVOUAC 🔥 — votre point de renaissance. Se reposer fixe votre retour et ouvre le voyage rapide entre les feux découverts.',
+      'LA BRAISE : chaque feu ne rend vos forces qu\'UNE seule fois — ensuite elle refroidit, et le cercle du feu ne repousse plus les ombres. Elle se ravive quand vous VOYAGEZ vers ce feu, ou quand vous gagnez un niveau. Fabriquez des potions d\'avance au sac (Tab) : les feux ne feront plus le travail à votre place.'
     ]);
-    openTravel(camp);
+    openTravel(camp, charged);
     if (first) saveGame(true); // découvrir un feu vaut bien une sauvegarde
   });
 }

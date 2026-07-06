@@ -75,6 +75,11 @@ export const G = {
     bridge: false, crown: false
   },
   camps: {},        // bivouacs découverts (matrice de voyage rapide)
+  /* v8.4 — braises des bivouacs (anti-camping) : chaque feu ne SOIGNE
+     qu'une fois (campHeal[id] === false = braise consommée). La braise se
+     ravive en voyageant VERS ce feu ou en gagnant un niveau. Un feu aux
+     braises froides ne repousse plus les ombres (safeZoneAt, World.js). */
+  campHeal: {},
   travelOpen: false, // matrice des Bivouacs à l'écran
   /* v8 — SALLES INSTANCIÉES : chaque intérieur du château (grand hall,
      bibliothèque, aile est, salle du trône, catacombes) est chargé seul en
@@ -172,7 +177,7 @@ export const TREES = {
  mage: [
   { branch: 'Voie de la Foudre', nodes: [
    { id: 'm_chain',  icon: '⚡', name: 'Éclair enchaîné',  desc: 'Le trait rebondit sur 2 ennemis proches (60 % des dégâts).', req: 2 },
-   { id: 'm_storm',  icon: '☈', name: 'Tempête astrale',  desc: 'Rebondit sur 4 ennemis et les paralyse 1 s.', req: 5, needs: 'm_chain' }] },
+   { id: 'm_storm',  icon: '☈', name: 'Tempête astrale',  desc: 'Rebondit sur 4 ennemis et les paralyse brièvement (une ombre fraîchement étourdie résiste quelques secondes).', req: 5, needs: 'm_chain' }] },
   { branch: 'Voie du Cataclysme', nodes: [
    { id: 'm_aoe',    icon: '✺', name: 'Explosion astrale', desc: 'Le trait explose à l\'impact : dégâts de zone.', req: 2 },
    { id: 'm_cata',   icon: '☄', name: 'Cataclysme',        desc: 'Zone élargie et les ennemis brûlent 3 s.', req: 5, needs: 'm_aoe' }] },
@@ -185,7 +190,7 @@ export const TREES = {
  warrior: [
   { branch: 'Voie du Séisme', nodes: [
    { id: 'w_shock',  icon: '◎', name: 'Onde de choc',      desc: 'Chaque frappe libère une onde à 360° (50 % des dégâts).', req: 2 },
-   { id: 'w_quake',  icon: '⌗', name: 'Séisme',            desc: 'Onde élargie qui étourdit brièvement les ennemis.', req: 5, needs: 'w_shock' }] },
+   { id: 'w_quake',  icon: '⌗', name: 'Séisme',            desc: 'Onde élargie qui projette les ombres au loin et les ralentit 2 s.', req: 5, needs: 'w_shock' }] },
   { branch: 'Voie du Combo', nodes: [
    { id: 'w_combo',  icon: '⚔', name: 'Enchaînement',      desc: '3 coups enchaînés : le 3ᵉ inflige des dégâts doublés.', req: 2 },
    { id: 'w_fury',   icon: '♨', name: 'Fureur',            desc: 'Chaque coup au but accélère vos frappes pendant 2 s.', req: 5, needs: 'w_combo' }] },

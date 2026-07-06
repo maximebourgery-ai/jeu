@@ -33,12 +33,12 @@ import {
   spinners, flames, pedestals, player, p2
 } from './state.js';
 import { A } from './Audio.js';
-import { showMsg, withLoading } from './UI.js';
+import { showMsg, withLoading, showVictory } from './UI.js';
 import {
   mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube,
   pedestal, mkDoor, openDoor
 } from './World.js';
-import { lightPillar } from './Animations.js';
+import { lightPillar, groundRing } from './Animations.js';
 import { matFor, glow } from './AssetManager.js';
 import { mkEnemy } from './Enemies.js';
 import { hurt, hurtP2 } from './Player.js';
@@ -66,6 +66,7 @@ let snap = null;         // instantané des collections du monde avant le build
 let origAdd = null;      // S.scene.add d'origine (capture des meshes du palier)
 const hazards = [];      // zones de danger {x,z,w,d,y,h,dmg,label,period,on,mesh}
 const spikes = [];       // télégraphes d'impact {x,z,y,t,dmg,col,r,pillar}
+const bombs = [];        // globes de nuit de l'Avale-Lune (v8.4) — Égide seule les bloque
 const npcs = [];         // PNJ du palier courant {g,y0,seed} — respiration douce
 let boss = null;         // Maître d'Étage du palier courant
 let pillars = [];        // colonnes de feu de l'arène du Chevalier
@@ -122,7 +123,8 @@ function unloadPalier() {
   for (const o of snap.added) S.scene.remove(o);
   for (const pr of projectiles) S.scene.remove(pr.mesh);
   projectiles.length = 0;
-  hazards.length = 0; spikes.length = 0; npcs.length = 0;
+  for (const b of bombs) S.scene.remove(b.mesh);
+  hazards.length = 0; spikes.length = 0; npcs.length = 0; bombs.length = 0;
   boss = null; pillars = []; pillarT = 0; pillarI = 0;
   S.onHeal = null; S.onNova = null;
   snap = null;
@@ -241,17 +243,23 @@ function mkHazard(x, z, w, d, y, h, dmg, color, label, period) {
   }), false);
   hazards.push({ x, z, w, d, y, h: h || 2.2, dmg, label, period: period || null, on: true, mesh });
 }
-/* Bordée radiale de projectiles hostiles (tempête de parchemins) */
-function radialBurst(e, n, dmg, speed, color) {
+/* Bordée radiale de projectiles hostiles (tempête de parchemins).
+   v8.4 — `size` : gros orbes bien visibles (Avale-Lune) au lieu des petits
+   parchemins ; leur rayon de collision (hitR) grossit avec eux. */
+function radialBurst(e, n, dmg, speed, color, size) {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + G.time;
     const dir = new THREE.Vector3(Math.cos(a), -0.04, Math.sin(a));
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.26, 0.04),
-      new THREE.MeshStandardMaterial({ color: 0xe8dfc0, emissive: color, emissiveIntensity: 0.9, roughness: 0.6 }));
-    core.add(glow(color, 1.8, 0.6));
+    const core = size
+      ? new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0),
+          new THREE.MeshStandardMaterial({ color: 0x14082a, emissive: color, emissiveIntensity: 1.3, roughness: 0.4 }))
+      : new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.26, 0.04),
+          new THREE.MeshStandardMaterial({ color: 0xe8dfc0, emissive: color, emissiveIntensity: 0.9, roughness: 0.6 }));
+    core.add(glow(color, size ? 3.2 : 1.8, 0.6));
     core.position.set(e.g.position.x, e.g.position.y + 0.8, e.g.position.z);
     S.scene.add(core);
-    projectiles.push({ mesh: core, vel: dir.multiplyScalar(speed), life: 2.8, dmg, hostile: true, spin: 9 });
+    projectiles.push({ mesh: core, vel: dir.multiplyScalar(speed), life: 2.8, dmg,
+      hostile: true, spin: 9, hitR: size ? size * 2.4 : 0 });
   }
   A.hostileBolt();
 }
@@ -432,6 +440,8 @@ function buildPalier1() {
     });
     boss.tName = 'L\'Archiviste Corrompu';
     boss.fsm = { kind: 'archiviste', state: 'IDLE', t: 0, stormT: 2.8, summonT: 7 };
+    /* v8.4 — ruée du Maître d'Étage (voir chargeProfOf, Enemies.js) */
+    boss.chargeProf = { wind: 0.5, speed: 14, range: 11, dmgMul: 1, cool: 8, col: 0xe8dfc0 };
     boss.onKilled = () => {
       G.tower.bosses.archiviste = true;
       G.tower.shortcuts.p2 = true;
@@ -536,7 +546,9 @@ function buildPalier2() {
       type: 'brute', lvl: 12, hp: 1000, dmg: 36, scale: 2.4, speed: 0.9, chase: 2.3, color: 0x1a3a20
     });
     boss.tName = 'La Racine Vengeresse';
-    boss.fsm = { kind: 'racine', state: 'CHASE', t: 0, spikeT: 3, vulnT: 0, msgT: 0 };
+    boss.fsm = { kind: 'racine', state: 'CHASE', t: 0, spikeT: 3, vulnT: 0, msgT: 0, summonT: 9 };
+    /* v8.4 — ruée de racines (voir chargeProfOf, Enemies.js) */
+    boss.chargeProf = { wind: 0.6, speed: 13, range: 12, dmgMul: 1.1, cool: 7, col: 0x7ade5a };
     boss.onDamaged = (d) => {
       if (boss.fsm.vulnT > 0) return Math.round(d * 1.5);
       if (boss.fsm.msgT <= 0) {
@@ -667,7 +679,9 @@ function buildPalier3() {
     /* FSM stricte (§3.4) : IDLE → CHASE → ATTACK_AOE → (STUNNED) → CHASE.
        La transition vers STUNNED n'obéit qu'à l'impact du tag
        « Projectile_MainCeleste » : un bloc runique porté par la Main céleste. */
-    boss.fsm = { kind: 'chevalier', state: 'IDLE', t: 0, active: false };
+    boss.fsm = { kind: 'chevalier', state: 'IDLE', t: 0, active: false, summonT: 12 };
+    /* v8.4 — charge de cavalerie (voir chargeProfOf, Enemies.js) */
+    boss.chargeProf = { wind: 0.5, speed: 17, range: 13, dmgMul: 1.2, cool: 6, col: 0xff3a3a };
     boss.onDamaged = (d, knock) => {
       if (boss.fsm.state === 'STUNNED') return Math.round(d * 2); // hurtbox grande ouverte
       /* Hitbox asymétrique : la Hurtbox vit sur les os exposés du DOS ;
@@ -942,6 +956,8 @@ function buildPalier5() {
     });
     boss.tName = 'Le Berger des Étoiles';
     boss.fsm = { kind: 'berger', state: 'IDLE', t: 0, starT: 3, rainT: 6, summonT: 10 };
+    /* v8.4 — fondu céleste : le Berger fond sur les porteurs (chargeProfOf) */
+    boss.chargeProf = { wind: 0.5, speed: 16, range: 14, dmgMul: 1.1, cool: 7, col: 0xfff2b0 };
     boss.onKilled = () => {
       G.tower.bosses.berger = true;
       G.tower.shortcuts.p6 = true;
@@ -1044,8 +1060,10 @@ function buildPalier6() {
   addPickup('herb', TX - 17, 0, TZ + 4);
   addPickup('herb', TX + 17, 0, TZ + 8);
   addPickup('mana', TX - 4, 0, TZ - 10);
-  /* le bivouac de la Veille : dernier feu avant la fin du monde */
-  bivouac(TX - 12, 0, TZ - 12, 'la Veille du Bout de la Nuit', 'veille', false, 4.5);
+  /* v8.4 — plus de bivouac dans la salle du boss final (retour joueur) :
+     la Veille n'offre qu'une torche. Le point de contrôle reste l'entrée
+     du palier (Kill Z / mort) — l'arène se mérite d'une traite. */
+  torch(TX - 12, 0, TZ - 12, 0xffc06a, 1.2, 14);
 
   /* ---- la porte de la Dernière Nuit + LE VEILLEUR SANS NOM ---- */
   mkBox(17, 16, 1, TX - 12.5, 0, TZ - 18, 'iron');
@@ -1073,8 +1091,21 @@ function buildPalier6() {
     boss.tName = 'L\'Avale-Lune';
     /* Le VOILE DE NUIT absorbe 90 % des dégâts. Seule la NOVA D'AURORE
        (touche 7), prononcée tout contre la bête, le déchire 6 s — le
-       crochet S.onNova est l'exact pendant de S.onHeal (Racine). */
-    boss.fsm = { kind: 'avale', state: 'IDLE', t: 0, veilT: 0, msgT: 0, gustT: 5, crocT: 3.5, summonT: 14, active: false };
+       crochet S.onNova est l'exact pendant de S.onHeal (Racine).
+       v8.4 : deux armes nouvelles — le RAYON DE NUIT (laser au ras du sol
+       qui tourne autour de la bête : il faut SAUTER à son passage) et les
+       GLOBES DE NUIT (grosses bombes en cloche que seule l'ÉGIDE bloque —
+       l'esquive ne suffit pas). */
+    boss.fsm = { kind: 'avale', state: 'IDLE', t: 0, veilT: 0, msgT: 0, gustT: 5, crocT: 3.5, summonT: 14,
+      beamT: 8, beamOn: 0, beamA: 0, bombT: 6, bombMsg: 0, active: false };
+    boss.chargeProf = { wind: 0.6, speed: 15, range: 14, dmgMul: 1.2, cool: 6.5, col: 0x8a5aff };
+    /* le rayon de nuit : préconstruit invisible (capturé par l'instance) */
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(30, 0.24, 0.55),
+      new THREE.MeshBasicMaterial({ color: 0xa88aff, transparent: true, opacity: 0.85,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    beam.visible = false;
+    S.scene.add(beam);
+    boss.beam = beam;
     boss.onDamaged = (d) => {
       if (boss.fsm.veilT > 0) return Math.round(d * 1.4);
       if (boss.fsm.msgT <= 0) {
@@ -1085,6 +1116,7 @@ function buildPalier6() {
     };
     boss.onKilled = () => {
       G.tower.bosses.avale = true;
+      beam.visible = false; // le rayon de nuit s'éteint avec la bête
       showMsg('L\'AVALE-LUNE se déchire d\'un bord à l\'autre — et recrache un siècle de nuit. Quelque chose de clair monte vers le plafond...', 5);
       lightPillar(TX, 0, TZ - 26, 0xfff2c8, 4, 15, 1.4);
       spawnBurst(TX, 3, TZ - 26, 0xbfd8ff, 36);
@@ -1106,6 +1138,20 @@ function buildPalier6() {
   } else if (!G.tower.crown) crownAltar(); // la Couronne attend toujours son porteur
 
   mkPortal(TX, 0, TZ + 26.5, 0x8fe8ff, 'Sas — revenir au vestibule', () => true, () => '', () => gotoPalier(0));
+}
+/* v8.4 — un globe de nuit part en cloche vers un porteur : télégraphe au
+   sol, vol parabolique, explosion que seule l'Égide bloque (boucle bombs). */
+function nightBomb(bp, floorY) {
+  const tgt = (S.COOP && p2.pos && Math.random() < 0.4) ? p2 : player;
+  const g = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 12),
+    new THREE.MeshStandardMaterial({ color: 0x0a0518, emissive: 0x8a5aff, emissiveIntensity: 1.2, roughness: 0.5 }));
+  g.add(glow(0x8a5aff, 4, 0.7));
+  g.position.set(bp.x, bp.y + 1.5, bp.z);
+  S.scene.add(g);
+  groundRing(tgt.pos.x, floorY, tgt.pos.z, 0x8a5aff, 4.5); // télégraphe : il tombe ICI
+  bombs.push({ mesh: g, x0: bp.x, y0: bp.y + 1.5, z0: bp.z,
+    tx: tgt.pos.x, ty: floorY, tz: tgt.pos.z, t: 0, T: 1.5 });
+  A.hostileBolt();
 }
 /* Le dialogue du Veilleur sans Nom — il ouvre la porte de la Dernière
    Nuit et enseigne la mécanique du voile (Nova d'Aurore). */
@@ -1164,14 +1210,15 @@ function crownAltar() {
     setTimeout(finalEpilogue, 1600);
   });
 }
-/* Le vrai épilogue du v8 : la lune rendue au ciel. */
+/* Le vrai épilogue du v8 : la lune rendue au ciel — puis l'ÉCRAN DE FIN
+   (v8.4) : le jeu s'arrête vraiment sur un « bien joué » plein écran. */
 function finalEpilogue() {
   openDialog([
     'Au-dessus des remparts, le voile de la Dernière Nuit se déchire d\'un bord à l\'autre du ciel — et la lune en tombe, immense, intacte, comme rendue par la marée.',
     'Dans les jardins, dans l\'Ossuaire, au cœur de la Forêt de Nuit : partout, les ombres s\'arrêtent. Elles lèvent leurs yeux clairs vers la première vraie nuit depuis cent ans.',
     '« La Nuit sans lune est finie, porteur de flamme. Il reste des ombres, oui — mais plus une seule qui soit orpheline du ciel. »',
     'Et quelque part près du télescope, une ombre agenouillée sourit dans le noir : « Nous pouvons enfin dormir. Toi... toi, tu peux enfin veiller. »'
-  ], () => showMsg('La lune veille à nouveau sur Ombreciel.', 4));
+  ], showVictory);
 }
 
 /* ================================================================
@@ -1221,6 +1268,42 @@ export function updateTower(dt) {
     }
   }
 
+  /* v8.4 — GLOBES DE NUIT de l'Avale-Lune : gros projectiles en cloche,
+     télégraphiés au sol, dont l'éclat n'est bloqué QUE par l'Égide —
+     l'esquive et le Pas du vent ne suffisent pas. */
+  for (let i = bombs.length - 1; i >= 0; i--) {
+    const b = bombs[i];
+    b.t += dt;
+    const k = Math.min(1, b.t / b.T);
+    b.mesh.position.set(
+      b.x0 + (b.tx - b.x0) * k,
+      b.y0 + (b.ty - b.y0) * k + Math.sin(k * Math.PI) * 6,
+      b.z0 + (b.tz - b.z0) * k);
+    if (Math.random() < dt * 12)
+      spawnBurst(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z, 0x8a5aff, 2);
+    if (k >= 1) {
+      S.scene.remove(b.mesh);
+      spawnBurst(b.tx, b.ty + 0.8, b.tz, 0x8a5aff, 30);
+      groundRing(b.tx, b.ty, b.tz, 0x8a5aff, 4.5);
+      lightPillar(b.tx, b.ty, b.tz, 0x6a5aff, 2, 9, 0.7);
+      A.impact();
+      const boom = (pl, isP2) => {
+        if (Math.hypot(pl.pos.x - b.tx, pl.pos.z - b.tz) > 4.5 || Math.abs(pl.pos.y - b.ty) > 3) return;
+        const shielded = isP2 ? p2.shieldT > 0 : G.shieldT > 0;
+        if (shielded) {
+          spawnBurst(pl.pos.x, pl.pos.y + 1.1, pl.pos.z, 0x66c8ff, 10);
+          A.impact();
+        } else {
+          pl.invuln = 0; // le globe IGNORE l'esquive : seule l'Égide le bloque
+          if (isP2) hurtP2(46, { x: b.tx, z: b.tz }); else hurt(46, { x: b.tx, z: b.tz });
+        }
+      };
+      boom(player, false);
+      if (S.COOP && p2.pos) boom(p2, true);
+      bombs.splice(i, 1);
+    }
+  }
+
   /* altération d'arène du Chevalier : des colonnes de feu montent par cycles */
   if (S.palier === 3 && (!boss || boss.dead) && pillars.some(p => p.up)) {
     // le Chevalier tombé, son arène s'apaise : plus aucune colonne dressée
@@ -1242,6 +1325,9 @@ export function updateTower(dt) {
   }
 
   if (!boss || boss.dead) return;
+  /* v8.4 — pendant une RUÉE (Enemies.stepCharge), la ruée pilote seule le
+     Maître d'Étage : sa FSM d'attaques marque une pause le temps du sprint */
+  if (boss.charge) return;
   const f = boss.fsm;
   f.t += dt;
   if (f.msgT !== undefined) f.msgT -= dt;
@@ -1267,13 +1353,16 @@ export function updateTower(dt) {
       f.summonT = 9;
       let alive = 0;
       for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
-      if (alive < 2) {
+      /* v8.4 : il déchire DEUX pages à la fois, jusqu'à 4 Traqueurs actifs */
+      let born = 0;
+      while (alive < 4 && born < 2) {
         const sx = bp.x + (Math.random() - 0.5) * 6, sz = bp.z + (Math.random() - 0.5) * 6;
         const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]], { type: 'wraith', lvl: 9, tag: 'summon', dyn: true });
         w.state = 'chase'; w.alerted = true;
         spawnBurst(sx, boss.floorY + 1, sz, 0xe8dfc0, 14);
-        showMsg('L\'Archiviste déchire une page : un Traqueur d\'encre en jaillit !', 2.5);
+        alive++; born++;
       }
+      if (born) showMsg('L\'Archiviste déchire ses pages : des Traqueurs d\'encre en jaillissent !', 2.5);
     }
   } else if (f.kind === 'racine') {
     if (f.vulnT > 0) {
@@ -1283,6 +1372,23 @@ export function updateTower(dt) {
         spawnBurst(bp.x + (Math.random() - 0.5) * 1.6, bp.y + 0.8, bp.z + (Math.random() - 0.5) * 1.6, 0x9fffb0, 2);
     }
     boss.cloakMat.emissive.setHex(f.vulnT > 0 ? 0x2a6a2a : 0x0d0820);
+    /* v8.4 — la Serre se bat avec elle : rejetons de sève (2 à la fois) */
+    f.summonT -= dt;
+    if (f.summonT <= 0 && dP < 20 && sameY) {
+      f.summonT = 11;
+      let alive = 0;
+      for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
+      let born = 0;
+      while (alive < 4 && born < 2) {
+        const sx = bp.x + (Math.random() - 0.5) * 7, sz = bp.z + (Math.random() - 0.5) * 7;
+        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]],
+          { type: 'wraith', lvl: 10, tag: 'summon', dyn: true, color: 0x1a3a20 });
+        w.state = 'chase'; w.alerted = true;
+        spawnBurst(sx, boss.floorY + 1, sz, 0x7ade5a, 14);
+        alive++; born++;
+      }
+      if (born) showMsg('La Racine crache des rejetons de sève !', 2.5);
+    }
     f.spikeT -= dt;
     if (f.spikeT <= 0 && dP < 16 && sameY) {
       f.spikeT = f.vulnT > 0 ? 4 : 2.3;
@@ -1319,6 +1425,23 @@ export function updateTower(dt) {
     if (f.state === 'STUNNED') {
       if (boss.stunT <= 0) { f.state = 'CHASE'; boss.state = 'chase'; f.t = 0; }
       return;
+    }
+    /* v8.4 — il appelle sa garnison : deux armures vides à la fois */
+    f.summonT -= dt;
+    if (f.summonT <= 0 && f.state !== 'IDLE' && dP < 22) {
+      f.summonT = 12;
+      let alive = 0;
+      for (const e of enemies) if (!e.dead && e.tag === 'summon') alive++;
+      let born = 0;
+      while (alive < 4 && born < 2) {
+        const sx = bp.x + (Math.random() - 0.5) * 8, sz = bp.z + (Math.random() - 0.5) * 8;
+        const w = mkEnemy(sx, sz, boss.floorY, [[sx, sz], [sx + 2, sz]],
+          { type: 'sentinel', lvl: 12, tag: 'summon', dyn: true, color: 0x3a3f4a });
+        w.state = 'chase'; w.alerted = true;
+        spawnBurst(sx, boss.floorY + 1, sz, 0xc8a8ff, 14);
+        alive++; born++;
+      }
+      if (born) showMsg('Le Chevalier lève le poing : la garnison des armures vides répond !', 2.5);
     }
     if (f.state === 'CHASE') {
       boss.state = 'chase';
@@ -1399,11 +1522,52 @@ export function updateTower(dt) {
       return;
     }
     const enraged = boss.hp / boss.maxHp < 0.5;
-    f.gustT -= dt; f.crocT -= dt; f.summonT -= dt;
+    f.gustT -= dt; f.crocT -= dt; f.summonT -= dt; f.beamT -= dt; f.bombT -= dt;
     if (f.gustT <= 0) {
       f.gustT = enraged ? 3.2 : 4.4;
       spawnBurst(bp.x, bp.y + 1.2, bp.z, 0x6a5aff, 20);
-      radialBurst(boss, enraged ? 16 : 12, boss.dmg - 10, 11.5, 0x6a5aff); // voile dévorant
+      /* v8.4 : GROS orbes de nuit (size 0.55) — la bordée se voit venir */
+      radialBurst(boss, enraged ? 16 : 12, boss.dmg - 10, 11.5, 0x6a5aff, 0.55); // voile dévorant
+    }
+    /* ---- v8.4 : LE RAYON DE NUIT — laser au ras du sol qui tourne autour
+       de la bête. Rester au sol sur sa ligne = saigner ; il se SAUTE. ---- */
+    if (f.beamOn > 0) {
+      f.beamOn -= dt;
+      f.beamA += dt * (enraged ? 1.5 : 1.05);
+      const bm = boss.beam;
+      bm.visible = true;
+      bm.position.set(bp.x, boss.floorY + 0.35, bp.z);
+      bm.rotation.y = f.beamA;
+      bm.material.opacity = 0.65 + 0.25 * Math.sin(G.time * 18);
+      if (Math.random() < dt * 16) {
+        const rr = (Math.random() - 0.5) * 28;
+        spawnBurst(bp.x + Math.cos(f.beamA) * rr, boss.floorY + 0.4, bp.z - Math.sin(f.beamA) * rr, 0xa88aff, 1);
+      }
+      const beamHit = (pl, isP2) => {
+        const dx = pl.pos.x - bp.x, dz = pl.pos.z - bp.z;
+        if (Math.hypot(dx, dz) > 15) return;
+        if (pl.pos.y - boss.floorY > 0.85) return; // en l'air : le rayon passe SOUS les pieds
+        const perp = Math.abs(dx * Math.sin(f.beamA) + dz * Math.cos(f.beamA));
+        if (perp < 0.85) { if (isP2) hurtP2(26, bp); else hurt(26, bp); }
+      };
+      beamHit(player, false);
+      if (S.COOP && p2.pos) beamHit(p2, true);
+      if (f.beamOn <= 0) bm.visible = false;
+    }
+    if (f.beamT <= 0) {
+      f.beamT = enraged ? 11 : 14;
+      f.beamOn = enraged ? 6 : 5;
+      f.beamA = Math.random() * Math.PI;
+      A.alert();
+      showMsg('L\'Avale-Lune fauche la salle d\'un RAYON DE NUIT — SAUTEZ à son passage !', 3);
+    }
+    /* ---- v8.4 : LES GLOBES DE NUIT — voir la boucle bombs plus haut ---- */
+    if (f.bombT <= 0 && dP < 24 && sameY) {
+      f.bombT = enraged ? 6.5 : 9;
+      nightBomb(bp, boss.floorY);
+      if (!f.bombMsg) { f.bombMsg = 1;
+        showMsg('Un GLOBE DE NUIT monte de la gueule — son éclat traverse l\'esquive : seule l\'ÉGIDE (touche 4) le bloque !', 3.5);
+      }
     }
     if (f.crocT <= 0 && dP < 20 && sameY) {
       f.crocT = enraged ? 1.9 : 2.7;

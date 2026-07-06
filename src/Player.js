@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE } from './state.js';
 import { A } from './Audio.js';
 import { showMsg, gameOver } from './UI.js';
-import { slide, slideP, rayAABB, spawnBurst, safeZoneAt } from './World.js';
+import { slide, slideP, rayAABB, spawnBurst } from './World.js';
 import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
@@ -458,7 +458,6 @@ export function updateP2(dt) {
   flapWings(p);
   if (p.mixer) p.mixer.update(dt);
   p2.mana = Math.min(p2.maxMana, p2.mana + 6 * dt);
-  if (safeZoneAt(p.pos)) p2.hp = Math.min(p2.maxHp, p2.hp + 2.5 * dt);
   for (const k in p2.cd) p2.cd[k] = Math.max(0, p2.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;
   if (p.shieldT > 0) {
@@ -597,8 +596,8 @@ export function updatePlayer(dt) {
     G.hp = Math.min(G.maxHp, G.hp + 0.45 * dt);
     G.mana = Math.min(G.maxMana, G.mana + 2 * dt);
   }
-  // Sanctuaire d'un feu de bivouac : la chaleur régénère lentement le porteur
-  if (safeZoneAt(p.pos)) G.hp = Math.min(G.maxHp, G.hp + 2.5 * dt);
+  /* v8.4 : plus AUCUNE régénération passive près des feux — la braise du
+     bivouac soigne une fois (World.js), le camping au coin du feu est mort */
   for (const k in G.cd) G.cd[k] = Math.max(0, G.cd[k] - dt);
   if (p.invuln > 0) p.invuln -= dt;
   if (G.shieldT > 0) {

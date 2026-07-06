@@ -263,7 +263,8 @@ const PANEL_DEFS = {
   tree:     { sel: '#tree button', close: '#treeclose' },
   travel:   { sel: '#travel button', close: '#btn-travelclose' },
   gameover: { sel: '#golist button' },
-  win:      { sel: '#win button' }
+  win:      { sel: '#win button' },
+  truewin:  { sel: '#truewin button' } // la vraie fin (v8.4)
 };
 function activePanel() {
   const vis = id => { const el = $(id); return el && !el.classList.contains('hidden'); };
@@ -275,6 +276,7 @@ function activePanel() {
   if (G.travelOpen) return 'travel';
   if (G.dead && vis('gameover')) return 'gameover';
   if (vis('win')) return 'win';
+  if (vis('truewin')) return 'truewin';
   if (vis('story')) return 'story';
   if (!G.started && vis('title')) return 'title';
   return null;

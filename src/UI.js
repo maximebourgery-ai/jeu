@@ -57,7 +57,7 @@ export function withLoading(title, fn) {
 /* ---------------- VOYAGE RAPIDE — MATRICE DES BIVOUACS ----------------
    Ouverte au repos à un feu de bivouac. Fast-travel INTERDIT si le joueur
    est en combat (isPlayerInCombat ⇔ S.combatT > 0, voir Enemies.js). */
-export function openTravel(fromCamp) {
+export function openTravel(fromCamp, canSleep) {
   const dests = CAMPS.filter(c => c.travel && G.camps[c.id] && (!fromCamp || c.id !== fromCamp.id));
   /* sans destination ET sans feu de repos, rien à afficher ; au repos, le
      panneau s'ouvre toujours (choix du réveil ci-dessous) */
@@ -74,9 +74,9 @@ export function openTravel(fromCamp) {
     li.appendChild(b); ul.appendChild(li);
   };
   /* ---- CHOIX DU RÉVEIL : on dort près du feu jusqu'à l'heure qu'on préfère.
-     La nuit trop longue n'est plus une punition — et les chasseurs d'ombres
-     peuvent au contraire APPELER la nuit (XP +50 % au plus noir). */
-  if (fromCamp) {
+     v8.4 : dormir exige une braise vive (canSleep) — un feu froid ne fait
+     plus passer le temps, il ne reste qu'un relais de voyage rapide. */
+  if (fromCamp && canSleep !== false) {
     const f = dayFactor(G.hour);
     if (f < 1) mkRow('☀ Dormir jusqu\'à l\'aube (jour)', () => {
       G.hour = 7.6;
@@ -123,6 +123,9 @@ export function travelTo(c) {
      (c.room = salle instanciée, c.palier = palier de la Tour), puis on pose
      le voyageur près du bivouac. */
   withLoading('🔥 ' + c.label, () => {
+    /* v8.4 : arriver par la matrice RAVIVE la braise du feu de destination —
+       on retrouve le droit de s'y soigner / d'y dormir une fois. */
+    G.campHeal[c.id] = true;
     if (S.roomId) unloadRoom();
     if (S.inTower) leaveTower(true);
     if (c.palier) enterPalier(c.palier);
@@ -181,6 +184,25 @@ export function gameOver() {
     cnt.textContent = 'Choisissez le feu où rouvrir les yeux :';
     ul.querySelectorAll('button').forEach(b => { b.disabled = false; });
   }, 200);
+}
+/* ---------------- LA VRAIE FIN (v8.4) ----------------
+   Après l'épilogue de la Couronne de l'Aube (Avale-Lune vaincue), le jeu
+   s'ARRÊTE vraiment : écran « bien joué » plein écran, monde figé (G.over),
+   avec le choix de continuer en exploration libre ou de recommencer. */
+export function showVictory() {
+  if (G.dead) return;
+  G.over = true;
+  S.combatT = 0;
+  G.inv = false; $('inv').classList.add('hidden');
+  G.treeOpen = false; $('tree').classList.add('hidden');
+  G.travelOpen = false; $('travel').classList.add('hidden');
+  closeMap();
+  G.paused = false; $('pause').classList.add('hidden');
+  if (document.exitPointerLock) document.exitPointerLock();
+  const st = $('truewin-stats');
+  if (st) st.textContent = '— ' + PATHS[G.path].name + ' de niveau ' + G.level +
+    ' · Larmes d\'Aube ' + G.crystals + ' / 3 · les cinq Maîtres d\'Étage vaincus —';
+  $('truewin').classList.remove('hidden');
 }
 export function reviveAt(x, y, z, label) {
   if (!G.dead) return;
@@ -405,6 +427,10 @@ let comboShown = 0;
 export function updateHUD(dt) {
   updateEnemyBars();
   updateFtexts(dt);
+  /* v8.4 : l'aide-mémoire clavier (coin bas-droit) s'efface après ~30 s de
+     jeu — il encombrait la vue. Les commandes restent dans le menu pause. */
+  const hint = $('hint');
+  if (hint) hint.classList.toggle('faded', G.time > 30);
   /* Compteur de combo : visible dès 2 coups enchaînés, « pop » à chaque
      coup supplémentaire, s'éteint quand l'enchaînement se brise. */
   const cb = $('combo');

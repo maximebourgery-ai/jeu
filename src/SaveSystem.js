@@ -38,7 +38,7 @@ export function saveGame(silent) {
       checkpoint: inTw ? TER : G.checkpoint,
       /* v7.1 : l'avancée de la Tour (clefs de palier, Maîtres d'Étage vaincus,
          raccourcis, Aura) et la matrice des Bivouacs découverts */
-      tower: G.tower, camps: G.camps, zoneSeen: Object.assign({}, zoneSeen),
+      tower: G.tower, camps: G.camps, campHeal: G.campHeal, zoneSeen: Object.assign({}, zoneSeen),
       /* v8 : salles instanciées — flags de progression, objets uniques
          ramassés, bloc runique (G.rooms) + salle où le joueur se trouve */
       rooms: G.rooms, room: S.roomId,
@@ -98,6 +98,7 @@ export function loadGame() {
     G.tower.crown = !!s.tower.crown;
   }
   G.camps = s.camps || {};
+  G.campHeal = s.campHeal || {}; // v8.4 : braises des bivouacs (anti-camping)
   Object.assign(zoneSeen, s.zoneSeen || {}); // noms de zones déjà révélés sur la carte
   G.rooms = s.rooms || {}; // v8 : progression des salles instanciées
   G.hour = (typeof s.hour === 'number') ? s.hour : 9; // anciennes sauvegardes : reprise au matin
