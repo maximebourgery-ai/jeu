@@ -732,6 +732,10 @@ export function checkPlate() {
       const on = pl => Math.abs(pl.pos.x - P.x) < 1.3 && Math.abs(pl.pos.z - P.z) < 1.3 && Math.abs(pl.pos.y - P.y) < 1.4;
       if (on(player) && on(p2)) pressed = true;
     }
+    // v9.4 — certaines plaques (Grand Pèlerinage) exigent EN PLUS un pouvoir
+    // actif au moment de la charge (l'Égide qui retient le poids...) : le
+    // bloc physique ne suffit pas tant que P.cond() ne répond pas aussi vrai.
+    if (pressed && P.cond && !P.cond()) pressed = false;
     if (pressed && !P.active) {
       P.active = true;
       P.glow.material.color.setHex(0x4ae08a);

@@ -735,16 +735,20 @@ function buildCata() {
 const PX = -900; // ancre commune ; chaque salle a SA bande de z, largement espacée
 
 /* ---- Chambres secrètes (une par salle du Pèlerinage) ----
-   Casse-tête bloc-sur-plaque façon salle secrète (bloc runique = tk,
-   plaque(s) gravée(s) = PLATES, déjà utilisés dans l'Aile Est). Chaque
-   chambre est un renfoncement à l'écart (x = PX-60), relié à la salle
-   principale par un repère discret et un fondu (UI.withLoading) — PAS
-   un rechargement : même salle chargée, aucune perte du bloc en cours.
-   Récompense : une pièce d'équipement DÉJÀ FORGÉE (rollEquipment),
-   garantie, une seule fois par salle. */
-function buildPuzzleVault(id, vz, entry, opts) {
+   v9.4 — sept énigmes DIFFÉRENTES (plus l'ancien bloc-sur-plaque recopié
+   sept fois) : ordre à deviner, portage en hauteur à la Main céleste,
+   passage réservé au Pas du vent, fenêtre de réaction chronométrée,
+   leurre à repérer parmi des faux, et un vrai combat de garde renforcé.
+   vaultShell() ne construit que la COQUE commune (renfoncement à l'écart
+   x = PX-60, porte scellée, coffre, entrée/sortie par fondu — UI.
+   withLoading, PAS un rechargement : la salle reste chargée, rien n'est
+   perdu si on ressort avant d'avoir résolu). Chaque salle ajoute SA
+   propre mécanique à l'intérieur et appelle solve() quand elle est
+   validée. Récompense : équipement DÉJÀ FORGÉE, garantie, unique. */
+function vaultShell(id, vz, entry, opts) {
   const vx = PX - 60;
-  const { plates = 1, slot, rarity, hintMsg, doneMsg, guard } = opts;
+  const { slot, rarity, doneMsg, solveMsg, guard, roomD = 22 } = opts;
+  const half = roomD / 2;
   const teleport = (tx, ty, tz, yaw) => {
     const who = S.actingPlayer === 2 ? 2 : 1;
     const mover = who === 2 ? p2 : player;
@@ -754,46 +758,43 @@ function buildPuzzleVault(id, vz, entry, opts) {
     });
   };
   // repère discret dans la salle principale : ne ressemble à rien de plus qu'un détail
-  addInter(entry.x, entry.y, entry.z, 2.4, entry.label, () => teleport(vx, 0.2, vz - 6, 0));
+  // (entry.gate : certaines chambres n'admettent que qui possède déjà tel pouvoir)
+  addInter(entry.x, entry.y, entry.z, 2.4, entry.label, () => {
+    if (entry.gate && !entry.gate()) { showMsg(entry.gateMsg || 'Il vous manque quelque chose pour continuer.', 3.5); return; }
+    teleport(vx, 0.2, vz - half + 2, 0);
+  });
 
-  mkBox(14, 1, 16, vx, -1, vz, 'stoneD');
-  mkBox(0.7, 3.4, 16, vx - 7, 0, vz, 'stoneR');
-  mkBox(0.7, 3.4, 16, vx + 7, 0, vz, 'stoneR');
-  mkBox(5.5, 3.4, 0.7, vx - 4.25, 0, vz + 8, 'stoneR');
-  mkBox(5.5, 3.4, 0.7, vx + 4.25, 0, vz + 8, 'stoneR');
-  const vaultDoor = mkDoor(3, 3.4, 0.7, vx, 0, vz + 8, 'stoneD');
+  mkBox(14, 1, roomD, vx, -1, vz, 'stoneD');
+  mkBox(0.7, 4.4, roomD, vx - 7, 0, vz, 'stoneR');
+  mkBox(0.7, 4.4, roomD, vx + 7, 0, vz, 'stoneR');
+  mkBox(5.5, 4.4, 0.7, vx - 4.25, 0, vz + half, 'stoneR');
+  mkBox(5.5, 4.4, 0.7, vx + 4.25, 0, vz + half, 'stoneR');
+  const vaultDoor = mkDoor(3, 4.4, 0.7, vx, 0, vz + half, 'stoneD');
   const solved = flag(id, 'vaultDone');
   if (solved) presetOpen(vaultDoor);
-  torch(vx - 5, 0, vz - 4, 0xb08cff, 1.05, 12); torch(vx + 5, 0, vz + 3, 0xb08cff, 1.05, 12);
-  if (!solved) {
-    const cubeSpots = plates === 2 ? [[vx - 3, vz - 3], [vx + 3, vz - 3]] : [[vx, vz - 3]];
-    cubeSpots.forEach(([cx2, cz2]) => mkTkCube(cx2, 0.55, cz2));
-    (plates === 2 ? [vx - 2.4, vx + 2.4] : [vx]).forEach(px2 => {
-      const glow = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
-      glow.position.set(px2, 0.14, vz + 4);
-      S.scene.add(glow);
-      PLATES.push({
-        x: px2, z: vz + 4, y: 0, glow, door: vaultDoor,
-        msg: 'Les plaques cèdent : la chambre scellée s\'ouvre.',
-        onOpen: () => setFlag(id, 'vaultDone')
-      });
-    });
-  }
-  if (guard) {
+  torch(vx - 5, 0, vz - half + 4, 0xb08cff, 1.05, 14); torch(vx + 5, 0, vz + half - 5, 0xb08cff, 1.05, 14);
+  if (guard && !solved) {
     const gx = vx + (guard.dx || 0), gz = vz + (guard.dz || 0), r = guard.range || 2.5;
-    rEnemy(gx, gz, 0, [[gx - r, gz], [gx + r, gz]], { type: guard.type, lvl: guard.lvl });
+    rEnemy(gx, gz, 0, [[gx - r, gz], [gx + r, gz]], guard.opt);
   }
-  addInter(vx, 0, vz - 6.3, 2.6, 'Lire l\'inscription gravée', () => showMsg(hintMsg, 4.5));
+  const solve = () => {
+    if (flag(id, 'vaultDone')) return;
+    setFlag(id, 'vaultDone');
+    openDoor(vaultDoor);
+    spawnBurst(vx, 1.4, vz, 0x9fdcff, 20);
+    showMsg(solveMsg || 'Le mécanisme cède : la chambre scellée s\'ouvre.', 4);
+  };
   if (!flag(id, 'vaultTaken')) {
-    addInter(vx, 0, vz + 9, 2.6, 'Ouvrir le coffre scellé', it => {
-      if (!flag(id, 'vaultDone')) { showMsg('Le coffre reste scellé : les plaques n\'ont pas cédé.', 3); return; }
+    addInter(vx, 0, vz + half + 1.3, 2.6, 'Ouvrir le coffre scellé', it => {
+      if (!flag(id, 'vaultDone')) { showMsg('Le coffre reste scellé : l\'épreuve n\'est pas achevée.', 3); return; }
       it.on = false; setFlag(id, 'vaultTaken');
       addGearToBag(rollEquipment(slot, rarity, G.path));
-      spawnBurst(vx, 1.4, vz + 8, 0xffd97a, 30);
+      spawnBurst(vx, 1.4, vz + half - 1, 0xffd97a, 30);
       showMsg(doneMsg, 5);
     });
   }
-  addInter(vx, 0, vz - 9, 2.6, 'Ressortir', () => teleport(entry.x, entry.y, entry.z, entry.yaw));
+  addInter(vx, 0, vz - half + 1, 2.6, 'Ressortir', () => teleport(entry.x, entry.y, entry.z, entry.yaw));
+  return { vx, vz, half, solved, solve, door: vaultDoor };
 }
 
 /* ---- 1. LA MURAILLE CÉLESTE (niv 4-7) — chemin de ronde d'un rempart titanesque ---- */
@@ -820,11 +821,38 @@ function buildMuraille() {
   addPickup('mana', PX + 2, 0, z + 8);
   rEnemy(PX, z - 8, 0, [[PX, z - 20], [PX, z + 5]], { type: 'sentinel', lvl: 5 });
   rEnemy(PX, z + 18, 0, [[PX, z + 8], [PX, z + 28]], { type: 'wraith', lvl: 6 });
-  buildPuzzleVault('muraille', z, { x: PX - 3, y: 0.2, z: z + 14, yaw: Math.PI / 2, label: 'Une faille suspecte dans le mur ouest' }, {
-    plates: 1, slot: 'armor', rarity: 'rare',
-    hintMsg: 'Une faille plus ancienne que le rempart lui-même : quelqu\'un a caché quelque chose ici, il y a bien longtemps.',
-    doneMsg: 'Un pan d\'armure oubliée, encore marqué du blason des gardes du ciel.'
+  /* ---- chambre secrète n°1 : ORDRE À DEVINER (indice lu dans la salle
+     principale, trois flammes à éveiller dans le bon ordre) ---- */
+  addInter(PX + 3, 0, z - 6, 2.6, 'Lire une gravure effacée par le temps', () => {
+    showMsg('« Trois flammes gardent le seuil : que d\'abord la plus froide s\'éveille, puis la plus ardente, enfin celle du couchant. »', 5.5);
   });
+  const muraVault = vaultShell('muraille', z, { x: PX - 3, y: 0.2, z: z + 14, yaw: Math.PI / 2, label: 'Une faille suspecte dans le mur ouest' }, {
+    slot: 'armor', rarity: 'rare',
+    solveMsg: 'Les trois flammes s\'accordent enfin : un pan de mur pivote sur lui-même.',
+    doneMsg: 'Un pan d\'armure oubliée, encore marqué du blason des gardes du ciel.',
+    guard: { dx: 0, dz: -4, range: 2, opt: { type: 'sentinel', lvl: 7 } }
+  });
+  if (!muraVault.solved) {
+    const order = ['cold', 'hot', 'dusk'];
+    let progress = 0;
+    [
+      { key: 'cold', x: muraVault.vx - 6, z: muraVault.vz - 6, color: 0x8fc8ff, label: 'Toucher la flamme la plus froide' },
+      { key: 'hot',  x: muraVault.vx + 6, z: muraVault.vz,     color: 0xff8a3a, label: 'Toucher la flamme la plus ardente' },
+      { key: 'dusk', x: muraVault.vx - 6, z: muraVault.vz + 6, color: 0xb08cff, label: 'Toucher la flamme du couchant' }
+    ].forEach(sc => {
+      torch(sc.x, 0, sc.z, sc.color, 1.15, 12);
+      addInter(sc.x, 0, sc.z, 2.2, sc.label, () => {
+        if (order[progress] === sc.key) {
+          progress++;
+          if (progress === order.length) muraVault.solve();
+          else showMsg('La flamme s\'embrase... une autre doit suivre.', 2);
+        } else {
+          progress = 0;
+          showMsg('Les flammes vacillent et s\'éteignent : l\'ordre n\'était pas le bon.', 2.5);
+        }
+      });
+    });
+  }
   addInter(PX, 0, z + 32.3, 2.6, 'Poursuivre vers le Val des Murmures', () => {
     gotoRoom('val_murmures', { x: PX, y: 0.2, z: -150 + 32.3, yaw: Math.PI });
   });
@@ -858,11 +886,33 @@ function buildValMurmures() {
   rEnemy(PX - 10, z - 10, 0, [[PX - 16, z - 10], [PX - 2, z - 16]], { type: 'sentinel', lvl: 7 });
   rEnemy(PX + 8, z + 6, 0, [[PX + 4, z + 14], [PX + 14, z + 2]], { type: 'caster', lvl: 7 });
   rEnemy(PX - 4, z + 20, 0, [[PX - 12, z + 22], [PX + 2, z + 18]], { type: 'sentinel', lvl: 8 });
-  buildPuzzleVault('val_murmures', z, { x: PX - 20, y: 0.2, z: z - 10, yaw: 0, label: 'Un caillou déplacé, une trace dans l\'herbe' }, {
-    plates: 2, slot: 'weapon', rarity: 'rare',
-    hintMsg: 'Un caillou déplacé, une touffe d\'herbe écrasée en ligne droite : quelqu\'un est passé par ici, et n\'est peut-être jamais reparti.',
+  /* ---- chambre secrète n°2 : DEUX BLOCS + L'ÉGIDE (les plaques ne se
+     chargent que si l'Égide est active au moment où les deux blocs
+     reposent dessus — pas de simple bloc-sur-plaque, il faut savoir QUAND
+     invoquer son pouvoir) ---- */
+  addInter(PX - 20, 0, z - 10, 2.6, 'Un caillou déplacé, une trace dans l\'herbe', () => {
+    showMsg('Les murmures du vent emportent tout ce qui n\'est pas protégé. Seule l\'Égide retient assez longtemps le poids des pierres pour qu\'elles cèdent.', 5.5);
+  });
+  const valVault = vaultShell('val_murmures', z, { x: PX - 20, y: 0.2, z: z - 10, yaw: 0, label: 'Un caillou déplacé, une trace dans l\'herbe' }, {
+    slot: 'weapon', rarity: 'rare',
+    solveMsg: 'Sous l\'Égide, les deux plaques cèdent enfin ensemble : la chambre s\'ouvre.',
     doneMsg: 'Une lame encore chantante, façonnée par les pèlerins pour éloigner les échos du vent.'
   });
+  if (!valVault.solved) {
+    mkTkCube(valVault.vx - 3, 0.55, valVault.vz - 4);
+    mkTkCube(valVault.vx + 3, 0.55, valVault.vz - 4);
+    [valVault.vx - 2.4, valVault.vx + 2.4].forEach(px2 => {
+      const plateGlow = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
+      plateGlow.position.set(px2, 0.14, valVault.vz + 2);
+      S.scene.add(plateGlow);
+      PLATES.push({
+        x: px2, z: valVault.vz + 2, y: 0, glow: plateGlow, door: valVault.door,
+        cond: () => (player.shieldT > 0) || (S.COOP && p2.shieldT > 0),
+        msg: 'Sous l\'Égide, les deux plaques cèdent enfin ensemble : la chambre s\'ouvre.',
+        onOpen: () => valVault.solve()
+      });
+    });
+  }
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers la Carrière de Sel', () => {
     gotoRoom('carriere_sel', { x: PX, y: 0.2, z: -300 + 29.3, yaw: Math.PI });
   });
@@ -893,11 +943,30 @@ function buildCarriereSel() {
   rEnemy(PX - 8, z - 8, 0, [[PX - 12, z - 14], [PX + 4, z - 8]], { type: 'sentinel', lvl: 9 });
   rEnemy(PX + 6, z + 10, 0, [[PX - 4, z + 14], [PX + 10, z + 6]], { type: 'wraith', lvl: 10 });
   rEnemy(PX, z, -7.5, [[PX - 10, z], [PX + 10, z]], { type: 'caster', lvl: 10 });
-  buildPuzzleVault('carriere_sel', z, { x: PX, y: 0.2, z: z - 14, yaw: Math.PI / 2, label: 'Une corde effilochée, nouée à la rambarde' }, {
-    plates: 1, slot: 'accessory', rarity: 'epic',
-    hintMsg: 'Une corde effilochée, nouée à la rambarde du pont : quelqu\'un l\'a utilisée pour descendre plus bas que quiconque n\'ose s\'aventurer.',
+  /* ---- chambre secrète n°3 : DEUX POUVOIRS EN CHAÎNE — le Pas du vent pour
+     franchir le vide jusqu'à la corde, puis le Souffle glacé pour geler le
+     bassin de saumure qui bloque le coffre ---- */
+  const carrVault = vaultShell('carriere_sel', z, {
+    x: PX, y: 0.2, z: z - 14, yaw: Math.PI / 2, label: 'Une corde effilochée, nouée à la rambarde',
+    gate: () => G.powers.dash,
+    gateMsg: 'Une corde effilochée pend au-dessus du vide. Sans un Pas au-delà du vent, nul ne peut la rejoindre.'
+  }, {
+    slot: 'accessory', rarity: 'epic',
+    solveMsg: 'La saumure gèle d\'un coup : le passage vers le coffre s\'ouvre.',
     doneMsg: 'Une amulette de sel pur, froide au toucher, qui semble absorber la lumière environnante.'
   });
+  if (!carrVault.solved) {
+    const brineMat = new THREE.MeshStandardMaterial({ color: 0x3a5a68, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85 });
+    const brine = new THREE.Mesh(new THREE.BoxGeometry(10, 0.15, 3), brineMat);
+    brine.position.set(carrVault.vx, 0.08, carrVault.vz + 3);
+    S.scene.add(brine);
+    addInter(carrVault.vx, 0, carrVault.vz + 3, 2.8, 'Un bassin de saumure barre le passage', () => {
+      if (!G.powers.frost) { showMsg('La saumure ne gèle qu\'au Souffle glacé — nul pas ne la traverse telle quelle.', 3.5); return; }
+      brineMat.color.setHex(0xdff4ff); brineMat.opacity = 1;
+      spawnBurst(carrVault.vx, 0.3, carrVault.vz + 3, 0xbfe8ff, 20);
+      carrVault.solve();
+    });
+  }
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers le Canyon des Lames', () => {
     gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -450 + 29.3, yaw: Math.PI });
   });
@@ -934,11 +1003,37 @@ function buildCanyonLames() {
   rEnemy(PX - 6, z - 12, 0, [[PX - 8, z - 18], [PX - 4, z - 6]], { type: 'brute', lvl: 12 });
   rEnemy(PX + 6, z + 8, 0, [[PX + 4, z + 2], [PX + 8, z + 16]], { type: 'caster', lvl: 13 });
   rEnemy(PX, z + 20, 12.15, [[PX - 4, z + 20], [PX + 4, z + 20]], { type: 'wraith', lvl: 13 });
-  buildPuzzleVault('canyon_lames', z, { x: PX, y: 0.2, z: z - 2, yaw: Math.PI, label: 'Une petite lame gravée d\'un symbole étrange' }, {
-    plates: 2, slot: 'weapon', rarity: 'epic',
-    hintMsg: 'Une lame plus petite que les autres, gravée d\'un symbole qu\'aucune des grandes épées ne porte : une clé, peut-être, plutôt qu\'une arme.',
-    doneMsg: 'Une dague filigranée, taillée dans le même verre sombre que les lames géantes — mais assez légère pour être maniée.'
+  /* ---- chambre secrète n°4 : DEUX GARDES À VAINCRE, PUIS PORTAGE VERTICAL —
+     la Main céleste doit guider le bloc runique jusqu'en haut d'un escalier
+     de plateformes (même principe que les lames à escalader de la salle
+     principale), et non plus le long d'un simple sol plat ---- */
+  const canyVault = vaultShell('canyon_lames', z, { x: PX, y: 0.2, z: z - 2, yaw: Math.PI, label: 'Une petite lame gravée d\'un symbole étrange' }, {
+    slot: 'weapon', rarity: 'epic',
+    solveMsg: 'Le bloc trouve son socle, tout en haut : un déclic résonne dans tout le canyon.',
+    doneMsg: 'Une dague filigranée, taillée dans le même verre sombre que les lames géantes — mais assez légère pour être maniée.',
+    guard: { dx: -2, dz: -5, range: 2, opt: { type: 'brute', lvl: 14 } },
+    roomD: 26
   });
+  if (!canyVault.solved) {
+    rEnemy(canyVault.vx + 3, canyVault.vz - 5, 0, [[canyVault.vx, canyVault.vz - 7], [canyVault.vx + 5, canyVault.vz - 3]], { type: 'caster', lvl: 14 });
+    addInter(canyVault.vx, 0, canyVault.vz - 7, 2.6, 'Lire une entaille dans la pierre', () => {
+      showMsg('Le symbole n\'est pas une arme, mais une clé : ce que la Main céleste peut porter, elle peut aussi élever.', 4.5);
+    });
+    const steps = 4, stepH = 1.35, stepGap = 2.6;
+    for (let i = 0; i < steps; i++) {
+      mkBox(3, 0.6, 3, canyVault.vx, (i + 1) * stepH - 0.3, canyVault.vz - 6 + (i + 1) * stepGap, 'stoneR');
+    }
+    const topY = steps * stepH, topZ = canyVault.vz - 6 + steps * stepGap;
+    mkTkCube(canyVault.vx, 0.55, canyVault.vz - 6);
+    const plateGlow = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
+    plateGlow.position.set(canyVault.vx, topY + 0.14, topZ);
+    S.scene.add(plateGlow);
+    PLATES.push({
+      x: canyVault.vx, z: topZ, y: topY, glow: plateGlow, door: canyVault.door,
+      msg: 'Le bloc trouve son socle, tout en haut : un déclic résonne dans tout le canyon.',
+      onOpen: () => canyVault.solve()
+    });
+  }
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers l\'Aqueduc Colossal', () => {
     gotoRoom('aqueduc_colossal', { x: PX, y: 0.2, z: -600 + 29.3, yaw: Math.PI });
   });
@@ -968,11 +1063,41 @@ function buildAqueducColossal() {
   addPickup('mana', PX - 2, H, z - 10); addPickup('heart', PX + 2, H, z + 12);
   rEnemy(PX, z - 10, H, [[PX, z - 20], [PX, z]], { type: 'caster', lvl: 16, ranged: true });
   rEnemy(PX, z + 14, H, [[PX, z + 6], [PX, z + 24]], { type: 'wraith', lvl: 16 });
-  buildPuzzleVault('aqueduc_colossal', z, { x: PX - 2, y: H, z: z + 10, yaw: Math.PI / 2, label: 'Une pierre du parapet, plus mobile que les autres' }, {
-    plates: 1, slot: 'armor', rarity: 'epic',
-    hintMsg: 'Une pierre du parapet, plus mobile que les autres : en pesant dessus, un mécanisme grince, quelque part sous vos pieds.',
+  /* ---- chambre secrète n°5 : ÉPREUVE DE RÉFLEXE — un rayon tourne sans
+     relâche (le même mécanisme d'auto-rotation que les gemmes du monde
+     ouvert) ; il faut frapper chacune des trois gemmes exactement quand
+     le rayon les balaie, dans n'importe quel ordre ---- */
+  const aqueVault = vaultShell('aqueduc_colossal', z, { x: PX - 2, y: H, z: z + 10, yaw: Math.PI / 2, label: 'Une pierre du parapet, plus mobile que les autres' }, {
+    slot: 'armor', rarity: 'epic',
+    solveMsg: 'Les trois gemmes s\'embrasent ensemble : la chambre scellée s\'ouvre.',
     doneMsg: 'Une cuirasse légère, tissée de plumes de pierre — un secret des bâtisseurs de l\'aqueduc.'
   });
+  if (!aqueVault.solved) {
+    addInter(aqueVault.vx, 0, aqueVault.vz - 6, 2.6, 'Lire une inscription érodée par le vent', () => {
+      showMsg('Le vent ne s\'arrête jamais de tourner. Seul celui qui frappe juste à l\'instant où la lumière passe peut espérer l\'apaiser.', 5);
+    });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 3.4), new THREE.MeshBasicMaterial({ color: 0x8fc8ff }));
+    beam.position.set(aqueVault.vx, 1.2, aqueVault.vz);
+    beam.add(glow(0x8fc8ff, 1.4, 0.4));
+    S.scene.add(beam); spinners.push(beam);
+    const caught = [false, false, false];
+    [0, Math.PI * 2 / 3, Math.PI * 4 / 3].forEach((ang, i) => {
+      const gx = aqueVault.vx + Math.sin(ang) * 3.2, gz = aqueVault.vz + Math.cos(ang) * 3.2;
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
+      gem.position.set(gx, 1.2, gz); S.scene.add(gem);
+      addInter(gx, 0, gz, 1.8, 'Frapper la gemme au bon instant', () => {
+        const cur = ((beam.rotation.y % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        let diff = Math.abs(cur - ang); if (diff > Math.PI) diff = Math.PI * 2 - diff;
+        if (diff < 0.35) {
+          if (!caught[i]) { caught[i] = true; gem.material.color.setHex(0x4ae08a); spawnBurst(gx, 1.2, gz, 0x8fc8ff, 10); }
+          if (caught.every(Boolean)) aqueVault.solve();
+          else showMsg('La gemme s\'embrase ! Il en reste ' + (3 - caught.filter(Boolean).length) + '.', 2);
+        } else {
+          showMsg('Trop tôt, ou trop tard : la lumière n\'y est pas encore.', 1.6);
+        }
+      });
+    });
+  }
   addInter(PX, H, z + 29.3, 2.6, 'Poursuivre vers la Forêt d\'Obsidienne', () => {
     gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -750 + 29.3, yaw: Math.PI });
   });
@@ -1006,11 +1131,40 @@ function buildForetObsidienne() {
   rEnemy(PX - 10, z - 14, 0, [[PX - 16, z - 18], [PX - 4, z - 8]], { type: 'wraith', lvl: 18 });
   rEnemy(PX + 8, z + 6, 0, [[PX + 2, z + 12], [PX + 16, z]], { type: 'brute', lvl: 19 });
   rEnemy(PX, z + 18, 0, [[PX - 8, z + 22], [PX + 8, z + 16]], { type: 'caster', lvl: 19 });
-  buildPuzzleVault('foret_obsidienne', z, { x: PX - 18, y: 0.2, z: z + 14, yaw: 0, label: 'Un arbre de verre au tronc étrangement creux' }, {
-    plates: 2, slot: 'accessory', rarity: 'epic',
-    hintMsg: 'Un arbre légèrement différent des autres : son tronc semble creux, et un courant d\'air frais s\'en échappe.',
+  /* ---- chambre secrète n°6 : LE BON ARBRE PARMI LES LEURRES — un indice
+     décrit un détail précis ; se tromper réveille une ombre embusquée
+     (pas de simple bloc-sur-plaque : de l'observation, avec une sanction) ---- */
+  const foretVault = vaultShell('foret_obsidienne', z, { x: PX - 18, y: 0.2, z: z + 14, yaw: 0, label: 'Un arbre de verre au tronc étrangement creux' }, {
+    slot: 'accessory', rarity: 'epic',
+    solveMsg: 'Le tronc creux s\'ouvre en silence : un passage descend dans l\'obscurité.',
     doneMsg: 'Un talisman de verre noir, poli par des mains qui ne reviendront plus.'
   });
+  if (!foretVault.solved) {
+    addInter(foretVault.vx, 0, foretVault.vz - 6, 2.6, 'Lire une marque gravée dans l\'écorce voisine', () => {
+      showMsg('« Cherchez l\'arbre dont la sève, encore, scintille : les autres ne sont que des reflets morts. »', 4.5);
+    });
+    const obsMat2 = new THREE.MeshStandardMaterial({ color: 0x0a0812, roughness: 0.2, metalness: 0.3, emissive: 0x1a0a2a, emissiveIntensity: 0.35 });
+    const correctIdx = 2;
+    [[-4, -2], [3, -3], [-2, 3], [4, 2]].forEach(([dx, dz], i) => {
+      const tx = foretVault.vx + dx, tz = foretVault.vz + dz;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 2.6, 6), obsMat2);
+      trunk.position.set(tx, 1.3, tz); trunk.castShadow = true; S.scene.add(trunk);
+      const crown = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.2, 5), obsMat2);
+      crown.position.set(tx, 3, tz); S.scene.add(crown);
+      if (i === correctIdx) {
+        const spark = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), new THREE.MeshBasicMaterial({ color: 0x7ade5a }));
+        spark.position.set(tx, 0.3, tz); spark.add(glow(0x7ade5a, 0.7, 0.3));
+        S.scene.add(spark);
+      }
+      addInter(tx, 0, tz, 1.6, 'Toucher cet arbre', () => {
+        if (i === correctIdx) foretVault.solve();
+        else {
+          showMsg('Rien qu\'un reflet mort : quelque chose remue dans l\'ombre...', 2.5);
+          rEnemy(tx, tz + 1.5, 0, [[tx - 2, tz], [tx + 2, tz]], { type: 'wraith', lvl: 19 });
+        }
+      });
+    });
+  }
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers le Bastion des Cendres', () => {
     gotoRoom('bastion_cendres', { x: PX, y: 0.2, z: -900 + 29.3, yaw: Math.PI });
   });
@@ -1051,12 +1205,26 @@ function buildBastionCendres() {
       showMsg('Sous les cendres, une relique du dernier Porteur de Flamme — encore tiède de lumière.', 4.5);
     });
   }
-  buildPuzzleVault('bastion_cendres', z, { x: PX + 16, y: 0.2, z: z - 14, yaw: Math.PI, label: 'Une dalle descellée parmi les décombres' }, {
-    plates: 1, slot: 'weapon', rarity: 'legendary',
-    guard: { dx: 0, dz: 2, range: 2.5, type: 'wraith', lvl: 24 },
-    hintMsg: 'Une dalle descellée parmi les décombres : ce que les Porteurs de Flamme ont caché ici, ils l\'ont bien gardé.',
+  /* ---- chambre secrète n°7 : LE DERNIER GARDIEN — pas d'énigme, un vrai
+     combat de garde renforcé (Titan d'obsidienne, bien au-dessus des
+     ombres de la salle) pour la récompense la plus rare de tout le
+     Pèlerinage ---- */
+  addInter(PX + 16, 0, z - 14, 2.6, 'Une dalle descellée parmi les décombres', () => {
+    showMsg('Une dalle descellée parmi les décombres : ce que les Porteurs de Flamme ont caché ici, ils l\'ont bien gardé.', 4.5);
+  });
+  const bastVault = vaultShell('bastion_cendres', z, { x: PX + 16, y: 0.2, z: z - 14, yaw: Math.PI, label: 'Une dalle descellée parmi les décombres' }, {
+    slot: 'weapon', rarity: 'legendary',
+    solveMsg: 'Le Titan s\'effondre en poussière de cendres : la chambre scellée s\'ouvre.',
     doneMsg: 'La dernière lame d\'un Porteur de Flamme, encore emplie d\'une lumière crépusculaire — légendaire entre toutes.'
   });
+  if (!bastVault.solved) {
+    addInter(bastVault.vx, 0, bastVault.vz - 6, 2.6, 'Une présence pèse dans l\'ombre', () => {
+      showMsg('Le dernier Gardien des Cendres ne cède qu\'au combat : nul mécanisme ne le remplace.', 4);
+    });
+    const boss = rEnemy(bastVault.vx, bastVault.vz + 1, 0, [[bastVault.vx - 3, bastVault.vz + 1], [bastVault.vx + 3, bastVault.vz + 1]], { type: 'obsidian', lvl: 24 });
+    if (boss) boss.onKilled = () => bastVault.solve();
+    else bastVault.solve(); // revisite : pas de renfort régénéré, la voie reste ouverte
+  }
   addInter(PX, 0, z - 24.3, 2.6, 'Revenir vers la Forêt d\'Obsidienne', () => {
     gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -24.3, yaw: 0 });
   });
