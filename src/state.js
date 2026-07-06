@@ -346,6 +346,10 @@ export const zoneSeen = {};
 /* ---- Entrées partagées (manette / tactile / réseau) ---- */
 export const gpMove = { x: 0, z: 0 };
 export const tmMove = { x: 0, z: 0 };
+/* Joystick de la manette smartphone assignée au JOUEUR 2 (coop) : appliqué
+   dans la boucle principale APRÈS updateGamepad, qui remet p2.input à zéro
+   chaque frame (manette physique et téléphone se cumulent). */
+export const tm2Move = { x: 0, z: 0 };
 
 export const STEP_HEIGHT = 0.62; // hauteur de rebord franchissable automatiquement (marche/mantle)
 /* v8 : énigmes durcies, secrets, butin par archétype, sac-atelier, guide du
@@ -406,10 +410,12 @@ export const S = {
      ('xbox' | 'ps' | 'nin' | 'generic', null = aucune) et nom court —
      posés par Controls.js, lus par la légende des boutons (UI.js). */
   padBrand: null, padName: '',
-  /* tmAttackHeld = manette smartphone (attaque du sort sélectionné, flux
-     historique cycle+attaque) · tmBoltHeld = bouton ✦ tactile (toujours
-     l'attaque de base, les autres sorts ayant leurs boutons dédiés) */
-  tmJumpHeld: false, tmAttackHeld: false, tmBoltHeld: false,
+  /* tmBoltHeld = bouton ✦ tactile OU bouton d'attaque de la manette
+     smartphone (toujours l'attaque de base, les autres sorts ayant leurs
+     boutons dédiés) · tm2* = mêmes entrées pour le JOUEUR 2 quand un
+     téléphone le contrôle (coop). */
+  tmJumpHeld: false, tmBoltHeld: false,
+  tm2JumpHeld: false, tm2BoltHeld: false,
   /* Visée assistée (tactile & manette) : cible douce choisie dans le cône
      de regard (aimTarget), cible verrouillée à la main d'un simple toucher
      sur l'ennemi (aimManual, expire après aimManualT secondes), activité
@@ -454,6 +460,8 @@ export const S = {
   tkHeld: null,
   // sauvegarde
   autosaveT: 0, BASE_PICKUPS: 0, STATIC_ENEMIES: 0,
-  // manette smartphone (hôte)
-  hostPeer: null, hostConn: null, hostConnTimer: null
+  /* manette smartphone (hôte) : le pair PeerJS et la LISTE des téléphones
+     connectés — chaque entrée { conn, player: 1|2|null, name } (plusieurs
+     téléphones peuvent scanner le même QR : un par personnage). */
+  hostPeer: null, ctrlConns: [], hostConnTimer: null
 };

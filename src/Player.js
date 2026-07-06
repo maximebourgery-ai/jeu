@@ -2,8 +2,8 @@
 import * as THREE from 'three';
 import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE } from './state.js';
 import { A } from './Audio.js';
-import { showMsg, gameOver } from './UI.js';
-import { slide, slideP, rayAABB, spawnBurst } from './World.js';
+import { $, showMsg, gameOver } from './UI.js';
+import { slide, slideP, rayAABB, spawnBurst, setCamAspects } from './World.js';
 import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
@@ -400,6 +400,27 @@ export function buildPlayer2() {
   p2.shieldMesh = mkShieldBubble();
   S.scene.add(p2.shieldMesh);
   if (G.hasWings) p2.wings = mkWings(g);
+}
+/* Fait ENTRER le Joueur 2 dans la partie (écran scindé) : au lancement d'une
+   partie coop, ou EN COURS DE PARTIE quand un téléphone réclame le J2 via la
+   manette smartphone. Corps 3D selon sa voie (S.P2PATH), position près du J1,
+   HUD coop (barres, ligne de partage, viseurs) et caméras recalculées. */
+export function setupCoopP2() {
+  S.COOP = true;
+  p2.path = S.P2PATH; // AVANT buildPlayer2 : le corps 3D reflète la voie choisie
+  buildPlayer2();
+  p2.maxHp = 100 + (PATHS[p2.path].hpBonus || 0);
+  p2.hp = p2.maxHp; p2.mana = p2.maxMana;
+  p2.pos.set(player.pos.x + 1.6, player.pos.y + 0.05, player.pos.z + 0.8);
+  p2.yaw = S.yaw; p2.mesh.position.copy(p2.pos);
+  $('bars2').style.display = 'block';
+  $('splitline').style.display = 'block';
+  $('cross2').style.display = 'block';
+  $('cross').style.left = '25%';
+  $('crystals').style.top = '118px';
+  $('clock').style.top = '154px'; // sous les barres du J2 en coop
+  if (G.hasWings) addWingsToPlayer();
+  setCamAspects();
 }
 /* Physique et animation du Joueur 2 (mêmes règles que le J1) */
 export function updateP2(dt) {

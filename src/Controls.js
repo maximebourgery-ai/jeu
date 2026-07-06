@@ -264,10 +264,12 @@ const PANEL_DEFS = {
   travel:   { sel: '#travel button', close: '#btn-travelclose' },
   gameover: { sel: '#golist button' },
   win:      { sel: '#win button' },
-  truewin:  { sel: '#truewin button' } // la vraie fin (v8.4)
+  truewin:  { sel: '#truewin button' }, // la vraie fin (v8.4)
+  qr:       { sel: '#qrpanel button', close: '#btn-qrclose' } // appairage des manettes smartphone
 };
 function activePanel() {
   const vis = id => { const el = $(id); return el && !el.classList.contains('hidden'); };
+  if (vis('qrpanel')) return 'qr'; // au-dessus de tout (écran-titre ou pause)
   if (vis('settings')) return 'settings';
   if (G.paused && vis('pause')) return 'pause';
   if (G.mapOpen) return 'map';
@@ -347,6 +349,63 @@ function padMenus(panel, b, dirs, gp, dt) {
     }
   }
 }
+
+/* ================================================================
+   NAVIGATION À DISTANCE (manette smartphone, Network.js) : le téléphone
+   envoie des impulsions ('up'/'down'/'left'/'right'/'ok'/'back'/'zoomin'/
+   'zoomout') qui pilotent LA MÊME navigation de menus que la manette
+   physique (surbrillance dorée, curseurs de réglage, carte). Renvoie true
+   si un panneau était ouvert (l'impulsion a été consommée par le menu).
+   ================================================================ */
+export function remoteNav(d) {
+  const panel = activePanel();
+  if (!panel) return false;
+  /* --- la carte : déplacement par crans + zoom + centrage --- */
+  if (panel === 'map') {
+    const st = 64;
+    if (d === 'up') mapPan(0, -st);
+    else if (d === 'down') mapPan(0, st);
+    else if (d === 'left') mapPan(-st, 0);
+    else if (d === 'right') mapPan(st, 0);
+    else if (d === 'zoomin') mapZoom(1.35);
+    else if (d === 'zoomout') mapZoom(1 / 1.35);
+    else if (d === 'ok') mapCenter();
+    else if (d === 'back') closeMap();
+    return true;
+  }
+  if (navPanel !== panel) {
+    document.querySelectorAll('.padfocus').forEach(el => el.classList.remove('padfocus'));
+    navPanel = panel; navI = 0;
+  }
+  const list = navButtons(panel);
+  if (!list.length) return true;
+  if (navI >= list.length) navI = list.length - 1;
+  const cur = list[navI];
+  const isRange = cur && cur.tagName === 'INPUT' && cur.type === 'range';
+  if (isRange && (d === 'left' || d === 'right')) {
+    /* curseur de réglage : gauche/droite ajuste la valeur en place */
+    const step = (parseFloat(cur.step) || 0.05) * (d === 'right' ? 1 : -1);
+    const min = parseFloat(cur.min) || 0, max = parseFloat(cur.max) || 1;
+    cur.value = String(Math.min(max, Math.max(min, parseFloat(cur.value) + step)));
+    cur.dispatchEvent(new Event('input', { bubbles: true }));
+  } else if (d === 'up' || d === 'left') navI = (navI - 1 + list.length) % list.length;
+  else if (d === 'down' || d === 'right') navI = (navI + 1) % list.length;
+  else if (d === 'ok' && cur) cur.click();
+  else if (d === 'back') {
+    const def = PANEL_DEFS[panel];
+    if (def && def.close) {
+      const c = document.querySelector(def.close);
+      if (c) c.click();
+    }
+  }
+  const fresh = navButtons(panel); // le clic a pu changer le panneau
+  fresh.forEach((el, i) => el.classList.toggle('padfocus', i === navI));
+  const focused = fresh[navI];
+  if (focused && focused.scrollIntoView) focused.scrollIntoView({ block: 'nearest' });
+  return true;
+}
+/* Un panneau (menu) est-il ouvert ? — exposé pour la manette smartphone */
+export function anyPanelOpen() { return activePanel(); }
 
 /* Publie la manette principale vers la légende des boutons (UI.js) dès
    qu'elle change — connexion, déconnexion, bascule solo/coop, démarrage. */

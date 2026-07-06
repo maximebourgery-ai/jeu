@@ -514,8 +514,16 @@ Autres ramassables : cristaux de mana (+35 PM), cœurs (+30 PV), Fragments de vi
 
 ## 9. Systèmes annexes (pour mémoire)
 
-- **Coop écran scindé** : un second porteur de flamme jouable au smartphone-manette
-  (QR / `?controller=ID`), avec sa propre voie.
+- **Coop écran scindé** : un second porteur de flamme jouable à la manette physique
+  ou au smartphone-manette, avec sa propre voie.
+- **Manettes smartphone (QR / `?controller=ID`)** : appairage depuis l'**écran-titre**
+  (ou le menu pause) — **plusieurs téléphones** peuvent scanner le même QR, chacun
+  choisit **son personnage (J1/J2)** et **sa voie** depuis le téléphone (réclamer le
+  J2 fait entrer le second porteur, même en pleine partie). La manette embarque
+  **toutes les commandes** : joystick (à fond = sprint), caméra, attaque, saut,
+  interagir, les 7 sorts, le sac 🎒, l'arbre des pouvoirs ✥, la carte 🗺, la potion 🧪,
+  la pause — plus un **pavé de navigation** qui pilote tous les menus du jeu
+  (écran-titre compris) dès qu'un panneau est ouvert.
 - **Sauvegarde** : automatique (`ombreciel_save_v7` — les sauvegardes v6 sont
   invalidées par la refonte des niveaux).
 - **Anti-glitch** : saut max ≈ 2,85 m (+0,62 m de rebord, +1,1 m avec le bloc-escabeau) ;

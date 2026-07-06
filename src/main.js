@@ -5,21 +5,21 @@
    mode dual jeu / manette smartphone (?controller=ID).
    ================================================================ */
 import './style.css';
-import { G, S, CTRL_ID, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, applyPath, loadSettings } from './state.js';
+import { G, S, CTRL_ID, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, player, p2, tut, pickups, enemies, tm2Move, applyPath, loadSettings } from './state.js';
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, setCamAspects, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
+import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac } from './World.js';
 import { updateDayNight } from './DayNight.js';
-import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer, refreshPlayerVisual } from './Player.js';
+import { buildPlayer, setupCoopP2, updatePlayer, updateP2, updateCamera, updateCamera2, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
-import { castPower, castSpecific, updateProjectiles, updateTK, checkPlate, updateAimAssist } from './Powers.js';
+import { castSpecific, updateProjectiles, updateTK, checkPlate, updateAimAssist } from './Powers.js';
 import { updateFx } from './Animations.js';
 import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad, initSettingsUI } from './Controls.js';
 import { initMap } from './WorldMap.js';
-import { openManettePanel, retryManette, startControllerMode } from './Network.js';
+import { openManettePanel, retryManette, startControllerMode, pushCtrlState } from './Network.js';
 import { saveGame, hasSave, loadGame } from './SaveSystem.js';
 import { buildTowerGate, updateTower } from './Tower.js';
 
@@ -30,11 +30,19 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(S.clock.getDelta(), 0.05);
   updateGamepad(dt);
+  pushCtrlState(); // manettes smartphone : état des menus/sorts poussé sur changement
   const canAct = G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen;
-  // ✦ tactile : toujours l'attaque de base (les autres sorts ont leurs boutons dédiés)
+  // ✦ tactile ou manette smartphone : toujours l'attaque de base (les sorts ont leurs boutons dédiés)
   if (S.tmBoltHeld && canAct) castSpecific('bolt');
-  // manette smartphone : flux historique ⟳ + attaque (lance le sort sélectionné)
-  if (S.tmAttackHeld && canAct) castPower();
+  /* Manette smartphone du JOUEUR 2 : appliquée APRÈS updateGamepad (qui
+     remet p2.input à zéro chaque frame) — téléphone et manette physique
+     se cumulent, joystick poussé à fond = sprint (comme l'écran tactile). */
+  if (S.COOP && p2.mesh) {
+    p2.input.mx += tm2Move.x; p2.input.mz += tm2Move.z;
+    if (Math.hypot(tm2Move.x, tm2Move.z) > 0.92) p2.input.sprint = true;
+    if (S.tm2JumpHeld) p2.input.jumpHeld = true;
+    if (S.tm2BoltHeld && canAct) castSpecific('bolt', p2);
+  }
   /* Le monde SE FIGE aussi sac ouvert (Tab), arbre des pouvoirs ouvert (K)
      et matrice des Bivouacs ouverte : on fabrique, on consomme et on
      apprend tranquille — aucune ombre ne frappe un joueur qui lit ses menus. */
@@ -85,22 +93,7 @@ function startPlaySetup() {
     document.body.classList.add('touchmode'); // épure le HUD (voir style.css)
     tryFullscreenMobile();
   }
-  if (S.COOP) {
-    buildPlayer2();
-    p2.path = S.P2PATH;
-    p2.maxHp = 100 + (PATHS[p2.path].hpBonus || 0);
-    p2.hp = p2.maxHp; p2.mana = p2.maxMana;
-    p2.pos.set(player.pos.x + 1.6, player.pos.y + 0.05, player.pos.z + 0.8);
-    p2.yaw = S.yaw; p2.mesh.position.copy(p2.pos);
-    $('bars2').style.display = 'block';
-    $('splitline').style.display = 'block';
-    $('cross2').style.display = 'block';
-    $('cross').style.left = '25%';
-    $('crystals').style.top = '118px';
-    $('clock').style.top = '154px'; // sous les barres du J2 en coop
-    if (G.hasWings) addWingsToPlayer();
-    setCamAspects();
-  }
+  if (S.COOP) setupCoopP2(); // (aussi appelé par la manette smartphone quand un téléphone réclame le J2 en pleine partie)
   G.started = true;
   applyQuest();
   lockPointer();
@@ -144,6 +137,11 @@ function wireMenus() {
     });
   });
   $('btn-manette').addEventListener('click', () => {
+    openManettePanel();
+  });
+  /* QR depuis l'ÉCRAN D'ACCUEIL : on appaire les téléphones avant de jouer —
+     chacun choisit son personnage (J1/J2) et sa voie depuis le téléphone. */
+  $('btn-manette-title').addEventListener('click', () => {
     openManettePanel();
   });
   $('btn-qrretry').addEventListener('click', () => {
