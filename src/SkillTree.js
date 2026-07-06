@@ -3,7 +3,7 @@
    expérience, ses niveaux, ses points, ses nœuds d'arbre et ses rangs de
    Forge. Les fonctions prennent un paramètre `who` (1 = J1 par défaut,
    2 = J2) — la progression du J1 vit dans G, celle du J2 dans p2. */
-import { G, S, IS_TOUCH, PATHS, TREE_COMMON, TREES, POWERS, PUPG, player, p2 } from './state.js';
+import { G, S, IS_TOUCH, PATHS, TREE_COMMON, TREES, POWERS, PUPG, player, p2, equipTotals } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg } from './UI.js';
 import { spawnBurst } from './World.js';
@@ -85,10 +85,14 @@ export function bonusMul() {
   return m;
 }
 /* Statistiques d'attaque effectives de la voie, dérivées des nœuds acquis
-   PAR CE JOUEUR (who : 1 = J1, 2 = J2 — chacun son arbre en coop). */
+   PAR CE JOUEUR (who : 1 = J1, 2 = J2 — chacun son arbre en coop).
+   v9 : les dégâts de BASE de la voie s'additionnent à ceux de l'ARME
+   équipée (G.equipment.weapon) AVANT les multiplicateurs de l'arbre —
+   l'arme monte le plancher, l'arbre garde son rôle de multiplicateur.
+   L'équipement appartient au J1 (le porteur) : le J2 n'en profite pas. */
 export function classAtk(path, who) {
   const B = PATHS[path];
-  const P = { melee: B.melee, range: B.range, dmg: B.dmg, pSpeed: B.pSpeed, path: path };
+  const P = { melee: B.melee, range: B.range, dmg: B.dmg + (who === 2 ? 0 : (equipTotals().dmg || 0)), pSpeed: B.pSpeed, path: path };
   if (path === 'mage') {
     if (hasN('m_power', who)) P.dmg = Math.round(P.dmg * 1.6);
     if (hasN('m_pierce', who)) { P.pierce = true; P.pSpeed *= 1.35; }

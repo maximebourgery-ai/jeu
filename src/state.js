@@ -88,6 +88,18 @@ export const G = {
      braises froides ne repousse plus les ombres (safeZoneAt, World.js). */
   campHeal: {},
   travelOpen: false, // matrice des Bivouacs à l'écran
+  /* ---- v9 — ÉQUIPEMENT : trois emplacements (Arme / Armure / Accessoire).
+     Chaque objet : { slot, rarity, cls, name, icon, stats:{dmg,armor,hp,
+     mana,speed}, score }. null = emplacement vide. La puissance effective
+     dérive de equipTotals() / gearScore() (voir plus bas) — les dégâts de
+     voie s'ADDITIONNENT à l'arme (classAtk, SkillTree.js), l'armure passe
+     par des rendements décroissants (armorReduction, appliquée dans hurt). */
+  equipment: { weapon: null, armor: null, accessory: null },
+  /* Sac de forge (butin d'équipement non porté, 15 pièces max), panneau de
+     Forge ouvert (enclumes), et Corpse Run : à la mort (solo), l'équipement
+     porté tombe dans une Tombe d'Aube — { items, x, y, z, palier, room,
+     expire } — à récupérer sous 5 minutes RÉELLES (Date.now). */
+  gearBag: [], forgeOpen: false, deathDrop: null,
   /* v8 — SALLES INSTANCIÉES : chaque intérieur du château (grand hall,
      bibliothèque, aile est, salle du trône, catacombes) est chargé seul en
      mémoire derrière un écran de chargement (voir Rooms.js). On ne garde ici
@@ -245,6 +257,122 @@ export const TREES = {
  ]
 };
 
+/* ================================================================
+   v9 — ÉQUIPEMENT & RARETÉ (Arme / Armure / Accessoire)
+   · RARITIES : 4 paliers — le multiplicateur définit la valeur des stats,
+     le score alimente le Gear Score (lu par l'IA et le gear check).
+   · SLOT_DEFS : stats de BASE par emplacement (avant multiplicateur).
+   · rollEquipment(slot, rarity, cls) : fabrique un objet ADAPTÉ à la Voie
+     (nom, icône et bonus secondaire suivent la classe).
+   · equipTotals() / armorReduction() / gearScore() : la couche de calcul
+     de puissance, consommée par Player.js (défense) et SkillTree.js
+     (classAtk : base + arme, PUIS les multiplicateurs de l'arbre).
+   ================================================================ */
+export const RARITIES = {
+  common:    { name: 'Commun',     css: '#c8cede', color: 0xc8cede, mult: 1,   score: 10 },
+  rare:      { name: 'Rare',       css: '#6a9aff', color: 0x6a9aff, mult: 1.7, score: 25 },
+  epic:      { name: 'Épique',     css: '#b06aff', color: 0xb06aff, mult: 2.6, score: 60 },
+  legendary: { name: 'Légendaire', css: '#ffb84a', color: 0xffb84a, mult: 4,   score: 150 }
+};
+export const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary'];
+export const SLOT_DEFS = {
+  weapon:    { name: 'Arme',       base: { dmg: 6 } },
+  armor:     { name: 'Armure',     base: { armor: 22, hp: 14 } },
+  accessory: { name: 'Accessoire', base: { armor: 6, mana: 14, speed: 3 } }
+};
+/* Seuils de Gear Score (max 450 = 3 × Légendaire) lus par l'IA adaptative
+   et le gear check des zones (étapes 4-5 de la refonte v9). */
+export const GEAR_THRESHOLDS = { threat: 180, legend: 330 };
+/* Noms par Voie × emplacement + épithète de rareté : le butin raconte le monde */
+const EQUIP_NAMES = {
+  weapon:    { mage: ['✦', 'Bâton'],    warrior: ['⚔', 'Espadon'],  assassin: ['🗡', 'Dagues jumelles'], paladin: ['✙', 'Marteau'] },
+  armor:     { mage: ['🜁', 'Robe'],     warrior: ['⛨', 'Harnois'],  assassin: ['🜃', 'Cuirs souples'],   paladin: ['🛡', 'Plastron'] },
+  accessory: { mage: ['❂', 'Talisman'], warrior: ['◉', 'Ceinturon'], assassin: ['☽', 'Capuche'],          paladin: ['☀', 'Sceau'] }
+};
+const RARITY_EPITHETS = {
+  common: 'de noviciat', rare: 'du Levant', epic: 'des Larmes d\'Aube', legendary: 'de la Nuit sans lune'
+};
+export function rollEquipment(slot, rarity, cls) {
+  const def = SLOT_DEFS[slot], R = RARITIES[rarity];
+  if (!def || !R) return null;
+  cls = EQUIP_NAMES[slot][cls] ? cls : G.path;
+  const stats = {};
+  // ±15 % de variance : deux drops de même rareté ne sont jamais identiques
+  for (const k in def.base)
+    stats[k] = Math.max(1, Math.round(def.base[k] * R.mult * (0.85 + Math.random() * 0.3)));
+  /* adaptativité de Voie : chaque classe reçoit SON bonus secondaire */
+  const sec = Math.round(8 * R.mult);
+  if (slot === 'weapon') {
+    if (cls === 'mage') stats.mana = sec;
+    else if (cls === 'warrior') stats.hp = sec;
+    else if (cls === 'assassin') stats.speed = Math.max(1, Math.round(sec * 0.4));
+    else stats.armor = sec;
+  } else if (slot === 'armor' && cls === 'assassin') {
+    stats.speed = Math.max(1, Math.round(sec * 0.3));
+  } else if (slot === 'accessory' && cls === 'mage') {
+    stats.dmg = Math.max(1, Math.round(sec * 0.4));
+  }
+  const [icon, base] = EQUIP_NAMES[slot][cls];
+  return {
+    slot, rarity, cls, icon, stats,
+    name: base + ' ' + RARITY_EPITHETS[rarity],
+    score: R.score
+  };
+}
+/* Somme des stats portées — LA source de vérité de la puissance d'équipement */
+export function equipTotals() {
+  const t = { dmg: 0, armor: 0, hp: 0, mana: 0, speed: 0 };
+  for (const k in G.equipment) {
+    const it = G.equipment[k];
+    if (!it) continue;
+    for (const s in it.stats) t[s] = (t[s] || 0) + it.stats[s];
+  }
+  return t;
+}
+/* Rendements décroissants (soft cap) : 100 d'armure = 50 % de réduction,
+   200 = 66 %... plafond DUR à 75 % — l'invincibilité est impossible. */
+export function armorReduction() {
+  const a = equipTotals().armor;
+  return Math.min(0.75, a / (a + 100));
+}
+/* Score d'Équipement global (0 à 450) : lu par l'IA adaptative, le gear
+   check des salles et le directeur de renforts (étapes 4-5). */
+export function gearScore() {
+  let s = 0;
+  for (const k in G.equipment) {
+    const it = G.equipment[k];
+    if (it) s += it.score || (RARITIES[it.rarity] ? RARITIES[it.rarity].score : 0);
+  }
+  return s;
+}
+/* Équipe un objet dans son emplacement et RETOURNE l'ancien (pour le sac ou
+   la fusion). Les bonus PV/PM max s'appliquent en delta — jamais de double
+   comptage au fil des échanges, et la sauvegarde reste cohérente. */
+export function equipItem(item) {
+  if (!item || !(item.slot in G.equipment)) return null;
+  const prev = G.equipment[item.slot];
+  const delta = k => (item.stats[k] || 0) - ((prev && prev.stats[k]) || 0);
+  const dHp = delta('hp'), dMana = delta('mana');
+  G.equipment[item.slot] = item;
+  G.maxHp += dHp;
+  G.hp = Math.max(1, Math.min(G.maxHp, G.hp + Math.max(0, dHp)));
+  G.maxMana += dMana;
+  G.mana = Math.max(0, Math.min(G.maxMana, G.mana + Math.max(0, dMana)));
+  return prev;
+}
+/* Retire l'objet d'un emplacement (et rend ses PV/PM max) — Corpse Run
+   (étape 3) et fusion à la Forge (étape 2) s'appuient dessus. */
+export function unequipSlot(slot) {
+  const it = G.equipment[slot];
+  if (!it) return null;
+  G.equipment[slot] = null;
+  G.maxHp -= it.stats.hp || 0;
+  G.hp = Math.max(1, Math.min(G.hp, G.maxHp));
+  G.maxMana -= it.stats.mana || 0;
+  G.mana = Math.max(0, Math.min(G.mana, G.maxMana));
+  return it;
+}
+
 /* ---- Sorts / pouvoirs ---- */
 export const POWERS = [
   { id: 'bolt',   icon: '✦', name: 'Trait astral',  cost: 10, cool: 0.45 },
@@ -285,6 +413,7 @@ export const p2 = {
   cd: { bolt: 0, dash: 0, tk: 0, shield: 0, frost: 0, heal: 0, nova: 0, meteor: 0 },
   yaw: 0, pitch: -0.22, shieldT: 0, invuln: 0, dashT: 0, stepT: 0, walkT: 0,
   grounded: false, airJumped: false, jumpQ: 0,
+  poisonT: 0, poisonDps: 0, // venin en cours (voir applyPoison, Player.js)
   rage: 0, // jauge de rage du Guerrier quand le J2 incarne cette voie (voir Powers.js)
   input: { mx: 0, mz: 0, sprint: false, jumpHeld: false },
   pos: null, vel: null, dashDir: null, mesh: null, parts: null, wings: null, shieldMesh: null, mixer: null,
@@ -459,6 +588,9 @@ export const S = {
   /* combat : > 0 tant qu'une ombre en chasse est proche (verrouille le
      voyage rapide et le lock-on vertical de la caméra) */
   combatT: 0,
+  /* poison / corruption du J1 (venin de la Racine, nuit liquide, crocs de
+     l'Avale-Lune...) : dégâts sur la durée — voir applyPoison, Player.js */
+  poisonT: 0, poisonDps: 0,
   // caméra : longueur courante du bras (spring arm — rétractation instantanée,
   // retour lissé) pour chaque joueur, et murs actuellement « dithérés »
   camD: 4.55, camD2: 4.55, dithered: new Set(),
@@ -499,7 +631,7 @@ export const S = {
    inv / travelOpen / mapOpen restent des écrans du J1 (pas d'équivalent J2
    pour l'instant) : ils ne bloquent jamais le Joueur 2. */
 export function p1Busy() {
-  return G.paused || G.inv || G.travelOpen || G.mapOpen
+  return G.paused || G.inv || G.travelOpen || G.mapOpen || G.forgeOpen
     || (G.dialog && S.dlgWho !== 2) || (G.treeOpen && S.treeFor !== 2);
 }
 /* Le Joueur 2 (manette locale ou joueur en ligne) est-il occupé par SON

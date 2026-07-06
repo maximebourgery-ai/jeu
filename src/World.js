@@ -10,11 +10,12 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   G, S, IS_TOUCH, POWERS, QUESTS, HINTS, tut, STEP_HEIGHT, LIGHT_SCALE,
   colliders, doors, pickups, inter, spinners, flames, parts,
-  tkCubes, pedestals, PLATES, CAMPS, player, p2
+  tkCubes, pedestals, PLATES, CAMPS, player, p2,
+  equipItem, unequipSlot
 } from './state.js';
 import { assets, matFor, glow } from './AssetManager.js';
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, openTravel } from './UI.js';
+import { $, showMsg, refreshPowers, openTravel, toggleForge } from './UI.js';
 import { questReach, openDialog, guide, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
@@ -606,11 +607,16 @@ export function addInter(x, y, z, r, label, fn) {
   return it;
 }
 export function nearInterP(pl) {
+  /* La PLUS PROCHE interaction à portée gagne — pas la première enregistrée.
+     (Bug « étage infranchissable » : quand une plaque d'étage chevauchait un
+     portail de sas, la plaque, construite avant, volait le E pour toujours.) */
+  let best = null, bestD = Infinity;
   for (const i of inter) {
     if (!i.on) continue;
-    if (Math.hypot(pl.pos.x - i.x, pl.pos.z - i.z) < i.r && Math.abs(pl.pos.y - i.y) < 2.8) return i;
+    const d = Math.hypot(pl.pos.x - i.x, pl.pos.z - i.z);
+    if (d < i.r && Math.abs(pl.pos.y - i.y) < 2.8 && d < bestD) { bestD = d; best = i; }
   }
-  return null;
+  return best;
 }
 export function nearInter() {
   return nearInterP(player);
@@ -1370,4 +1376,141 @@ export function buildHerbs() {
   [[6, 52], [-8, 48], [12, 40], [-14, 46], [20, 60], [5, 70], [-4, 66], [26, 44], [18, 72], [-18, 40],
    [-51, -69], [39, -57], [9, -81], [33, -57]]
     .forEach(p => addPickup('herb', p[0], 0, p[1]));
+}
+
+/* ================================================================
+   v9 — L'ENCLUME DE FORGE (ouvre le panneau de Forge, UI.js) et le
+   CORPSE RUN : à la mort (solo), l'équipement porté tombe dans une
+   TOMBE D'AUBE aux coordonnées du trépas — 5 minutes RÉELLES pour
+   revenir le chercher, sinon il se dissout dans la nuit.
+   ================================================================ */
+const anvilSpots = []; // {x,y,z} de chaque enclume — pour le guide de proximité ci-dessous
+export function mkAnvil(x, y, z) {
+  /* Silhouette d'enclume RECONNAISSABLE (socle → taille → table plate +
+     corne), en fer sombre, sur un petit foyer de braises — bien plus
+     grande et bien plus éclairée que la v9.0 (invisible en pratique :
+     0,77 m de haut, aucune lumière propre). Échelle et éclairage calqués
+     sur torch()/bivouac() : c'est un point de repère du monde, il doit
+     se voir de loin, de jour comme de nuit. */
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.45, metalness: 0.85 });
+  mkBox(0.62, 0.5, 0.5, x, y, z, ironMat);              // socle
+  mkBox(0.4, 0.32, 0.34, x, y + 0.5, z, ironMat, false); // taille (col resserré)
+  const table = mkBox(1.5, 0.26, 0.58, x, y + 0.82, z, ironMat, false); // table de travail
+  table.castShadow = true;
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.72, 8),
+    ironMat);
+  horn.rotation.z = Math.PI / 2;
+  horn.position.set(x + 1.05, y + 0.9, z);
+  horn.castShadow = true;
+  S.scene.add(horn);
+  // braises rougeoyantes incrustées dans la table (le forgeron travaille encore)
+  const emberMat = new THREE.MeshBasicMaterial({ color: 0xff8a3a });
+  const ember = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.3, 6), emberMat);
+  ember.position.set(x - 0.3, y + 1.02, z);
+  S.scene.add(ember);
+  const halo = glow(0xffb05a, 3.2, 0.6); // large et intense : visible de loin, jour comme nuit
+  halo.position.set(x - 0.3, y + 1.15, z);
+  S.scene.add(halo);
+  const light = new THREE.PointLight(0xff8c3a, 1.3 * LIGHT_SCALE, 16, 2);
+  light.position.set(x, y + 1.1, z);
+  S.scene.add(light);
+  flames.push({ flame: ember, light, halo, base: 1.3 * LIGHT_SCALE, seed: Math.random() * 10 });
+  addInter(x, y, z, 2.8, '⚒ Forge — façonner et fusionner l\'équipement', () => toggleForge());
+  anvilSpots.push({ x, y, z });
+}
+/* Guide du porteur — la Forge, à la première approche (pas seulement à
+   l'ouverture du panneau : si le joueur ne s'arrête jamais dessus, il ne
+   comprendrait jamais à quoi elle sert). Même mécanique que herb/shadow/
+   camp (G.seen, une seule fois par partie) — voir Quests.js. */
+export function updateAnvilProximity() {
+  if (G.seen.forge || !anvilSpots.length) return;
+  for (const a of anvilSpots) {
+    const near = pl => pl && pl.pos && Math.hypot(pl.pos.x - a.x, pl.pos.z - a.z) < 4.5 && Math.abs(pl.pos.y - a.y) < 3;
+    if (near(player) || (S.COOP && p2.pos && near(p2))) {
+      guide('forge', [
+        '⚒ LA FORGE — chaque enclume d\'Ombreciel façonne et fusionne de l\'ÉQUIPEMENT : une Arme, une Armure et un Accessoire, en plus de vos arts. Ouvrez le panneau avec E.',
+        'Chaque pièce a une RARETÉ (Commun → Rare → Épique → Légendaire) qui fixe sa puissance. Façonnez une pièce Commune contre des essences d\'ombre, ou FUSIONNEZ 3 pièces de même rareté (+ ressources de monstres) pour en forger une supérieure — toujours adaptée à VOTRE voie.',
+        'Les ombres vaincues lâchent aussi de l\'équipement (rangé au sac de forge). Votre SCORE D\'ÉQUIPEMENT total rend le monde plus dangereux à mesure qu\'il grandit — et si vous tombez, l\'équipement porté reste 5 minutes sur votre dépouille : revenez le chercher avant qu\'il ne s\'éteigne.'
+      ]);
+      return;
+    }
+  }
+}
+
+let tombG = null; // mesh de la Tombe d'Aube actuellement posée (ou null)
+function mkTombMesh() {
+  const g = new THREE.Group();
+  const mat = matFor('stoneR', 1, 1);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.2, 0.22), mat);
+  slab.position.y = 0.6; slab.castShadow = true;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.22, 10, 1, false, 0, Math.PI), mat);
+  cap.rotation.z = Math.PI / 2; cap.rotation.y = Math.PI / 2;
+  cap.position.y = 1.2;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.25, 0.8), mat);
+  base.position.y = 0.12;
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+    new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
+  core.position.set(0, 1.55, 0);
+  g.add(slab, cap, base, core, glow(0xffd97a, 3, 0.6));
+  return g;
+}
+/* Transfère l'équipement porté dans G.deathDrop (appelé par hurt(), Player.js,
+   au moment du Game Over solo). Contexte (palier/salle) mémorisé : la Tombe
+   ne se matérialise que dans le BON espace instancié. */
+export function dropEquipmentOnDeath() {
+  const items = [];
+  for (const slot of ['weapon', 'armor', 'accessory']) {
+    const it = unequipSlot(slot);
+    if (it) items.push(it);
+  }
+  if (!items.length) return;
+  G.deathDrop = {
+    items,
+    x: player.pos.x, y: Math.max(0, player.pos.y), z: player.pos.z,
+    palier: S.inTower ? S.palier : -1, room: S.roomId || null,
+    expire: Date.now() + 300000 // 5 minutes RÉELLES
+  };
+  showMsg('⚰ Votre équipement gît où vous êtes tombé — une TOMBE D\'AUBE le garde 5 minutes !', 5);
+}
+/* Boucle du Corpse Run (appelée par main.js) : matérialise/retire la Tombe
+   selon le contexte, gère l'expiration réelle et la récupération de proximité. */
+export function updateDeathDrop() {
+  const D = G.deathDrop;
+  if (!D || !D.items || !D.items.length) {
+    if (tombG) { S.scene.remove(tombG); tombG = null; }
+    return;
+  }
+  if (Date.now() > D.expire) {
+    G.deathDrop = null;
+    if (tombG) { S.scene.remove(tombG); tombG = null; }
+    showMsg('La Tombe d\'Aube s\'est éteinte... votre ancien équipement appartient à la nuit.', 4.5);
+    return;
+  }
+  /* la Tombe n'existe que dans l'espace où l'on est mort (monde / palier / salle) */
+  const hereCtx = S.inTower ? S.palier : -1;
+  const ctxOk = (D.palier === hereCtx) && ((D.room || null) === (S.roomId || null));
+  if (!ctxOk) { if (tombG) { S.scene.remove(tombG); tombG = null; } return; }
+  if (!tombG) {
+    tombG = mkTombMesh();
+    tombG.position.set(D.x, D.y, D.z);
+    S.scene.add(tombG);
+  }
+  tombG.children[3].rotation.y += 0.03; // l'éclat doré tournoie doucement
+  /* récupération par PROXIMITÉ (pas d'addInter : les instances tronquent
+     la liste des interactions au déchargement — la Tombe doit y survivre) */
+  if (Math.hypot(player.pos.x - D.x, player.pos.z - D.z) < 2.2 &&
+      Math.abs(player.pos.y - D.y) < 3) {
+    for (const it of D.items) {
+      const prev = equipItem(it);
+      if (prev) { // un slot déjà rempli entre-temps : l'ancien va au sac de forge
+        if (G.gearBag.length < 15) G.gearBag.push(prev);
+        else G.shadows += 2;
+      }
+    }
+    G.deathDrop = null;
+    S.scene.remove(tombG); tombG = null;
+    A.power();
+    spawnBurst(D.x, D.y + 1.2, D.z, 0xffd97a, 26);
+    showMsg('⚰ → ⚔ Équipement RÉCUPÉRÉ ! La Tombe d\'Aube vous rend ce qui est vôtre.', 4);
+  }
 }

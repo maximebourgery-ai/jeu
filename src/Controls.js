@@ -13,7 +13,7 @@ const myDialog = who => G.dialog && S.dlgWho === who;
 const myTree = who => G.treeOpen && S.treeFor === who;
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots, updatePadLegend } from './UI.js';
+import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots, updatePadLegend, toggleForge } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
@@ -68,6 +68,7 @@ export function initControls() {
     if (e.code === 'Escape' && !document.pointerLockElement) {
       if (G.mapOpen) { closeMap(); return; }
       if (G.travelOpen) { closeTravel(); return; }
+      if (G.forgeOpen) { toggleForge(); return; }
       if (myTree(1)) { toggleTree(); return; }
       if (G.inv) { toggleInv(); return; }
       G.paused = !G.paused;
@@ -109,7 +110,7 @@ export function initControls() {
   addEventListener('mousedown', e => {
     if (!G.started || G.over) return;
     if (myDialog(1)) { dlgNext(); return; }
-    if (G.paused || G.inv || myTree(1) || G.travelOpen) return; // clics réservés aux boutons de ces panneaux
+    if (G.paused || G.inv || myTree(1) || G.travelOpen || G.forgeOpen) return; // clics réservés aux boutons de ces panneaux
     if (IS_TOUCH) return; // sur mobile, l'attaque passe par le bouton tactile
     if (document.pointerLockElement) {
       if (e.button === 0 && !G.inv) castPower();
@@ -127,7 +128,7 @@ export function initControls() {
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !myDialog(1) && !G.inv && !myTree(1) && !G.travelOpen && !G.mapOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !myDialog(1) && !G.inv && !myTree(1) && !G.travelOpen && !G.mapOpen && !G.forgeOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -152,6 +153,8 @@ export function initControls() {
    Y/LB/RB/LT/RT : 5 emplacements de sort assignables dans ⚙ Réglages
    (par défaut : Pas du vent, Main céleste, Égide, Souffle glacé, Bénédiction).
    Croix haut/bas : Nova d'Aurore / Astre d'Aube (arts de l'Outre-Ciel).
+   Croix gauche : SAC-ATELIER (Tab) · Croix droite : ARBRE DES POUVOIRS &
+   Forge des Arts (K) — les panneaux se naviguent ensuite à la manette.
 
    Beaucoup de manettes Bluetooth s'annoncent avec mapping ≠ "standard" :
    axes du stick droit décalés, gâchettes exposées en axes (repos à -1),
@@ -267,6 +270,7 @@ const PANEL_DEFS = {
   settings: { sel: '#settings input, #settings button', close: '#btn-settings-close' },
   inv:      { sel: '#inv button', close: '#btn-invclose' },
   tree:     { sel: '#tree button', close: '#treeclose' },
+  forge:    { sel: '#forge button', close: '#forgeclose' },
   travel:   { sel: '#travel button', close: '#btn-travelclose' },
   gameover: { sel: '#golist button' },
   win:      { sel: '#win button' },
@@ -288,6 +292,7 @@ function activePanel(who) {
   if (w === 1) {
     if (G.mapOpen) return 'map';
     if (G.inv) return 'inv';
+    if (G.forgeOpen) return 'forge';
     if (G.travelOpen) return 'travel';
   }
   if (G.treeOpen && S.treeFor === w) return 'tree';
@@ -589,6 +594,8 @@ export function updateGamepad(dt) {
         if (b(7) && !S.gpPrev[7] && !G.inv) castSlot(4);                // RT / R2 : emplacement 5
         if (padUp() && !S.gpPrev[12] && !G.inv) castSpecific('nova');    // Croix haut : Nova d'Aurore
         if (padDown() && !S.gpPrev[13] && !G.inv) castSpecific('meteor');// Croix bas : Astre d'Aube
+        if (padLeft() && !S.gpPrev[14]) toggleInv();                     // Croix gauche : sac-atelier
+        if (padRight() && !S.gpPrev[15]) toggleTree();                   // Croix droite : arbre & Forge des Arts
       }
     }
   }
@@ -700,7 +707,7 @@ export function setupTouch() {
     S.tmBoltHeld = true; // toujours l'attaque de base, jamais le dernier sort débloqué
     /* le coup part dès l'appui : un tap bref frappe aussi (le maintien,
        lui, enchaîne via la boucle principale — la recharge fait le tri) */
-    if (G.started && !G.paused && !G.over && !G.inv && !myTree(1) && !G.travelOpen) castSpecific('bolt');
+    if (G.started && !G.paused && !G.over && !G.inv && !myTree(1) && !G.travelOpen && !G.forgeOpen) castSpecific('bolt');
   });
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== atkId) return;
@@ -741,7 +748,7 @@ export function setupTouch() {
     btn.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
       if (myDialog(1)) { dlgNext(); return; }
-      if (!G.started || G.paused || G.over || G.inv) return;
+      if (!G.started || G.paused || G.over || G.inv || G.forgeOpen) return;
       castSpecific(btn.dataset.power);
       try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
     });

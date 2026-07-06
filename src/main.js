@@ -9,7 +9,7 @@ import { G, S, CTRL_ID, JOIN_CODE, PEERSRV, IS_TOUCH, IS_IOS, IS_STANDALONE, PAT
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac, coopNetP2 } from './World.js';
+import { initScene, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac, coopNetP2, mkAnvil, updateDeathDrop, updateAnvilProximity } from './World.js';
 import { updateDayNight } from './DayNight.js';
 import { buildPlayer, setupCoopP2, updatePlayer, updateP2, updateCamera, updateCamera2, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
@@ -34,11 +34,12 @@ function loop() {
   pushCtrlState(); // manettes smartphone : état des menus/sorts poussé sur changement
   pushNetHud(dt);  // joueur en ligne (2ᵉ PC) : HUD répliqué ~10 Hz (barres, objectif, dialogues...)
   /* v9 — INDÉPENDANCE DES JOUEURS : chaque porteur a SON propre état
-     « occupé » (pause, dialogue, arbre des pouvoirs — voir p1Busy/p2Busy,
-     state.js). L'un peut lire son sac, dialoguer ou consulter son arbre
-     SANS geler l'autre : seul updatePlayer/updateP2 du joueur concerné
-     s'arrête. Le MONDE (ombres, portes, directeur...) ne se fige que si
-     PLUS PERSONNE ne joue (solo occupé, ou coop occupé des DEUX côtés). */
+     « occupé » (pause, dialogue, arbre des pouvoirs, Forge — voir
+     p1Busy/p2Busy, state.js). L'un peut lire son sac, dialoguer ou
+     consulter son arbre SANS geler l'autre : seul updatePlayer/updateP2
+     du joueur concerné s'arrête. Le MONDE (ombres, portes, directeur...)
+     ne se fige que si PLUS PERSONNE ne joue (solo occupé, ou coop occupé
+     des DEUX côtés). */
   const canAct1 = G.started && !G.over && !p1Busy();
   const canAct2 = G.started && !G.over && !p2Busy();
   // ✦ tactile ou manette smartphone : toujours l'attaque de base (les sorts ont leurs boutons dédiés)
@@ -52,8 +53,13 @@ function loop() {
     if (S.tm2JumpHeld) p2.input.jumpHeld = true;
     if (S.tm2BoltHeld && canAct2) castSpecific('bolt', p2);
   }
+  /* Le monde SE FIGE aussi sac ouvert (Tab), arbre des pouvoirs ouvert (K)
+     et Forge ouverte : on fabrique, on consomme et on apprend tranquille —
+     aucune ombre ne frappe un joueur qui lit ses menus (voir worldFrozen). */
   if (G.started && !G.over && !worldFrozen()) {
     G.time += dt;
+    updateDeathDrop(); // Corpse Run : Tombe d'Aube (matérialisation, expiration 5 min réelles, récupération)
+    updateAnvilProximity(); // Guide du porteur : explique la Forge à la première approche
     updateDayNight(dt); // horloge d'Ombreciel : ciel, lumières, force des ombres
     updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs
     if (canAct1) updatePlayer(dt);
@@ -240,6 +246,13 @@ async function initGame() {
      pour souffler, forger et dépenser ses points. Ajouté EN DERNIER pour ne
      pas décaler les index d'interactions des sauvegardes existantes. */
   bivouac(-3.5, 0, 57, 'la fontaine des Jardins', 'fontaine');
+  /* v9 — l'enclume de départ, contre la VRAIE fontaine du sanctuaire (le
+     bassin de pierre en (0, 0, 42), avec son offrande secrète) : le point
+     de repère qu'un joueur associe naturellement à « la fontaine » — pas
+     le feu de bivouac homonyme, planté 15 m plus loin près du spawn.
+     À 5,7 m du bassin (hors de son emprise, r = 3,3), sur le chemin
+     naturel vers Lumen (balise du tutoriel, à peine plus loin). */
+  mkAnvil(-4.5, 0, 40.5); // v9 : la Forge de la fontaine
   /* Patrouilles v8.1 : ajoutées APRÈS tout le reste (comme le bivouac
      ci-dessus) pour préserver les index d'ennemis des sauvegardes. */
   buildExtraPatrols();
@@ -258,7 +271,8 @@ async function initGame() {
   $('loading').classList.add('hidden');
   /* Poignée de debug (serveur de dev uniquement) */
   if (import.meta.env.DEV) {
-    const { inter, CAMPS, doors, tkCubes, zoneSeen, p1Busy, p2Busy, worldFrozen, tm2Move } = await import('./state.js');
+    const { inter, CAMPS, doors, tkCubes, zoneSeen, p1Busy, p2Busy, worldFrozen, tm2Move,
+      rollEquipment, equipItem, unequipSlot, equipTotals, gearScore, armorReduction } = await import('./state.js');
     const { killEnemy } = await import('./Enemies.js');
     const { loadRoom, unloadRoom } = await import('./Rooms.js');
     const { travelTo, toggleInv } = await import('./UI.js');
@@ -270,7 +284,8 @@ async function initGame() {
     window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, doors,
       tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap,
       p1Busy, p2Busy, worldFrozen, setupCoopP2, toggleInv, toggleTree, openDialog, tryInteractP2, tm2Move,
-      coopNetP2, ensureP2Renderer, setCamAspects };
+      coopNetP2, ensureP2Renderer, setCamAspects,
+      rollEquipment, equipItem, unequipSlot, equipTotals, gearScore, armorReduction };
   }
   loop();
 }

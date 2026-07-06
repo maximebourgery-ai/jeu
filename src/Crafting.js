@@ -6,9 +6,9 @@
    soin, dégâts de zone, vitesse, PV max, PM max, puissance brute.
    Les touches H / O / C restent des raccourcis en jeu.
    ================================================================ */
-import { G, S, PATHS, player, p2 } from './state.js';
+import { G, S, PATHS, player, p2, RARITIES, RARITY_ORDER, SLOT_DEFS, rollEquipment, equipItem, unequipSlot } from './state.js';
 import { A } from './Audio.js';
-import { showMsg, refreshInv } from './UI.js';
+import { showMsg, refreshInv, refreshForge } from './UI.js';
 import { spawnBurst } from './World.js';
 import { addWingsToPlayer } from './Player.js';
 
@@ -139,7 +139,8 @@ export function usePotion() {
   }
   G.potions--;
   G.hp = Math.min(G.maxHp, G.hp + 50); A.pickup();
-  if (S.COOP && p2.mesh) p2.hp = Math.min(p2.maxHp, p2.hp + 50);
+  S.poisonT = 0; // la potion lunaire purge aussi le venin
+  if (S.COOP && p2.mesh) { p2.hp = Math.min(p2.maxHp, p2.hp + 50); p2.poisonT = 0; }
   spawnBurst(player.pos.x, player.pos.y + 1.2, player.pos.z, 0x9fffb0, 14);
   showMsg('Vous buvez une Potion lunaire : +50 PV' + (S.COOP ? ' pour les deux porteurs' : '') + ' (🧪 reste ' + G.potions + ').', 2.5);
   if (G.inv) refreshInv();
@@ -158,4 +159,106 @@ export function craftAction(k, who) {
     else if (!G.hasWings) craftRecipe('ailes');
     else showMsg('Vous avez atteint la transcendance ultime.', 2);
   }
+}
+
+/* ================================================================
+   v9 — LA FORGE (enclumes du monde) : façonnage et FUSION d'équipement
+   · forgeGear(slot)  : façonne une pièce COMMUNE adaptée à la Voie
+     (rollEquipment lit la classe du joueur — G.path).
+   · fuseGear(rarity) : consomme 3 pièces du sac de MÊME rareté + des
+     ressources de monstres → 1 pièce de rareté SUPÉRIEURE, adaptée à
+     la Voie, dans l'emplacement majoritaire des pièces consommées.
+   · Le sac de forge (G.gearBag) est plafonné à 15 pièces ; le surplus
+     de butin se condense en essences d'ombre.
+   ================================================================ */
+export const BAG_MAX = 15;
+export const FORGE_COST = { shadows: 4 };                    // façonner un Commun
+export const FUSE_COSTS = {                                  // coût par rareté PRODUITE
+  rare:      { shadows: 5 },
+  epic:      { shadows: 10, bones: 2 },
+  legendary: { shadows: 16, nightHearts: 1 }
+};
+function costOk(cost) { for (const k in cost) if ((G[k] || 0) < cost[k]) return false; return true; }
+function payCost(cost) { for (const k in cost) G[k] -= cost[k]; }
+export function fuseCostText(cost) {
+  return Object.keys(cost).map(k => RES[k].icon + ' ' + (G[k] || 0) + '/' + cost[k]).join(' · ');
+}
+/* Range une pièce au sac de forge ; plein → condensée en 2 essences. */
+export function addGearToBag(item, silent) {
+  if (!item) return false;
+  if (G.gearBag.length >= BAG_MAX) {
+    G.shadows += 2;
+    if (!silent) showMsg('Sac de forge plein (' + BAG_MAX + ') : ' + item.name + ' se condense en 2 essences d\'ombre.', 3);
+    return false;
+  }
+  G.gearBag.push(item);
+  if (!silent) showMsg('⚒ Butin : ' + item.icon + ' ' + item.name + ' (' + RARITIES[item.rarity].name + ') — rangé au sac de forge.', 3);
+  return true;
+}
+export function forgeGear(slot) {
+  if (!SLOT_DEFS[slot]) return;
+  if (!costOk(FORGE_COST)) { showMsg('La forge réclame ' + fuseCostText(FORGE_COST) + ' — les Ombres ordinaires en lâchent.', 3); return; }
+  if (G.gearBag.length >= BAG_MAX) { showMsg('Sac de forge plein (' + BAG_MAX + ' pièces) : équipez ou fusionnez d\'abord.', 3); return; }
+  payCost(FORGE_COST);
+  const it = rollEquipment(slot, 'common', G.path); // adapté à la Voie du joueur
+  G.gearBag.push(it);
+  A.power();
+  spawnBurst(player.pos.x, player.pos.y + 1.2, player.pos.z, 0xc8cede, 14);
+  showMsg('⚒ ' + it.icon + ' ' + it.name + ' façonné(e) — au sac de forge.', 2.8);
+  refreshForge();
+}
+export function fuseGear(rarity) {
+  const idx = RARITY_ORDER.indexOf(rarity);
+  if (idx < 0 || idx >= RARITY_ORDER.length - 1) return;
+  const next = RARITY_ORDER[idx + 1];
+  const cost = FUSE_COSTS[next];
+  const pool = G.gearBag.filter(it => it.rarity === rarity);
+  if (pool.length < 3) { showMsg('Il faut 3 pièces ' + RARITIES[rarity].name + ' au sac de forge (' + pool.length + '/3).', 3); return; }
+  if (!costOk(cost)) { showMsg('La fusion réclame en plus : ' + fuseCostText(cost) + '.', 3); return; }
+  payCost(cost);
+  /* consomme les 3 premières pièces de cette rareté ; le nouvel objet prend
+     l'emplacement MAJORITAIRE des pièces sacrifiées */
+  const eaten = [];
+  for (let i = 0; i < G.gearBag.length && eaten.length < 3; i++)
+    if (G.gearBag[i].rarity === rarity) eaten.push(i);
+  const slots = eaten.map(i => G.gearBag[i].slot);
+  for (let k = eaten.length - 1; k >= 0; k--) G.gearBag.splice(eaten[k], 1);
+  const slot = slots.sort((a, b) =>
+    slots.filter(s => s === b).length - slots.filter(s => s === a).length)[0];
+  const it = rollEquipment(slot, next, G.path); // toujours adapté à la Voie
+  G.gearBag.push(it);
+  A.power();
+  spawnBurst(player.pos.x, player.pos.y + 1.4, player.pos.z, RARITIES[next].color, 26);
+  showMsg('✦ FUSION : trois pièces ' + RARITIES[rarity].name + ' renaissent en ' + it.name + ' (' + RARITIES[next].name + ') !', 4);
+  refreshForge();
+}
+export function equipFromBag(i) {
+  const it = G.gearBag[i];
+  if (!it) return;
+  G.gearBag.splice(i, 1);
+  const prev = equipItem(it);
+  if (prev) G.gearBag.push(prev); // l'ancienne pièce retourne au sac
+  A.pickup();
+  showMsg(it.icon + ' ' + it.name + ' équipé(e)' + (prev ? ' — ' + prev.name + ' rangé(e) au sac.' : '.'), 2.6);
+  refreshForge();
+}
+export function unequipToBag(slot) {
+  if (G.gearBag.length >= BAG_MAX) { showMsg('Sac de forge plein : impossible de retirer cette pièce.', 2.6); return; }
+  const it = unequipSlot(slot);
+  if (!it) return;
+  G.gearBag.push(it);
+  A.pickup();
+  refreshForge();
+}
+/* Butin d'équipement des ombres vaincues (appelé par killEnemy, Enemies.js) :
+   rareté tirée selon le niveau — les Maîtres d'Étage donnent toujours. */
+export function gearLootFrom(lvl, isBoss) {
+  if (!isBoss && Math.random() > 0.05 + lvl * 0.006) return;
+  const r = Math.random();
+  let rar = 'common';
+  if (isBoss) rar = lvl >= 15 ? (r < 0.35 ? 'legendary' : 'epic') : (r < 0.5 ? 'epic' : 'rare');
+  else if (lvl >= 12) rar = r < 0.22 ? 'epic' : 'rare';
+  else if (lvl >= 6) rar = r < 0.35 ? 'rare' : 'common';
+  const slot = ['weapon', 'armor', 'accessory'][Math.floor(Math.random() * 3)];
+  addGearToBag(rollEquipment(slot, rar, G.path));
 }

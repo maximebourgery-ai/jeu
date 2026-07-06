@@ -34,6 +34,9 @@ export function saveGame(silent) {
       feathers: G.feathers, bones: G.bones, threads: G.threads,
       nightHearts: G.nightHearts, potions: G.potions,
       forgeHp: G.forgeHp, forgeMana: G.forgeMana, nightSeals: G.nightSeals, orbAwaken: G.orbAwaken,
+      equipment: G.equipment, // v9 : Arme / Armure / Accessoire équipés
+      gearBag: G.gearBag,     // v9 : sac de forge (butin non porté)
+      deathDrop: G.deathDrop, // v9 : Tombe d'Aube (expire = temps réel absolu)
       seen: G.seen,
       hasWings: G.hasWings, upgrades: G.upgrades,
       checkpoint: inTw ? TER : G.checkpoint,
@@ -92,6 +95,14 @@ export function loadGame() {
   G.nightHearts = s.nightHearts || 0; G.potions = s.potions || 0;
   G.forgeHp = s.forgeHp || 0; G.forgeMana = s.forgeMana || 0; G.nightSeals = s.nightSeals || 0;
   G.orbAwaken = s.orbAwaken || 0;
+  /* v9 — équipement : restauré TEL QUEL, sans re-appliquer les deltas de
+     PV/PM max (s.maxHp / s.maxMana sauvegardés les incluent déjà). La Tombe
+     d'Aube revient aussi : son minuteur court en temps RÉEL (Date.now), donc
+     l'expiration traverse les rechargements — updateDeathDrop la matérialise
+     ou l'éteint à la première image. */
+  if (s.equipment) Object.assign(G.equipment, s.equipment);
+  G.gearBag = Array.isArray(s.gearBag) ? s.gearBag : [];
+  G.deathDrop = s.deathDrop || null;
   G.seen = s.seen || {};
   G.hasWings = !!s.hasWings; Object.assign(G.upgrades, s.upgrades || {});
   // v7.1 : Ascension de la Tour + bivouacs découverts (fusion tolérante)
