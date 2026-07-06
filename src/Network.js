@@ -17,11 +17,11 @@
    ================================================================ */
 import Peer from 'peerjs';
 import QRCode from 'qrcode';
-import { G, S, CTRL_ID, PEERSRV, PATHS, POWERS, tmMove, tm2Move, p2, settings, applyPath, gearScore } from './state.js';
+import { G, S, CTRL_ID, PEERSRV, PATHS, POWERS, tmMove, tm2Move, p2, player, enemies, doors, pickups, settings, applyPath, gearScore } from './state.js';
 import { A } from './Audio.js';
 import { $, showMsg, toggleInv, buildPowersUI } from './UI.js';
 import { dlgNext } from './Quests.js';
-import { tryInteract, tryInteractP2, ensureP2Renderer, setCamAspects, nearInterP } from './World.js';
+import { tryInteract, tryInteractP2, setCamAspects, nearInterP } from './World.js';
 import { castSpecific } from './Powers.js';
 import { remoteNav, anyPanelOpen } from './Controls.js';
 import { toggleTree, buyNode, upgradePower, xpNeed } from './SkillTree.js';
@@ -155,63 +155,46 @@ function doJoin(c, d) {
    et acheté À DISTANCE (treereq/buynode/upgpower) — son écran l'affiche
    sans mettre le jeu de l'hôte en pause.
    ================================================================ */
-/* v9 — deux flux distincts : celui du J1 (le canevas principal, que l'hôte
-   voit aussi localement) et celui du J2 EN LIGNE (canevas dédié, jamais
-   affiché localement — voir World.ensureP2Renderer). Chaque joueur en
-   ligne reçoit ainsi SON PROPRE écran plein, jamais une moitié d'écran
-   scindé, avec la même qualité de rendu (bloom compris) que l'hôte. */
-let netStream1 = null, netStream2 = null;
-/* v9.1 (retour joueur) — un premier réglage visant la NETTETÉ maximale
-   (débit élevé + résolution toujours maintenue) s'est révélé pire pour une
-   PARTIE EN TEMPS RÉEL : dès que la liaison réelle (souvent relayée par un
-   serveur TURN gratuit derrière une box/4G) ne suit pas le débit visé,
-   l'encodeur s'entête à garder l'image nette au prix d'un retard qui
-   s'accumule — plein de saccades et de latence. Priorité inversée :
-   la FLUIDITÉ prime (contentHint 'motion' + maintain-framerate, la
-   résolution cède la première sous contrainte), avec un débit plafonné
-   plus raisonnable — combiné à la résolution déjà réduite (netP2Size,
-   World.js), l'image reste correcte sans faire déborder une liaison modeste. */
-function tuneVideoQuality(call, stream) {
-  const track = stream.getVideoTracks()[0];
-  if (track && 'contentHint' in track) track.contentHint = 'motion';
-  const apply = () => {
-    const pc = call && call.peerConnection;
-    if (!pc) return false;
-    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-    if (!sender) return false;
-    const params = sender.getParameters();
-    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-    params.encodings[0].maxBitrate = 2_200_000; // ~2,2 Mbit/s : plafond, pas une cible forcée
-    params.degradationPreference = 'maintain-framerate';
-    sender.setParameters(params).catch(() => {});
-    return true;
+/* ================================================================
+   v9.2 — LE JOUEUR EN LIGNE RENDU AVEC SON PROPRE GPU
+   Fini le streaming vidéo (coûteux en GPU côté hôte ET en bande passante,
+   et sujet aux saccades du moindre aléa réseau) : le 2ᵉ PC fait tourner
+   SA PROPRE copie du moteur 3D — même monde, mêmes assets, même code (voir
+   NetClient.js) — et ne reçoit que l'ÉTAT du jeu (positions, PV, portes,
+   butin...) à un rythme soutenu (~15 Hz, quelques Ko/s). Chaque machine
+   calcule sa propre image avec son propre GPU ; l'hôte reste 100 %
+   autorité (physique, combats, XP, sauvegarde), exactement comme avant. */
+let snapAcc = 0;
+export function pushWorldSnap(dt) {
+  if (!S.ctrlConns.some(o => o.net)) return;
+  snapAcc += dt;
+  if (snapAcc < 0.06) return; // ~16 Hz
+  snapAcc = 0;
+  const r2 = n => Math.round(n * 100) / 100;
+  const snap = {
+    t: 'worldsnap', hour: G.hour,
+    p1: player.mesh ? {
+      x: r2(player.pos.x), y: r2(player.pos.y), z: r2(player.pos.z), ry: r2(player.mesh.rotation.y),
+      path: G.path, hp: Math.round(G.hp), mhp: G.maxHp, mp: Math.round(G.mana), mmp: G.maxMana,
+      xp: Math.round(G.xp), level: G.level, sp: G.sp
+    } : null,
+    p2: p2.mesh ? {
+      x: r2(p2.pos.x), y: r2(p2.pos.y), z: r2(p2.pos.z), ry: r2(p2.mesh.rotation.y),
+      path: p2.path, hp: Math.round(p2.hp), mhp: p2.maxHp, mp: Math.round(p2.mana), mmp: p2.maxMana,
+      xp: Math.round(p2.xp), level: p2.level, sp: p2.sp
+    } : null,
+    /* Index aligné sur le tableau `enemies` de l'hôte (comme la sauvegarde) :
+       null = morte/absente. Chaque pièce reçoit une TAILLE et des PV
+       EXPLICITES pour que le sosie créé côté client (NetClient.js) soit
+       visuellement identique, sans re-tirer sa propre variante aléatoire. */
+    enemies: enemies.map(e => (!e || e.dead) ? null : {
+      k: e.tKey, l: e.lvl, s: e.s, x: r2(e.g.position.x), y: r2(e.g.position.y),
+      z: r2(e.g.position.z), ry: r2(e.g.rotation.y), hp: Math.round(e.hp), mhp: Math.round(e.maxHp)
+    }),
+    doors: doors.map(d => d.open ? 1 : 0),
+    pickups: pickups.map(p => p.taken ? 1 : 0)
   };
-  // le RTCPeerConnection de PeerJS n'est pas toujours prêt à l'instant du call()
-  if (!apply()) setTimeout(apply, 300);
-}
-function startNetVideo(c) {
-  if (!S.renderer || !S.hostPeer) return;
-  if (!A.ctx) A.init(); // le son du jeu part avec la vidéo
-  const isP2 = c.player === 2;
-  if (isP2) {
-    ensureP2Renderer(); // crée le second rendu (une seule fois)
-    setCamAspects();    // les deux caméras repassent en plein écran (plus de scission)
-  }
-  let stream = isP2 ? netStream2 : netStream1;
-  if (!stream) {
-    try {
-      const srcCanvas = isP2 ? S.renderer2.domElement : S.renderer.domElement;
-      stream = srcCanvas.captureStream(30);
-      const as = A.stream();
-      if (as) for (const tr of as.getAudioTracks()) stream.addTrack(tr);
-    } catch (e) { sendTo(c, { t: 'toast', msg: 'Vidéo indisponible sur cet hôte (' + e + ').' }); return; }
-    if (isP2) netStream2 = stream; else netStream1 = stream;
-  }
-  try {
-    if (c.call) c.call.close();
-    c.call = S.hostPeer.call(c.conn.peer, stream);
-    tuneVideoQuality(c.call, stream);
-  } catch (e) {}
+  for (const c of S.ctrlConns) if (c.net) sendTo(c, snap);
 }
 function sendTree(c) {
   const isP2 = c.player !== 1;
@@ -300,8 +283,8 @@ function handleCtrlMsg(c, d) {
   if (!d || !d.t) return;
   if (d.t === 'hello') { sendTo(c, welcomeMsg()); return; }
   if (d.t === 'join') { doJoin(c, d); return; }
-  /* --- messages propres au joueur en ligne (2ᵉ PC) --- */
-  if (d.t === 'video') { c.net = true; startNetVideo(c); return; }
+  /* --- messages propres au joueur en ligne (2ᵉ PC, rendu par SON GPU) --- */
+  if (d.t === 'startsync') { c.net = true; setCamAspects(); return; } // v9.2 : plus de vidéo, juste l'état (pushWorldSnap)
   if (c.net) {
     if (d.t === 'tree' || d.t === 'treereq') { sendTree(c); return; } // son arbre, sur SON écran
     if (d.t === 'buynode') { buyNode(String(d.id), c.player === 1 ? 1 : 2); sendTree(c); return; }
@@ -405,7 +388,6 @@ function dropCtrl(c) {
   const i = S.ctrlConns.indexOf(c);
   if (i < 0) return;
   S.ctrlConns.splice(i, 1);
-  try { if (c.call) c.call.close(); } catch (e) {} // referme le flux vidéo du joueur en ligne
   if (c.player === 2) { tm2Move.x = 0; tm2Move.z = 0; S.tm2BoltHeld = false; S.tm2JumpHeld = false; }
   else if (c.player === 1) { tmMove.x = 0; tmMove.z = 0; S.tmBoltHeld = false; S.tmJumpHeld = false; }
   setCamAspects(); // v9 — si c'était le dernier J2 en ligne, retour au rendu scindé local (si un J2 local subsiste)

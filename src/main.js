@@ -19,8 +19,8 @@ import { updateBuffs } from './SkillTree.js';
 import { applyQuest, updateTutorial } from './Quests.js';
 import { initControls, lockPointer, setupTouch, tryFullscreenMobile, updateGamepad, initSettingsUI } from './Controls.js';
 import { initMap } from './WorldMap.js';
-import { openManettePanel, retryManette, startControllerMode, pushCtrlState, pushNetHud } from './Network.js';
-import { startOnlineClientMode } from './NetPlay.js';
+import { openManettePanel, retryManette, startControllerMode, pushCtrlState, pushNetHud, pushWorldSnap } from './Network.js';
+import { startNetClient } from './NetClient.js';
 import { saveGame, hasSave, loadGame } from './SaveSystem.js';
 import { buildTowerGate, updateTower } from './Tower.js';
 
@@ -32,7 +32,8 @@ function loop() {
   const dt = Math.min(S.clock.getDelta(), 0.05);
   updateGamepad(dt);
   pushCtrlState(); // manettes smartphone : état des menus/sorts poussé sur changement
-  pushNetHud(dt);  // joueur en ligne (2ᵉ PC) : HUD répliqué ~10 Hz (barres, objectif, dialogues...)
+  pushNetHud(dt);     // joueur en ligne (2ᵉ PC) : HUD répliqué ~10 Hz (barres, objectif, dialogues...)
+  pushWorldSnap(dt);  // v9.2 : positions/ennemis/portes/butin répliqués ~16 Hz (son propre GPU, NetClient.js)
   /* v9 — INDÉPENDANCE DES JOUEURS : chaque porteur a SON propre état
      « occupé » (pause, dialogue, arbre des pouvoirs, Forge — voir
      p1Busy/p2Busy, state.js). L'un peut lire son sac, dialoguer ou
@@ -80,35 +81,13 @@ function loop() {
     if (S.autosaveT > 25) { S.autosaveT = 0; saveGame(true); }
   }
   updateCamera();
-  if (S.COOP && p2.mesh) updateCamera2();
+  /* v9.2 — le J2 en ligne calcule DÉSORMAIS SA PROPRE caméra sur SA PROPRE
+     machine (voir NetClient.js) : l'hôte n'a plus besoin de mettre à jour
+     S.cam2 pour lui (ça ne servait qu'à un rendu qui n'existe plus). Seule
+     la coop LOCALE (même écran) en a encore besoin. */
+  if (S.COOP && p2.mesh && !coopNetP2()) updateCamera2();
   updateHUD(dt);
-  if (coopNetP2()) {
-    /* v9 — coop EN LIGNE (2 PC) : chacun voit SON écran plein, jamais
-       scindé. Le J1 (l'hôte) est rendu ici normalement (bloom compris,
-       comme en solo) ; le J2 est rendu À PART (canevas dédié, même
-       qualité) et cette seconde image est celle diffusée au joueur
-       distant — voir Network.startNetVideo / World.ensureP2Renderer.
-       Le viewport/scissor plein écran est RÉAFFIRMÉ à chaque frame : sans
-       ça, un scissor resté à moitié d'écran (rendu scindé LOCAL, juste
-       avant qu'un joueur en ligne rejoigne) reste actif sur le renderer
-       et laisse une bande verticale figée au milieu de l'image de l'hôte. */
-    S.renderer.setScissorTest(false);
-    S.renderer.setViewport(0, 0, innerWidth, innerHeight);
-    S.composer.render();
-    /* v9.2 (retour joueur : « ça bug énormément côté J2 ») — calculer DEUX
-       scènes 3D complètes (bloom compris) à CHAQUE image double le coût GPU
-       par rapport au solo. Sur une machine modeste, l'image de l'hôte
-       elle-même se met à ramer — la capture qui en résulte est saccadée
-       AVANT même d'être compressée en vidéo : ce n'est pas un problème
-       réseau. Le rendu du J2 (jamais vu localement, seulement diffusé)
-       est donc mis à jour une image sur deux : le GAMEPLAY (physique,
-       combats) continue à pleine cadence pour tout le monde, seule
-       l'image ENVOYÉE se rafraîchit deux fois moins souvent — invisible
-       après compression vidéo, et ça rend au J1 la moitié du coût GPU
-       qu'il avait perdu. */
-    S.p2SkipFrame = !S.p2SkipFrame;
-    if (S.p2SkipFrame) S.composer2.render();
-  } else if (S.COOP) {
+  if (S.COOP && !coopNetP2()) {
     /* Coop LOCALE (manette/téléphone sur LA MÊME machine, un seul écran
        physique) : rendu scissor multi-caméra d'origine (le bloom plein
        écran n'est pas compatible avec le découpage en deux viewports). */
@@ -120,10 +99,13 @@ function loop() {
     S.renderer.render(S.scene, S.cam2);
     S.renderer.setScissorTest(false);
   } else {
-    /* Solo : EffectComposer (RenderPass + UnrealBloomPass + OutputPass).
-       Même réaffirmation du viewport/scissor plein écran qu'en coop en
-       ligne : un J2 qui quitte le rendu scindé local ne doit pas laisser
-       de bande figée au milieu de l'écran du J1. */
+    /* Solo, OU coop EN LIGNE (2 PC) : chacun rend SON PROPRE écran plein,
+       avec son propre GPU (voir NetClient.js pour le J2). L'hôte n'affiche
+       plus que SA PROPRE vue, exactement comme en solo — fini le second
+       rendu qui doublait le coût GPU. Le viewport/scissor plein écran est
+       RÉAFFIRMÉ à chaque frame : sans ça, un scissor resté à moitié d'écran
+       (rendu scindé local, juste avant qu'un joueur en ligne rejoigne)
+       reste actif et laisse une bande verticale figée au milieu de l'image. */
     S.renderer.setScissorTest(false);
     S.renderer.setViewport(0, 0, innerWidth, innerHeight);
     S.composer.render();
@@ -191,9 +173,9 @@ function wireMenus() {
   $('btn-qrretry').addEventListener('click', () => {
     retryManette();
   });
-  /* v8.8 — REJOINDRE UNE PARTIE EN LIGNE (2ᵉ PC) : on saisit le code affiché
+  /* v9.2 — REJOINDRE UNE PARTIE EN LIGNE (2ᵉ PC) : on saisit le code affiché
      sur l'écran de l'hôte (panneau 📱/🌐), la page devient le poste du
-     joueur distant (vidéo + clavier/souris — voir NetPlay.js). */
+     joueur distant — SA PROPRE copie du jeu, son propre GPU (NetClient.js). */
   $('btn-join-title').addEventListener('click', () => {
     const raw = prompt('Code de la partie en ligne (affiché sur l\'écran de l\'hôte, bouton « Connecter des manettes ») :');
     if (!raw) return;
@@ -301,13 +283,13 @@ async function initGame() {
     const { travelTo, toggleInv } = await import('./UI.js');
     const { openMap, closeMap } = await import('./WorldMap.js');
     const { setupCoopP2 } = await import('./Player.js');
-    const { tryInteractP2, coopNetP2, ensureP2Renderer, setCamAspects } = await import('./World.js');
+    const { tryInteractP2, coopNetP2, setCamAspects } = await import('./World.js');
     const { toggleTree } = await import('./SkillTree.js');
     const { openDialog } = await import('./Quests.js');
     window.__ombreciel = { G, S, keys, player, p2, tut, enemies, pickups, inter, CAMPS, doors,
       tkCubes, zoneSeen, killEnemy, loadRoom, unloadRoom, saveGame, loadGame, travelTo, openMap, closeMap,
       p1Busy, p2Busy, worldFrozen, setupCoopP2, toggleInv, toggleTree, openDialog, tryInteractP2, tm2Move,
-      coopNetP2, ensureP2Renderer, setCamAspects,
+      coopNetP2, setCamAspects,
       rollEquipment, equipItem, unequipSlot, equipTotals, gearScore, armorReduction };
   }
   loop();
@@ -317,9 +299,10 @@ if (CTRL_ID) {
   /* Cette page a été ouverte depuis le QR code : on devient la manette. */
   startControllerMode();
 } else if (JOIN_CODE) {
-  /* v8.8 — ?join=CODE : cette page devient le poste du joueur EN LIGNE
-     (vidéo du jeu en streaming + clavier/souris, voir NetPlay.js). */
-  startOnlineClientMode(JOIN_CODE);
+  /* v9.2 — ?join=CODE : cette page devient le poste du joueur EN LIGNE et
+     fait tourner SA PROPRE copie du moteur 3D (son propre GPU) — plus de
+     vidéo, voir NetClient.js. */
+  startNetClient(JOIN_CODE);
 } else {
   initGame();
 }

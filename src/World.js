@@ -142,73 +142,18 @@ export function initScene() {
   });
   setTimeout(onResize, 300); // le viewport iOS se stabilise après le chargement
 }
-/* v9 — le joueur en ligne (2ᵉ PC, voir Network.startNetVideo) reçoit son
-   PROPRE rendu plein écran, jamais une moitié d'écran scindé : seule la
-   coop LOCALE (manette/téléphone sur LA MÊME machine, un seul écran
-   physique à se partager) garde encore le rendu scindé d'origine. */
+/* v9.2 — le joueur en ligne (2ᵉ PC) fait tourner SA PROPRE copie du moteur
+   (voir NetClient.js) et calcule sa propre image avec son propre GPU :
+   l'hôte n'a plus RIEN à rendre pour lui (fini le second canevas + le
+   streaming vidéo). Seule la coop LOCALE (manette/téléphone sur LA MÊME
+   machine, un seul écran physique à se partager) garde le rendu scindé. */
 export function coopNetP2() { return S.COOP && S.ctrlConns.some(o => o.net && o.player === 2); }
-/* Le canevas du J2 en ligne n'est JAMAIS affiché localement (voir plus bas) :
-   inutile de le rendre à la résolution retina de l'hôte pour l'envoyer
-   ensuite en visio — à bitrate égal, plus de pixels à compresser ne donne
-   qu'une image PLUS FLOUE. On le plafonne à une résolution confortable
-   pour le streaming, en conservant le ratio d'affichage de l'hôte
-   (dimensions paires : plus sûr pour l'encodeur H.264/VP8).
-   v9.1 (retour joueur) — ramené de 1600 à 1280 : sur une partie EN TEMPS
-   RÉEL, moins de pixels à encoder à chaque image laisse à l'encodeur toute
-   la marge nécessaire pour rester fluide (voir tuneVideoQuality, Network.js)
-   au lieu d'accumuler du retard sur une liaison modeste. */
-const NET_MAX_DIM = 1280;
-function netP2Size() {
-  let w = innerWidth, h = innerHeight;
-  const ar = w / h;
-  if (Math.max(w, h) > NET_MAX_DIM) {
-    if (w >= h) { w = NET_MAX_DIM; h = Math.round(w / ar); }
-    else { h = NET_MAX_DIM; w = Math.round(h * ar); }
-  }
-  w -= w % 2; h -= h % 2;
-  return { w, h };
-}
 export function setCamAspects() {
-  const halfScreen = S.COOP && !coopNetP2();
+  const halfScreen = S.COOP && !coopNetP2() && !S.isNetClient;
   S.camera.aspect = (halfScreen ? innerWidth / 2 : innerWidth) / innerHeight;
   S.camera.updateProjectionMatrix();
   S.cam2.aspect = (halfScreen ? innerWidth / 2 : innerWidth) / innerHeight;
   S.cam2.updateProjectionMatrix();
-  if (S.renderer2) { const { w, h } = netP2Size(); S.renderer2.setSize(w, h); }
-  if (S.composer2) { const { w, h } = netP2Size(); S.composer2.setSize(w, h); }
-}
-/* Second rendu, dédié au Joueur 2 en ligne : même pipeline (bloom compris)
-   que le J1, sur un canevas séparé — jamais affiché localement (opacity 0,
-   hors du flux visuel), seulement capturé (captureStream) et diffusé au
-   joueur distant. Créé une seule fois, à la première connexion en ligne
-   du J2 (voir Network.startNetVideo). Résolution plafonnée (netP2Size) :
-   ne sert qu'au streaming, pas à un affichage local, pas la peine de payer
-   le prix (bande passante, netteté) d'un rendu retina. */
-export function ensureP2Renderer() {
-  if (S.renderer2) return;
-  const { w, h } = netP2Size();
-  /* v9.2 (retour joueur : « ça bug énormément côté J2 ») — ce rendu n'est
-     JAMAIS vu localement, seulement compressé en vidéo : l'antialiasing
-     (lissage des bords) et les ombres portées disparaissent quasiment dans
-     la compression, mais coûtent cher au GPU. Les couper ici (SEULEMENT ce
-     second rendu — le J1 garde les siennes) rend une bonne partie du coût
-     GPU perdu en calculant deux scènes complètes chaque image, sans toucher
-     à la résolution ni à la netteté du flux envoyé. */
-  S.renderer2 = new THREE.WebGLRenderer({ antialias: false });
-  S.renderer2.setPixelRatio(1);
-  S.renderer2.setSize(w, h);
-  S.renderer2.shadowMap.enabled = false;
-  S.renderer2.outputColorSpace = THREE.SRGBColorSpace;
-  S.renderer2.toneMapping = THREE.ACESFilmicToneMapping;
-  S.renderer2.toneMappingExposure = 1.05;
-  S.renderer2.domElement.style.cssText = 'position:fixed;inset:0;opacity:0;pointer-events:none;z-index:-1;';
-  document.body.appendChild(S.renderer2.domElement);
-  S.composer2 = new EffectComposer(S.renderer2);
-  S.renderPass2 = new RenderPass(S.scene, S.cam2);
-  S.bloomPass2 = new UnrealBloomPass(new THREE.Vector2(w, h), 0.62, 0.42, 0.95);
-  S.composer2.addPass(S.renderPass2);
-  S.composer2.addPass(S.bloomPass2);
-  S.composer2.addPass(new OutputPass());
 }
 
 /* ---------------- GÉOMÉTRIE & COLLISIONS ---------------- */
