@@ -734,6 +734,68 @@ function buildCata() {
    ================================================================ */
 const PX = -900; // ancre commune ; chaque salle a SA bande de z, largement espacée
 
+/* ---- Chambres secrètes (une par salle du Pèlerinage) ----
+   Casse-tête bloc-sur-plaque façon salle secrète (bloc runique = tk,
+   plaque(s) gravée(s) = PLATES, déjà utilisés dans l'Aile Est). Chaque
+   chambre est un renfoncement à l'écart (x = PX-60), relié à la salle
+   principale par un repère discret et un fondu (UI.withLoading) — PAS
+   un rechargement : même salle chargée, aucune perte du bloc en cours.
+   Récompense : une pièce d'équipement DÉJÀ FORGÉE (rollEquipment),
+   garantie, une seule fois par salle. */
+function buildPuzzleVault(id, vz, entry, opts) {
+  const vx = PX - 60;
+  const { plates = 1, slot, rarity, hintMsg, doneMsg, guard } = opts;
+  const teleport = (tx, ty, tz, yaw) => {
+    const who = S.actingPlayer === 2 ? 2 : 1;
+    const mover = who === 2 ? p2 : player;
+    withLoading('Passage secret', () => {
+      mover.pos.set(tx, ty, tz); mover.vel.set(0, 0, 0);
+      if (yaw !== undefined) { if (who === 1) S.yaw = yaw; else p2.yaw = yaw; }
+    });
+  };
+  // repère discret dans la salle principale : ne ressemble à rien de plus qu'un détail
+  addInter(entry.x, entry.y, entry.z, 2.4, entry.label, () => teleport(vx, 0.2, vz - 6, 0));
+
+  mkBox(14, 1, 16, vx, -1, vz, 'stoneD');
+  mkBox(0.7, 3.4, 16, vx - 7, 0, vz, 'stoneR');
+  mkBox(0.7, 3.4, 16, vx + 7, 0, vz, 'stoneR');
+  mkBox(5.5, 3.4, 0.7, vx - 4.25, 0, vz + 8, 'stoneR');
+  mkBox(5.5, 3.4, 0.7, vx + 4.25, 0, vz + 8, 'stoneR');
+  const vaultDoor = mkDoor(3, 3.4, 0.7, vx, 0, vz + 8, 'stoneD');
+  const solved = flag(id, 'vaultDone');
+  if (solved) presetOpen(vaultDoor);
+  torch(vx - 5, 0, vz - 4, 0xb08cff, 1.05, 12); torch(vx + 5, 0, vz + 3, 0xb08cff, 1.05, 12);
+  if (!solved) {
+    const cubeSpots = plates === 2 ? [[vx - 3, vz - 3], [vx + 3, vz - 3]] : [[vx, vz - 3]];
+    cubeSpots.forEach(([cx2, cz2]) => mkTkCube(cx2, 0.55, cz2));
+    (plates === 2 ? [vx - 2.4, vx + 2.4] : [vx]).forEach(px2 => {
+      const glow = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), new THREE.MeshBasicMaterial({ color: 0x3a4880 }));
+      glow.position.set(px2, 0.14, vz + 4);
+      S.scene.add(glow);
+      PLATES.push({
+        x: px2, z: vz + 4, y: 0, glow, door: vaultDoor,
+        msg: 'Les plaques cèdent : la chambre scellée s\'ouvre.',
+        onOpen: () => setFlag(id, 'vaultDone')
+      });
+    });
+  }
+  if (guard) {
+    const gx = vx + (guard.dx || 0), gz = vz + (guard.dz || 0), r = guard.range || 2.5;
+    rEnemy(gx, gz, 0, [[gx - r, gz], [gx + r, gz]], { type: guard.type, lvl: guard.lvl });
+  }
+  addInter(vx, 0, vz - 6.3, 2.6, 'Lire l\'inscription gravée', () => showMsg(hintMsg, 4.5));
+  if (!flag(id, 'vaultTaken')) {
+    addInter(vx, 0, vz + 9, 2.6, 'Ouvrir le coffre scellé', it => {
+      if (!flag(id, 'vaultDone')) { showMsg('Le coffre reste scellé : les plaques n\'ont pas cédé.', 3); return; }
+      it.on = false; setFlag(id, 'vaultTaken');
+      addGearToBag(rollEquipment(slot, rarity, G.path));
+      spawnBurst(vx, 1.4, vz + 8, 0xffd97a, 30);
+      showMsg(doneMsg, 5);
+    });
+  }
+  addInter(vx, 0, vz - 9, 2.6, 'Ressortir', () => teleport(entry.x, entry.y, entry.z, entry.yaw));
+}
+
 /* ---- 1. LA MURAILLE CÉLESTE (niv 4-7) — chemin de ronde d'un rempart titanesque ---- */
 function buildMuraille() {
   const z = 0;
@@ -758,6 +820,11 @@ function buildMuraille() {
   addPickup('mana', PX + 2, 0, z + 8);
   rEnemy(PX, z - 8, 0, [[PX, z - 20], [PX, z + 5]], { type: 'sentinel', lvl: 5 });
   rEnemy(PX, z + 18, 0, [[PX, z + 8], [PX, z + 28]], { type: 'wraith', lvl: 6 });
+  buildPuzzleVault('muraille', z, { x: PX - 3, y: 0.2, z: z + 14, yaw: Math.PI / 2, label: 'Une faille suspecte dans le mur ouest' }, {
+    plates: 1, slot: 'armor', rarity: 'rare',
+    hintMsg: 'Une faille plus ancienne que le rempart lui-même : quelqu\'un a caché quelque chose ici, il y a bien longtemps.',
+    doneMsg: 'Un pan d\'armure oubliée, encore marqué du blason des gardes du ciel.'
+  });
   addInter(PX, 0, z + 32.3, 2.6, 'Poursuivre vers le Val des Murmures', () => {
     gotoRoom('val_murmures', { x: PX, y: 0.2, z: -150 + 32.3, yaw: Math.PI });
   });
@@ -791,6 +858,11 @@ function buildValMurmures() {
   rEnemy(PX - 10, z - 10, 0, [[PX - 16, z - 10], [PX - 2, z - 16]], { type: 'sentinel', lvl: 7 });
   rEnemy(PX + 8, z + 6, 0, [[PX + 4, z + 14], [PX + 14, z + 2]], { type: 'caster', lvl: 7 });
   rEnemy(PX - 4, z + 20, 0, [[PX - 12, z + 22], [PX + 2, z + 18]], { type: 'sentinel', lvl: 8 });
+  buildPuzzleVault('val_murmures', z, { x: PX - 20, y: 0.2, z: z - 10, yaw: 0, label: 'Un caillou déplacé, une trace dans l\'herbe' }, {
+    plates: 2, slot: 'weapon', rarity: 'rare',
+    hintMsg: 'Un caillou déplacé, une touffe d\'herbe écrasée en ligne droite : quelqu\'un est passé par ici, et n\'est peut-être jamais reparti.',
+    doneMsg: 'Une lame encore chantante, façonnée par les pèlerins pour éloigner les échos du vent.'
+  });
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers la Carrière de Sel', () => {
     gotoRoom('carriere_sel', { x: PX, y: 0.2, z: -300 + 29.3, yaw: Math.PI });
   });
@@ -821,6 +893,11 @@ function buildCarriereSel() {
   rEnemy(PX - 8, z - 8, 0, [[PX - 12, z - 14], [PX + 4, z - 8]], { type: 'sentinel', lvl: 9 });
   rEnemy(PX + 6, z + 10, 0, [[PX - 4, z + 14], [PX + 10, z + 6]], { type: 'wraith', lvl: 10 });
   rEnemy(PX, z, -7.5, [[PX - 10, z], [PX + 10, z]], { type: 'caster', lvl: 10 });
+  buildPuzzleVault('carriere_sel', z, { x: PX, y: 0.2, z: z - 14, yaw: Math.PI / 2, label: 'Une corde effilochée, nouée à la rambarde' }, {
+    plates: 1, slot: 'accessory', rarity: 'epic',
+    hintMsg: 'Une corde effilochée, nouée à la rambarde du pont : quelqu\'un l\'a utilisée pour descendre plus bas que quiconque n\'ose s\'aventurer.',
+    doneMsg: 'Une amulette de sel pur, froide au toucher, qui semble absorber la lumière environnante.'
+  });
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers le Canyon des Lames', () => {
     gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -450 + 29.3, yaw: Math.PI });
   });
@@ -857,6 +934,11 @@ function buildCanyonLames() {
   rEnemy(PX - 6, z - 12, 0, [[PX - 8, z - 18], [PX - 4, z - 6]], { type: 'brute', lvl: 12 });
   rEnemy(PX + 6, z + 8, 0, [[PX + 4, z + 2], [PX + 8, z + 16]], { type: 'caster', lvl: 13 });
   rEnemy(PX, z + 20, 12.15, [[PX - 4, z + 20], [PX + 4, z + 20]], { type: 'wraith', lvl: 13 });
+  buildPuzzleVault('canyon_lames', z, { x: PX, y: 0.2, z: z - 2, yaw: Math.PI, label: 'Une petite lame gravée d\'un symbole étrange' }, {
+    plates: 2, slot: 'weapon', rarity: 'epic',
+    hintMsg: 'Une lame plus petite que les autres, gravée d\'un symbole qu\'aucune des grandes épées ne porte : une clé, peut-être, plutôt qu\'une arme.',
+    doneMsg: 'Une dague filigranée, taillée dans le même verre sombre que les lames géantes — mais assez légère pour être maniée.'
+  });
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers l\'Aqueduc Colossal', () => {
     gotoRoom('aqueduc_colossal', { x: PX, y: 0.2, z: -600 + 29.3, yaw: Math.PI });
   });
@@ -886,6 +968,11 @@ function buildAqueducColossal() {
   addPickup('mana', PX - 2, H, z - 10); addPickup('heart', PX + 2, H, z + 12);
   rEnemy(PX, z - 10, H, [[PX, z - 20], [PX, z]], { type: 'caster', lvl: 16, ranged: true });
   rEnemy(PX, z + 14, H, [[PX, z + 6], [PX, z + 24]], { type: 'wraith', lvl: 16 });
+  buildPuzzleVault('aqueduc_colossal', z, { x: PX - 2, y: H, z: z + 10, yaw: Math.PI / 2, label: 'Une pierre du parapet, plus mobile que les autres' }, {
+    plates: 1, slot: 'armor', rarity: 'epic',
+    hintMsg: 'Une pierre du parapet, plus mobile que les autres : en pesant dessus, un mécanisme grince, quelque part sous vos pieds.',
+    doneMsg: 'Une cuirasse légère, tissée de plumes de pierre — un secret des bâtisseurs de l\'aqueduc.'
+  });
   addInter(PX, H, z + 29.3, 2.6, 'Poursuivre vers la Forêt d\'Obsidienne', () => {
     gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -750 + 29.3, yaw: Math.PI });
   });
@@ -919,6 +1006,11 @@ function buildForetObsidienne() {
   rEnemy(PX - 10, z - 14, 0, [[PX - 16, z - 18], [PX - 4, z - 8]], { type: 'wraith', lvl: 18 });
   rEnemy(PX + 8, z + 6, 0, [[PX + 2, z + 12], [PX + 16, z]], { type: 'brute', lvl: 19 });
   rEnemy(PX, z + 18, 0, [[PX - 8, z + 22], [PX + 8, z + 16]], { type: 'caster', lvl: 19 });
+  buildPuzzleVault('foret_obsidienne', z, { x: PX - 18, y: 0.2, z: z + 14, yaw: 0, label: 'Un arbre de verre au tronc étrangement creux' }, {
+    plates: 2, slot: 'accessory', rarity: 'epic',
+    hintMsg: 'Un arbre légèrement différent des autres : son tronc semble creux, et un courant d\'air frais s\'en échappe.',
+    doneMsg: 'Un talisman de verre noir, poli par des mains qui ne reviendront plus.'
+  });
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers le Bastion des Cendres', () => {
     gotoRoom('bastion_cendres', { x: PX, y: 0.2, z: -900 + 29.3, yaw: Math.PI });
   });
@@ -959,6 +1051,12 @@ function buildBastionCendres() {
       showMsg('Sous les cendres, une relique du dernier Porteur de Flamme — encore tiède de lumière.', 4.5);
     });
   }
+  buildPuzzleVault('bastion_cendres', z, { x: PX + 16, y: 0.2, z: z - 14, yaw: Math.PI, label: 'Une dalle descellée parmi les décombres' }, {
+    plates: 1, slot: 'weapon', rarity: 'legendary',
+    guard: { dx: 0, dz: 2, range: 2.5, type: 'wraith', lvl: 24 },
+    hintMsg: 'Une dalle descellée parmi les décombres : ce que les Porteurs de Flamme ont caché ici, ils l\'ont bien gardé.',
+    doneMsg: 'La dernière lame d\'un Porteur de Flamme, encore emplie d\'une lumière crépusculaire — légendaire entre toutes.'
+  });
   addInter(PX, 0, z - 24.3, 2.6, 'Revenir vers la Forêt d\'Obsidienne', () => {
     gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -24.3, yaw: 0 });
   });
