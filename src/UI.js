@@ -1,6 +1,6 @@
 /* ---------------- UI / HUD ---------------- */
 import * as THREE from 'three';
-import { G, S, IS_TOUCH, PATHS, POWERS, CAMPS, player, p2, enemies, flames, spinners, settings,
+import { G, S, IS_TOUCH, PATHS, POWERS, PUPG, CAMPS, player, p2, enemies, flames, spinners, settings,
   RARITIES, RARITY_ORDER, SLOT_DEFS, equipTotals, armorReduction, gearScore } from './state.js';
 import { A } from './Audio.js';
 import { xpNeed } from './SkillTree.js';
@@ -315,19 +315,66 @@ export function refreshInv() {
   if (CraftMod) buildInvHTML(CraftMod);
   else import('./Crafting.js').then(m => { CraftMod = m; buildInvHTML(m); });
 }
+/* v9.4 — ce que chaque art fait VRAIMENT (affiché au clic, onglet Sorts).
+   PUPG (state.js) ne décrit que le BONUS de rang ; ceci décrit l'effet de base. */
+const POWER_FX = {
+  bolt:   'Votre attaque principale, adaptée à votre Voie : trait à distance pour le Mage, frappe de mêlée pour les autres. Peu coûteuse et rapide à relancer — c\'est votre dégât de fond, celui qu\'on utilise sans compter.',
+  dash:   'Une ruée brève dans la direction où vous vous déplacez (ou droit devant si vous êtes immobile), avec un bref instant d\'invulnérabilité. Sert à esquiver une attaque, franchir un danger au sol, ou recoller à un ennemi qui fuit.',
+  tk:     'Soulève et transporte les blocs runiques des énigmes (les casse-tête des salles). Gratuit et quasi instantané, mais sans effet au combat : c\'est un outil, pas une arme.',
+  shield: 'Un voile de lumière qui absorbe les coups pendant quelques secondes et repousse certaines flammes. Long temps de recharge : à invoquer au bon moment pour traverser un danger précis, pas en protection permanente.',
+  frost:  'Explosion de givre autour de vous : dégâts à toutes les ombres proches, et les ralentit quelques secondes. Éteint aussi certains feux maudits (les ronces ardentes de la Forêt de Nuit, par exemple).',
+  heal:   'Soin immédiat et ranime les braises des bivouacs proches. C\'est aussi la clef de certains passages scellés par une Bénédiction, ailleurs dans le château.',
+  nova:   'Art perdu de l\'Outre-Ciel : colonne de lumière, dégâts et étourdissement à 360° autour de vous, puis brûlure persistante sur les ombres touchées. Coûteux, mais dévastateur en mêlée serrée.',
+  meteor: 'Art perdu de l\'Outre-Ciel : fait tomber une étoile sur la zone que vous visez, après un bref délai. Dégâts massifs et étourdissement, mais très long temps de recharge — un art qu\'on prépare, pas qu\'on réflexe.'
+};
+let invTab = 'res';
+/* mainHtml : icône/nom/valeur (aligné à gauche) · endHtml : badge optionnel
+   (rang, etc.), toujours suivi du chevron — jamais de float qui s'échappe. */
+function invRow(id, mainHtml, endHtml, detail, extraClass) {
+  return '<div class="invrow' + (extraClass ? ' ' + extraClass : '') + '" data-row="' + id + '">'
+    + '<div class="rowmain">' + mainHtml + '</div>'
+    + '<div class="rowend">' + (endHtml || '') + '<span class="rx">▸</span></div>'
+    + '</div>'
+    + '<div class="invdetail">' + detail + '</div>';
+}
 function buildInvHTML(C) {
   const box = $('invbody'); if (!box) return;
-  let h = '';
-  h += '<div class="invcol">';
-  h += '<div class="invsec">RESSOURCES <small>— qui lâche quoi</small></div>';
+  const tabs = [['res', '🎒 Ressources'], ['spells', '✦ Sorts & Pouvoirs'], ['items', '🗝 Objets & Clefs'], ['craft', '⚒ Fabrication']];
+  let h = '<div class="invtabs">';
+  tabs.forEach(([id, label]) => { h += '<button class="invtab-btn' + (invTab === id ? ' active' : '') + '" data-tab="' + id + '">' + label + '</button>'; });
+  h += '</div>';
+
+  // ---- RESSOURCES : d'où ça vient, à quoi ça sert (dépliable) ----
+  h += '<div class="invpane' + (invTab === 'res' ? ' active' : '') + '" data-pane="res"><div class="invcol">';
+  h += '<div class="invsec">RESSOURCES <small>— cliquez une ligne pour savoir à quoi elle sert</small></div>';
   for (const k of ['herbs', 'shadows', 'orbes', 'feathers', 'bones', 'threads', 'nightHearts']) {
     const r = C.RES[k];
-    h += '<div class="invres' + (k === 'nightHearts' ? ' rare' : '') + '"><span class="ri">' + r.icon + '</span><b>' + (G[k] || 0) + '</b> ' + r.name
-      + '<small>' + r.src + '</small></div>';
+    const usedBy = C.RECIPES.filter(rc => rc.cost[k]).map(rc => rc.icon + ' ' + rc.name);
+    const detail = 'Provenance : ' + r.src + '.<br>Utilisée pour : ' + (usedBy.length ? usedBy.join(', ') : 'rien pour l\'instant — gardez-la de côté.');
+    h += invRow('res-' + k, '<span class="ri">' + r.icon + '</span><b>' + (G[k] || 0) + '</b> ' + r.name, '', detail, k === 'nightHearts' ? 'rare' : '');
   }
   h += '<div class="invsec">CONSOMMABLES</div>';
   h += '<div class="invres"><span class="ri">🧪</span><b>' + G.potions + '</b> Potion lunaire <button class="invuse" data-use="potion"' + (G.potions > 0 ? '' : ' disabled') + '>Boire (+50 PV)</button></div>';
   if (G.buffSpeedT > 0) h += '<div class="invres"><span class="ri">➶</span>Élixir du Traqueur actif — ' + Math.ceil(G.buffSpeedT) + ' s</div>';
+  h += '</div></div>';
+
+  // ---- SORTS & POUVOIRS : effet de base + rang de la Forge des Arts (dépliable) ----
+  h += '<div class="invpane' + (invTab === 'spells' ? ' active' : '') + '" data-pane="spells"><div class="invcol" style="min-width:100%">';
+  h += '<div class="invsec">SORTS APPRIS <small>— cliquez un sort pour lire son effet complet</small></div>';
+  const learned = POWERS.filter(p => G.powers[p.id]);
+  if (!learned.length) h += '<div class="invempty2">Aucun art appris pour l\'instant : les pouvoirs s\'apprennent en explorant (piédestaux, quêtes).</div>';
+  learned.forEach(p => {
+    const rank = PUPG[p.id] ? '<span class="rank">Rang ' + (G.pupg[p.id] || 0) + ' / ' + PUPG[p.id].max + '</span>' : '';
+    const mainHtml = '<span class="ri">' + p.icon + '</span><b>' + p.name + '</b>'
+      + (p.cost ? ' <small style="color:#6a769a">— ' + p.cost + ' PM, recharge ' + p.cool + ' s</small>' : ' <small style="color:#6a769a">— gratuit</small>');
+    let detail = POWER_FX[p.id] || 'Effet non documenté.';
+    if (PUPG[p.id]) detail += '<br><br><b style="color:#8fc8ff">Rang de Forge des Arts :</b> ' + PUPG[p.id].desc;
+    h += invRow('spell-' + p.id, mainHtml, rank, detail, 'spellcard');
+  });
+  h += '</div></div>';
+
+  // ---- OBJETS & CLEFS ----
+  h += '<div class="invpane' + (invTab === 'items' ? ' active' : '') + '" data-pane="items"><div class="invcol" style="min-width:100%">';
   h += '<div class="invsec">OBJETS & CLEFS</div><ul class="invitems">';
   const rows = ['Voie : ' + PATHS[G.path].name, 'Larmes d\'Aube : ' + G.crystals + ' / 3'];
   if (G.stars > 0) rows.push('Éclats d\'Aube étoilée : ' + G.stars + ' / 3' + (G.upgrades.starBoost ? ' — Faveur des Étoiles active' : ''));
@@ -339,11 +386,12 @@ function buildInvHTML(C) {
   if (G.tower.aura) rows.push('Aura du Premier Foyer (+15 % dégâts, régénération)');
   if (G.tower.shards > 0 && !G.tower.bridge) rows.push('Éclats d\'étoile : ' + G.tower.shards + ' / 3 — pour Orin, le cartographe céleste');
   if (G.tower.crown) rows.push('Couronne de l\'Aube (+10 % dégâts, le foyer veille sur l\'esprit)');
-  POWERS.forEach(p => { if (G.powers[p.id]) rows.push('Sort — ' + p.name); });
   G.items.forEach(i => rows.push(i));
   rows.forEach(r => { h += '<li>' + r + '</li>'; });
-  h += '</ul></div>';
-  h += '<div class="invcol">';
+  h += '</ul></div></div>';
+
+  // ---- FABRICATION ----
+  h += '<div class="invpane' + (invTab === 'craft' ? ' active' : '') + '" data-pane="craft"><div class="invcol" style="min-width:100%">';
   h += '<div class="invsec">FABRICATION <small>— le jeu est en pause, prenez votre temps</small></div>';
   for (const r of C.RECIPES) {
     const done = (r.id === 'transcend' || r.id === 'ailes') ? C.craftCount(r.id) >= 1 : (r.max && C.craftCount(r.id) >= r.max);
@@ -354,10 +402,13 @@ function buildInvHTML(C) {
       + '<div class="rc">' + (done ? 'Forgé' : C.costText(r)) + (done ? '' : ' <button class="invcraft" data-craft="' + r.id + '"' + (ok ? '' : ' disabled') + '>Fabriquer</button>') + '</div>'
       + '</div>';
   }
-  h += '</div>';
+  h += '</div></div>';
+
   box.innerHTML = h;
   box.querySelectorAll('[data-craft]').forEach(b => b.addEventListener('click', () => C.craftRecipe(b.dataset.craft)));
   box.querySelectorAll('[data-use]').forEach(b => b.addEventListener('click', () => C.usePotion()));
+  box.querySelectorAll('.invtab-btn').forEach(b => b.addEventListener('click', () => { invTab = b.dataset.tab; buildInvHTML(C); }));
+  box.querySelectorAll('.invrow').forEach(r => r.addEventListener('click', () => r.classList.toggle('open')));
 }
 
 /* ---------------- v9 — LA FORGE (enclumes du monde) ----------------
