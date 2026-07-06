@@ -129,20 +129,30 @@ export function applyPath(id) {
    roche à distance (double pouvoir mêlée + distance — voir CHARGE dans
    Enemies.js). Le tutoriel reste clément (stats dédiées des ombres
    'garden', World.js). */
+/* v8.5 : +10 % de PV et de dégâts supplémentaires sur toute la ligne, et
+   CHAQUE ARCHÉTYPE reçoit un POUVOIR SIGNATURE en plus (voir le bloc
+   « pouvoir de classe » dans Enemies.js) :
+   · Ombre     → PAS D'OMBRE : se dissout et rejaillit au contact de sa proie
+   · Traqueur  → DOUBLE MORSURE : enchaîne une seconde morsure immédiate
+   · Colosse   → ONDE TELLURIQUE : son poing fissure le sol à 360° (sautez !)
+   · Tisseur   → VOLÉE TRIPLE : trois traits en éventail
+   · Séraphin  → BORDÉE D'AILES : couronne de plumes-projectiles
+   · Écho      → RUÉE D'ÉCHO : dash-attaque fulgurante (profil CHARGE)
+   · Titan     → REPRÉSAILLES DE MAGMA : blessé, il crache des éclats en fusion */
 export const ETYPES = {
-  sentinel: { name: 'Ombre',    hp: 80,  dmg: 18, speed: 2.2,  chase: 5.4, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
-  wraith:   { name: 'Traqueur', hp: 56,  dmg: 13, speed: 3.9,  chase: 8.4, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
-  brute:    { name: 'Colosse',  hp: 300, dmg: 36, speed: 1.35, chase: 3.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
-  caster:   { name: 'Tisseur',  hp: 70,  dmg: 19, speed: 2.0,  chase: 4.2, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
+  sentinel: { name: 'Ombre',    hp: 88,  dmg: 20, speed: 2.2,  chase: 5.4, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
+  wraith:   { name: 'Traqueur', hp: 62,  dmg: 14, speed: 3.9,  chase: 8.4, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
+  brute:    { name: 'Colosse',  hp: 330, dmg: 40, speed: 1.35, chase: 3.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
+  caster:   { name: 'Tisseur',  hp: 77,  dmg: 21, speed: 2.0,  chase: 4.2, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
   /* v8 — l'Outre-Ciel (étages 16-20 de l'Ascension) : trois archétypes de fin
      de partie, plus forts que tout ce que le château connaît.
      · seraph   → SÉRAPHIN DÉCHU  : garde ailée du Berger, bordées à distance
      · echo     → ÉCHO DE L'AUBE  : la vitesse faite ombre, cœur incandescent
      · obsidian → TITAN D'OBSIDIENNE : muraille de roche en fusion, lent mais
        capable de charger et de lancer des blocs en fusion */
-  seraph:   { name: 'Séraphin déchu',     hp: 105, dmg: 14, speed: 2.4,  chase: 5.2, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
-  echo:     { name: 'Écho de l\'Aube',    hp: 66,  dmg: 12, speed: 4.4,  chase: 9,   scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
-  obsidian: { name: 'Titan d\'obsidienne', hp: 330, dmg: 24, speed: 1.3,  chase: 3.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
+  seraph:   { name: 'Séraphin déchu',     hp: 116, dmg: 15, speed: 2.4,  chase: 5.2, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
+  echo:     { name: 'Écho de l\'Aube',    hp: 73,  dmg: 13, speed: 4.4,  chase: 9,   scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
+  obsidian: { name: 'Titan d\'obsidienne', hp: 363, dmg: 26, speed: 1.3,  chase: 3.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
 /* Les zones marquées `room` vivent dans une SALLE INSTANCIÉE (site x -400,

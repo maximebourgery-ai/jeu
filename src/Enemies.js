@@ -185,6 +185,9 @@ export function mkEnemy(x, z, floorY, wps, opt) {
        étourdissement subi (voir applyStun) · slowT = ralentissement (Séisme,
        Souffle glacé) — le contrôle qui remplace l'étourdissement en chaîne */
     stunRes: 0, slowT: 0,
+    /* v8.5 — powT : recharge du POUVOIR SIGNATURE de l'archétype (Pas
+       d'ombre, Bordée d'ailes, Représailles de magma... voir updateEnemies) */
+    powT: 3 + Math.random() * 3,
     lvl: lvl, ranged: !!T.ranged, shot: 1.2, windup: false, mAtk: null, stunT: 0, dotT: 0, dotDps: 0, dotCol: 0, dyn: !!opt.dyn,
     xp: Math.round((T.xp || 12) * (1 + 0.5 * (lvl - 1)) * (elite ? 2.5 : 1)),
     tKey: opt.type || 'sentinel', tName: elite ? T.name + ' Alpha' : T.name
@@ -304,11 +307,43 @@ function stepMelee(e, dt, tp, tgt2) {
       } else {
         A.burst(0.1, 700, 'bandpass', 0.05); // le coup fend l'air : esquivé !
       }
+      /* v8.5 — ONDE TELLURIQUE (pouvoir signature du Colosse) : son poing
+         fissure le sol à 360° — même dans le dos, il faut SAUTER l'onde
+         (elle rase le sol) ou porter l'Égide. */
+      if (e.tKey === 'brute' && !e.fsm) {
+        groundRing(e.g.position.x, e.floorY, e.g.position.z, 0xff8a4a, 4.2);
+        A.burst(0.16, 260, 'lowpass', 0.12);
+        const shockHit = (pl, isP2) => {
+          const dd = Math.hypot(pl.pos.x - e.g.position.x, pl.pos.z - e.g.position.z);
+          if (dd > 4.2) return;
+          if (pl.pos.y - e.floorY > 1.05) return; // en l'air : l'onde passe dessous
+          const dmgS = Math.round(e.dmg * 0.45 * S.nightMul);
+          if (isP2) hurtP2(dmgS, e.g.position); else hurt(dmgS, e.g.position);
+        };
+        // l'onde touche les DEUX porteurs, pas seulement la cible visée
+        shockHit(player, false);
+        if (S.COOP && p2.pos) shockHit(p2, true);
+      }
     }
     if (m.t >= P.strike) { m.ph = 'rec'; m.t = 0; }
   } else { // récupération : l'ombre se redresse lentement, punissable
     e.g.rotation.x = 0.35 * (1 - Math.min(1, m.t / P.rec));
-    if (m.t >= P.rec) { e.g.rotation.x = 0; e.mAtk = null; e.atk = P.cool; }
+    if (m.t >= P.rec) {
+      e.g.rotation.x = 0;
+      /* v8.5 — DOUBLE MORSURE (pouvoir signature du Traqueur) : si la proie
+         est encore à portée, une seconde morsure part aussitôt (une seule,
+         préparation raccourcie — l'esquive reste possible). */
+      if (!m.chained && e.tKey === 'wraith' && !e.fsm) {
+        const d2 = Math.hypot(tp.x - e.g.position.x, tp.z - e.g.position.z);
+        if (d2 < P.reach + 1.4 && Math.abs(tp.y - e.floorY) < 3) {
+          startMelee(e);
+          e.mAtk.chained = true;
+          e.mAtk.P = Object.assign({}, meleeProf(e), { wind: P.wind * 0.55 });
+          return;
+        }
+      }
+      e.mAtk = null; e.atk = P.cool;
+    }
   }
 }
 
@@ -323,8 +358,11 @@ function stepMelee(e, dt, tp, tgt2) {
    rester dans la ligne coûte très cher.
    ================================================================ */
 const CHARGE = {
-  brute:    { wind: 0.55, speed: 16, range: 12, dmgMul: 1.25, cool: 5.5, col: 0xff8a4a },
-  obsidian: { wind: 0.65, speed: 15, range: 13, dmgMul: 1.3,  cool: 6,   col: 0xff5a2a }
+  brute:    { wind: 0.55, speed: 16, range: 12, dmgMul: 1.25, cool: 5.5, col: 0xff8a4a, rock: true },
+  obsidian: { wind: 0.65, speed: 15, range: 13, dmgMul: 1.3,  cool: 6,   col: 0xff5a2a, rock: true },
+  /* v8.5 — RUÉE D'ÉCHO : le pouvoir signature de l'Écho de l'Aube — un
+     dash-attaque fulgurant, préparation très courte, dégâts contenus */
+  echo:     { wind: 0.35, speed: 18, range: 10, dmgMul: 0.9,  cool: 7,   col: 0xfff2b0 }
 };
 /* v8.4 — les Maîtres d'Étage chargent AUSSI : chaque boss reçoit son propre
    profil de ruée via e.chargeProf (posé dans Tower.js). Pour les ombres
@@ -388,6 +426,21 @@ function stepCharge(e, dt, tp, tgt2) {
     if (c.t >= 0.7) { e.g.rotation.x = 0; e.charge = null; e.chargeT = P.cool; }
   }
 }
+/* v8.5 — couronne de projectiles hostiles (Bordée d'ailes du Séraphin,
+   Représailles de magma du Titan) : version légère du radialBurst des boss */
+function radialHostile(e, n, dmgMul, speed, color, size) {
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(size || 0.2, 0),
+      new THREE.MeshStandardMaterial({ color: 0x2a0a1a, emissive: color, emissiveIntensity: 1.3, roughness: 0.4 }));
+    core.add(glow(color, 2, 0.7));
+    core.position.set(e.g.position.x, e.g.position.y + 0.7, e.g.position.z);
+    S.scene.add(core);
+    projectiles.push({ mesh: core, vel: new THREE.Vector3(Math.cos(a), -0.03, Math.sin(a)).multiplyScalar(speed),
+      life: 2.4, dmg: Math.round(e.dmg * dmgMul * S.nightMul), hostile: true, spin: 8 });
+  }
+  A.hostileBolt();
+}
 export function updateEnemies(dt) {
   S.combatT = Math.max(0, S.combatT - dt);
   /* période de grâce post-chargement : les ombres restent à leurs postes
@@ -400,8 +453,17 @@ export function updateEnemies(dt) {
     if (e.state === 'chase' &&
         Math.hypot(player.pos.x - e.g.position.x, player.pos.z - e.g.position.z) < 16 &&
         Math.abs(player.pos.y - e.floorY) < 5) S.combatT = 0.8;
-    e.atk -= dt; e.hitT -= dt; e.chargeT -= dt; e.rockT -= dt;
+    e.atk -= dt; e.hitT -= dt; e.chargeT -= dt; e.rockT -= dt; e.powT -= dt;
     if (e.stunRes > 0) e.stunRes -= dt;
+    /* v8.5 — REPRÉSAILLES DE MAGMA (pouvoir signature du Titan) : blessé en
+       plein combat, il crache une couronne d'éclats en fusion — le harceler
+       au corps à corps sans bouclier coûte cher */
+    if (e.tKey === 'obsidian' && !e.fsm && !e.dead && e.state === 'chase' &&
+        e.hitT > 0 && e.powT <= 0 && e.stunT <= 0) {
+      e.powT = 7;
+      spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, 0xff5a2a, 16);
+      radialHostile(e, 6, 0.5, 9, 0xff5a2a, 0.24);
+    }
     if (e.slowT > 0) {
       e.slowT -= dt;
       // le ralentissement se voit : givre/poussière qui s'échappe des pas
@@ -471,12 +533,44 @@ export function updateEnemies(dt) {
         }
         if (e.windup && Math.random() < dt * 16)
           spawnBurst(e.g.position.x, e.g.position.y + 0.7, e.g.position.z, 0xff2a4a, 2);
-        if (e.shot <= 0) { e.shot = 1.9; e.windup = false; fireHostile(e, tp); }
+        if (e.shot <= 0) {
+          e.shot = 1.9; e.windup = false;
+          fireHostile(e, tp);
+          /* v8.5 — VOLÉE TRIPLE (pouvoir signature du Tisseur) : deux traits
+             de flanc encadrent le premier — rompre la ligne ne suffit plus,
+             il faut vraiment bouger */
+          if (e.tKey === 'caster') {
+            const l = distP || 1, ppx = -dz / l, ppz = dx / l; // perpendiculaire
+            fireHostile(e, { x: tp.x + ppx * 2.2, y: tp.y, z: tp.z + ppz * 2.2 });
+            fireHostile(e, { x: tp.x - ppx * 2.2, y: tp.y, z: tp.z - ppz * 2.2 });
+          }
+        }
+      }
+      /* v8.5 — PAS D'OMBRE (pouvoir signature de l'Ombre) : elle se dissout
+         et rejaillit au contact de sa proie, prête à mordre */
+      if (e.tKey === 'sentinel' && !e.fsm && e.tag !== 'garden' && e.powT <= 0 && sameLevel && distP > 4.5 && distP < 12) {
+        e.powT = 8;
+        spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, 0x6a4a9e, 14);
+        const aw = Math.atan2(e.g.position.x - px, e.g.position.z - pz); // elle ressort du même côté
+        const bx2 = px + Math.sin(aw) * 1.7, bz2 = pz + Math.cos(aw) * 1.7;
+        if (!pointSolid(bx2, e.floorY + 1, bz2)) {
+          e.g.position.x = bx2; e.g.position.z = bz2;
+          spawnBurst(bx2, e.floorY + 1, bz2, 0x6a4a9e, 14);
+          A.dash();
+          e.atk = Math.min(e.atk, 0.2); // la morsure suit aussitôt
+        }
+      }
+      /* v8.5 — BORDÉE D'AILES (pouvoir signature du Séraphin déchu) : une
+         couronne de plumes-projectiles s'abat en cercle autour de lui */
+      if (e.tKey === 'seraph' && !e.fsm && e.powT <= 0 && sameLevel && distP < 14) {
+        e.powT = 9;
+        spawnBurst(e.g.position.x, e.g.position.y + 1.1, e.g.position.z, 0xffe9a8, 14);
+        radialHostile(e, 7, 0.7, 9.5, 0xffe9a8, 0.18);
       }
       /* v8.3 — double pouvoir des lourds : hors de portée de charge, le
          Colosse/Titan ARRACHE UN BLOC du sol et le lance (projectile lourd) */
       const CH = chargeProfOf(e);
-      if (CH && !e.fsm && sameLevel && distP > CH.range && distP < 18 && e.rockT <= 0) {
+      if (CH && CH.rock && !e.fsm && sameLevel && distP > CH.range && distP < 18 && e.rockT <= 0) {
         e.rockT = 4.5;
         spawnBurst(e.g.position.x, e.g.position.y + 1, e.g.position.z, CH.col, 10);
         fireHostile(e, tp, { speed: 11, size: 0.36, dmgMul: 0.7, color: CH.col });

@@ -87,12 +87,18 @@ pour la quête en cours.
 
 ### 3.3 Les ennemis (les Ombres)
 
-| Type | Nom | Profil | PV | Dégâts | XP |
-|---|---|---|---|---|---|
-| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 80 | 18 | 12 |
-| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 56 | 13 | 16 |
-| brute | **Colosse** | Lent, dévastateur — **charge** + jet de roche (masse rouge sombre, yeux braise) | 300 | 36 | 36 |
-| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 70 | 19 | 24 |
+| Type | Nom | Profil | PV | Dégâts | XP | Pouvoir signature (v8.5) |
+|---|---|---|---|---|---|---|
+| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 88 | 20 | 12 | **Pas d'ombre** — se dissout et rejaillit au contact de sa proie |
+| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 62 | 14 | 16 | **Double morsure** — enchaîne une seconde morsure immédiate |
+| brute | **Colosse** | Lent, dévastateur — **charge** + jet de roche (masse rouge sombre, yeux braise) | 330 | 40 | 36 | **Onde tellurique** — le poing fissure le sol à 360° (à sauter) |
+| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 77 | 21 | 24 | **Volée triple** — trois traits en éventail |
+
+*(v8.5 — Outre-Ciel : Séraphin 116 PV / 15 dég — **Bordée d'ailes** (couronne de
+plumes-projectiles) ; Écho 73 PV / 13 dég — **Ruée d'écho** (dash-attaque
+fulgurante) ; Titan 363 PV / 26 dég — **Représailles de magma** (blessé, il
+crache des éclats en fusion). Les ombres 'garden' du tutoriel ne téléportent
+pas.)*
 
 *(v8.3 — grande passe de difficulté : PV et dégâts nettement relevés sur toute
 la ligne, poursuite plus rapide, aggro élargie, cadences de mêlée resserrées.
