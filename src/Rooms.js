@@ -907,7 +907,7 @@ function buildValMurmures() {
       S.scene.add(plateGlow);
       PLATES.push({
         x: px2, z: valVault.vz + 2, y: 0, glow: plateGlow, door: valVault.door,
-        cond: () => (player.shieldT > 0) || (S.COOP && p2.shieldT > 0),
+        cond: () => (G.shieldT > 0) || (S.COOP && p2.shieldT > 0),
         msg: 'Sous l\'Égide, les deux plaques cèdent enfin ensemble : la chambre s\'ouvre.',
         onOpen: () => valVault.solve()
       });
