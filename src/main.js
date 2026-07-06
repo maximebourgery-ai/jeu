@@ -9,7 +9,7 @@ import { G, S, CTRL_ID, IS_TOUCH, IS_IOS, IS_STANDALONE, PATHS, STORY, keys, pla
 import { A } from './Audio.js';
 import { loadAssets } from './AssetManager.js';
 import { $, showMsg, buildPowersUI, updateHUD } from './UI.js';
-import { initScene, setCamAspects, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac, mkAnvil, updateDeathDrop } from './World.js';
+import { initScene, setCamAspects, buildWorld, buildHerbs, buildExtraPatrols, updateDoors, updatePickups, updateParticles, bivouac, mkAnvil, updateDeathDrop, updateAnvilProximity } from './World.js';
 import { updateDayNight } from './DayNight.js';
 import { buildPlayer, buildPlayer2, updatePlayer, updateP2, updateCamera, updateCamera2, addWingsToPlayer, refreshPlayerVisual } from './Player.js';
 import { updateEnemies, updateDirector } from './Enemies.js';
@@ -41,6 +41,7 @@ function loop() {
   if (G.started && !G.paused && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.forgeOpen) {
     G.time += dt;
     updateDeathDrop(); // Corpse Run : Tombe d'Aube (matérialisation, expiration 5 min réelles, récupération)
+    updateAnvilProximity(); // Guide du porteur : explique la Forge à la première approche
     updateDayNight(dt); // horloge d'Ombreciel : ciel, lumières, force des ombres
     updateAimAssist(dt); // visée aimantée (tactile & manette) avant les tirs
     updatePlayer(dt);
@@ -210,7 +211,13 @@ async function initGame() {
      pour souffler, forger et dépenser ses points. Ajouté EN DERNIER pour ne
      pas décaler les index d'interactions des sauvegardes existantes. */
   bivouac(-3.5, 0, 57, 'la fontaine des Jardins', 'fontaine');
-  mkAnvil(-6.5, 0, 59.5); // v9 : la Forge des Jardins, à deux pas du premier feu
+  /* v9 — l'enclume de départ, contre la VRAIE fontaine du sanctuaire (le
+     bassin de pierre en (0, 0, 42), avec son offrande secrète) : le point
+     de repère qu'un joueur associe naturellement à « la fontaine » — pas
+     le feu de bivouac homonyme, planté 15 m plus loin près du spawn.
+     À 5,7 m du bassin (hors de son emprise, r = 3,3), sur le chemin
+     naturel vers Lumen (balise du tutoriel, à peine plus loin). */
+  mkAnvil(-4.5, 0, 40.5); // v9 : la Forge de la fontaine
   /* Patrouilles v8.1 : ajoutées APRÈS tout le reste (comme le bivouac
      ci-dessus) pour préserver les index d'ennemis des sauvegardes. */
   buildExtraPatrols();

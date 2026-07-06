@@ -1336,6 +1336,7 @@ export function buildHerbs() {
    TOMBE D'AUBE aux coordonnées du trépas — 5 minutes RÉELLES pour
    revenir le chercher, sinon il se dissout dans la nuit.
    ================================================================ */
+const anvilSpots = []; // {x,y,z} de chaque enclume — pour le guide de proximité ci-dessous
 export function mkAnvil(x, y, z) {
   /* Silhouette d'enclume RECONNAISSABLE (socle → taille → table plate +
      corne), en fer sombre, sur un petit foyer de braises — bien plus
@@ -1367,6 +1368,25 @@ export function mkAnvil(x, y, z) {
   S.scene.add(light);
   flames.push({ flame: ember, light, halo, base: 1.3 * LIGHT_SCALE, seed: Math.random() * 10 });
   addInter(x, y, z, 2.8, '⚒ Forge — façonner et fusionner l\'équipement', () => toggleForge());
+  anvilSpots.push({ x, y, z });
+}
+/* Guide du porteur — la Forge, à la première approche (pas seulement à
+   l'ouverture du panneau : si le joueur ne s'arrête jamais dessus, il ne
+   comprendrait jamais à quoi elle sert). Même mécanique que herb/shadow/
+   camp (G.seen, une seule fois par partie) — voir Quests.js. */
+export function updateAnvilProximity() {
+  if (G.seen.forge || !anvilSpots.length) return;
+  for (const a of anvilSpots) {
+    const near = pl => pl && pl.pos && Math.hypot(pl.pos.x - a.x, pl.pos.z - a.z) < 4.5 && Math.abs(pl.pos.y - a.y) < 3;
+    if (near(player) || (S.COOP && p2.pos && near(p2))) {
+      guide('forge', [
+        '⚒ LA FORGE — chaque enclume d\'Ombreciel façonne et fusionne de l\'ÉQUIPEMENT : une Arme, une Armure et un Accessoire, en plus de vos arts. Ouvrez le panneau avec E.',
+        'Chaque pièce a une RARETÉ (Commun → Rare → Épique → Légendaire) qui fixe sa puissance. Façonnez une pièce Commune contre des essences d\'ombre, ou FUSIONNEZ 3 pièces de même rareté (+ ressources de monstres) pour en forger une supérieure — toujours adaptée à VOTRE voie.',
+        'Les ombres vaincues lâchent aussi de l\'équipement (rangé au sac de forge). Votre SCORE D\'ÉQUIPEMENT total rend le monde plus dangereux à mesure qu\'il grandit — et si vous tombez, l\'équipement porté reste 5 minutes sur votre dépouille : revenez le chercher avant qu\'il ne s\'éteigne.'
+      ]);
+      return;
+    }
+  }
 }
 
 let tombG = null; // mesh de la Tombe d'Aube actuellement posée (ou null)
