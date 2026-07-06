@@ -116,24 +116,28 @@ export function applyPath(id) {
    · brute    → COLOSSE   : très lent, dévastateur (masse rouge sombre, yeux braise)
    · wraith   → TRAQUEUR  : ultra-rapide, fragile (silhouette fine verte, yeux acides)
    · caster   → TISSEUR   : rare, projectiles hostiles à distance (inchangé) */
-/* v8.1 — PV de base relevés de ~50 % sur toute la ligne : plus aucune ombre
-   « standard » ne tombe d'un seul coup à niveau égal (même le Traqueur, le
-   plus fragile, encaisse désormais la Frappe lourde du Guerrier). Le
-   tutoriel reste clément (stats dédiées des ombres 'garden', World.js).
-   La courbe par niveau (mul/dmul dans Enemies.js) est inchangée. */
+/* v8.3 — GRANDE PASSE DE DIFFICULTÉ (retour joueur : « beaucoup trop
+   facile, les ombres tombent sans avoir frappé »). PV de base relevés de
+   ~50-80 % et DÉGÂTS de ~30-90 % sur toute la ligne, poursuite plus
+   rapide : les ombres rattrapent, encaissent et punissent. Les lourds
+   (Colosse, Titan) gagnent en plus une CHARGE dévastatrice et un jet de
+   roche à distance (double pouvoir mêlée + distance — voir CHARGE dans
+   Enemies.js). Le tutoriel reste clément (stats dédiées des ombres
+   'garden', World.js). */
 export const ETYPES = {
-  sentinel: { name: 'Ombre',    hp: 52,  dmg: 14, speed: 2.2,  chase: 4.6, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
-  wraith:   { name: 'Traqueur', hp: 36,  dmg: 9,  speed: 3.9,  chase: 7.8, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
-  brute:    { name: 'Colosse',  hp: 165, dmg: 30, speed: 1.15, chase: 2.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
-  caster:   { name: 'Tisseur',  hp: 46,  dmg: 15, speed: 2.0,  chase: 3.8, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
+  sentinel: { name: 'Ombre',    hp: 80,  dmg: 18, speed: 2.2,  chase: 5.4, scale: 1,    color: 0x241a3a, eye: 0x8ff4ff, xp: 12 },
+  wraith:   { name: 'Traqueur', hp: 56,  dmg: 13, speed: 3.9,  chase: 8.4, scale: 0.78, color: 0x0f2e26, eye: 0x5affc8, xp: 16 },
+  brute:    { name: 'Colosse',  hp: 300, dmg: 36, speed: 1.35, chase: 3.6, scale: 1.75, color: 0x3a0f20, eye: 0xffb86a, xp: 36 },
+  caster:   { name: 'Tisseur',  hp: 70,  dmg: 19, speed: 2.0,  chase: 4.2, scale: 1,    color: 0x2e1440, eye: 0xff8a5a, xp: 24, ranged: true },
   /* v8 — l'Outre-Ciel (étages 16-20 de l'Ascension) : trois archétypes de fin
      de partie, plus forts que tout ce que le château connaît.
      · seraph   → SÉRAPHIN DÉCHU  : garde ailée du Berger, bordées à distance
      · echo     → ÉCHO DE L'AUBE  : la vitesse faite ombre, cœur incandescent
-     · obsidian → TITAN D'OBSIDIENNE : muraille de roche en fusion, très lent */
-  seraph:   { name: 'Séraphin déchu',     hp: 66,  dmg: 9,  speed: 2.4,  chase: 4.8, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
-  echo:     { name: 'Écho de l\'Aube',    hp: 42,  dmg: 7,  speed: 4.4,  chase: 8.6, scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
-  obsidian: { name: 'Titan d\'obsidienne', hp: 185, dmg: 13, speed: 1.05, chase: 2.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
+     · obsidian → TITAN D'OBSIDIENNE : muraille de roche en fusion, lent mais
+       capable de charger et de lancer des blocs en fusion */
+  seraph:   { name: 'Séraphin déchu',     hp: 105, dmg: 14, speed: 2.4,  chase: 5.2, scale: 1.15, color: 0x3a2c14, eye: 0xffe9a8, xp: 60, ranged: true },
+  echo:     { name: 'Écho de l\'Aube',    hp: 66,  dmg: 12, speed: 4.4,  chase: 9,   scale: 0.85, color: 0x2a2440, eye: 0xfff2b0, xp: 55 },
+  obsidian: { name: 'Titan d\'obsidienne', hp: 330, dmg: 24, speed: 1.3,  chase: 3.4, scale: 2.1,  color: 0x0c0a18, eye: 0xff5a2a, xp: 110 }
 };
 export const LVL_HALO = [0x6a4a9e, 0x4a6ade, 0x3ade8c, 0xdea23a, 0xde4a3a];
 /* Les zones marquées `room` vivent dans une SALLE INSTANCIÉE (site x -400,
@@ -224,7 +228,9 @@ export const POWERS = [
   { id: 'bolt',   icon: '✦', name: 'Trait astral',  cost: 10, cool: 0.45 },
   { id: 'dash',   icon: '⟫', name: 'Pas du vent',   cost: 14, cool: 1.1 },
   { id: 'tk',     icon: '☄', name: 'Main céleste',  cost: 0,  cool: 0.35 },
-  { id: 'shield', icon: '◎', name: 'Égide',         cost: 30, cool: 6 },
+  /* v8.3 : recharge de l'Égide 6 → 9 s (son uptime quasi permanent rendait
+     le porteur intouchable — la bulle redevient un choix, plus un réflexe) */
+  { id: 'shield', icon: '◎', name: 'Égide',         cost: 30, cool: 9 },
   { id: 'frost',  icon: '❄', name: 'Souffle glacé', cost: 22, cool: 3.2 },
   { id: 'heal',   icon: '✚', name: 'Bénédiction',   cost: 38, cool: 9 },
   /* v8 — les arts perdus de l'Outre-Ciel (étages 16-20 de l'Ascension) :
@@ -240,7 +246,7 @@ export const POWERS = [
 export const PUPG = {
   bolt:   { max: 5, desc: '+10 % de dégâts de l\'attaque principale par rang.' },
   dash:   { max: 5, desc: 'Récupération du Pas du vent réduite de 7 % par rang.' },
-  shield: { max: 5, desc: 'Égide : +0,8 s de protection par rang.' },
+  shield: { max: 5, desc: 'Égide : +0,5 s de protection par rang.' },
   frost:  { max: 5, desc: 'Souffle glacé : +18 % de dégâts et zone +0,5 m par rang.' },
   heal:   { max: 5, desc: 'Bénédiction : +12 PV rendus par rang.' }
 };

@@ -125,7 +125,9 @@ export function castPower() {
   }
   else if (pw.id === 'dash') doDash();
   else if (pw.id === 'shield') {
-    G.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield();
+    /* v8.3 : bulle raccourcie (4+0,8/rang → 2,8+0,5/rang) et recharge 9 s —
+       l'Égide protège un passage, elle ne remplace plus l'esquive */
+    G.shieldT = 2.8 + 0.5 * (G.pupg.shield || 0); A.shield();
     // l'Égide se déploie : onde bleue + éclat au moment de l'invocation
     groundRing(player.pos.x, player.pos.y, player.pos.z, 0x66c8ff, 2.8);
     spawnBurst(player.pos.x, player.pos.y + 1, player.pos.z, 0x9fdcff, 12);
@@ -189,7 +191,7 @@ export function castPowerP2() {
   p2.cd[pw.id] = cool2;
   if (pw.id === 'dash') doDashP2();
   else if (pw.id === 'shield') {
-    p2.shieldT = 4 + 0.8 * (G.pupg.shield || 0); A.shield();
+    p2.shieldT = 2.8 + 0.5 * (G.pupg.shield || 0); A.shield();
     groundRing(p2.pos.x, p2.pos.y, p2.pos.z, 0x66c8ff, 2.8);
     spawnBurst(p2.pos.x, p2.pos.y + 1, p2.pos.z, 0x9fdcff, 12);
   }

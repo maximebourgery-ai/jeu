@@ -89,14 +89,17 @@ pour la quête en cours.
 
 | Type | Nom | Profil | PV | Dégâts | XP |
 |---|---|---|---|---|---|
-| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 52 | 14 | 12 |
-| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 36 | 9 | 16 |
-| brute | **Colosse** | Très lent, dévastateur (masse rouge sombre, yeux braise) | 165 | 30 | 36 |
-| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 46 | 15 | 24 |
+| sentinel | **Ombre** | Basique, équilibrée (violet sombre, yeux cyan) | 80 | 18 | 12 |
+| wraith | **Traqueur** | Ultra-rapide, fragile (silhouette verte, yeux acides) | 56 | 13 | 16 |
+| brute | **Colosse** | Lent, dévastateur — **charge** + jet de roche (masse rouge sombre, yeux braise) | 300 | 36 | 36 |
+| caster | **Tisseur** | Rare, attaque à distance (projectiles hostiles) | 70 | 19 | 24 |
 
-*(v8.1 : PV de base relevés de ~50 % sur toute la ligne — plus aucune ombre
-« standard » ne tombe d'un seul coup à niveau égal, même le Traqueur face à la
-Frappe lourde. Les ombres du tutoriel restent bridées : 40 PV / 9 dégâts.)*
+*(v8.3 — grande passe de difficulté : PV et dégâts nettement relevés sur toute
+la ligne, poursuite plus rapide, aggro élargie, cadences de mêlée resserrées.
+Les LOURDS (Colosse, Titan d'obsidienne) ont un « double pouvoir » : à
+mi-distance, une **CHARGE dévastatrice** télégraphiée (anneau au sol, ruée
+rectiligne, très lourds dégâts au contact) ; de loin, un **jet de roche**
+(projectile lourd). Les ombres du tutoriel restent bridées : 40 PV / 9 dégâts.)*
 
 **Attaque de mêlée télégraphiée (v8.1)** — fini les dégâts « au contact »
 invisibles, chaque coup d'ombre se déroule en trois temps lisibles :
@@ -481,10 +484,10 @@ Chaque piédestal joue un petit texte d'apprentissage, ex. : *« Pas du vent app
   pour l'Assassin, flash d'impact et explosion/onde au sol pour le Mage.
 - **Variété des ombres** : chaque ombre standard naît avec sa propre carrure (±15 %,
   les grandes sont plus coriaces) ; les renforts peuvent naître **Alpha** (couronne
-  d'épines, halo doré, ×2,2 PV, ×1,35 dégâts, ×2,5 XP).
+  d'épines, halo doré, ×2,2 PV, ×1,5 dégâts, ×2,5 XP).
 - **Forge des Arts (K)** : chaque niveau gagné forge **1 Éclat de puissance**, à
   dépenser dans le panneau de l'arbre pour monter chaque sort en rangs (5 max) :
-  attaque +10 %/rang, Pas du vent −7 % de récupération/rang, Égide +0,8 s/rang,
+  attaque +10 %/rang, Pas du vent −7 % de récupération/rang, Égide +0,5 s/rang,
   Souffle glacé +18 % et zone élargie/rang, Bénédiction +12 PV/rang. L'AUTRE façon
   de devenir puissant, en parallèle de l'arbre des pouvoirs.
 

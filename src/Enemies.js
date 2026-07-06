@@ -23,7 +23,7 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   let sizeK = 1, elite = false;
   if (!opt.hp && !opt.scale) {
     sizeK = 0.85 + Math.random() * 0.3;
-    if (opt.dyn && lvl >= 2 && Math.random() < 0.14) elite = true;
+    if (opt.dyn && lvl >= 2 && Math.random() < 0.18) elite = true;
   }
   const s = (opt.scale || T.scale || 1) * sizeK * (elite ? 1.35 : 1);
   const g = new THREE.Group();
@@ -166,18 +166,21 @@ export function mkEnemy(x, z, floorY, wps, opt) {
   g.position.set(x, floorY + 0.95, z);
   S.scene.add(g);
   /* Courbe de difficulté : les PV grimpent fort avec le niveau de zone
-     (les ombres tardives sont des sacs à PV redoutables) mais les dégâts
-     montent un peu moins vite qu'avant (0,22/niv au lieu de 0,25) pour
-     que la fin de partie reste dure sans one-shots injustes. */
-  const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.22 * (lvl - 1);
+     (les ombres tardives sont des sacs à PV redoutables) et les dégâts
+     suivent une pente relevée (v8.3 : 0,26/niv au lieu de 0,22 — retour
+     joueur : les ombres ne mordaient pas assez fort en fin de partie). */
+  const mul = 1 + 0.4 * (lvl - 1), dmul = 1 + 0.26 * (lvl - 1);
   /* opt.hpMul : les renforts invoqués la nuit sont plus coriaces (directeur) */
   const hp0 = opt.hp || Math.round(T.hp * mul * (opt.hpMul || 1) * sizeK * (elite ? 2.2 : 1));
   const en = {
     g, cloakMat, charMats, mixer, spinG, floorY, wps, wi: 0, state: 'patrol',
-    hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul * (elite ? 1.35 : 1)),
+    hp: hp0, maxHp: hp0, dmg: opt.dmg || Math.round(T.dmg * dmul * (elite ? 1.5 : 1)),
     speed: opt.speed || T.speed, chaseSpeed: opt.chase || T.chase,
     atk: 0, hitT: 0, dead: false, s, tag: opt.tag || '', elite,
     spawn: { x, z }, alerted: false,
+    /* v8.3 — arsenal des lourds : charge dévastatrice (chargeT) et jet de
+       roche à distance (rockT) — voir CHARGE / stepCharge plus bas */
+    charge: null, chargeT: 2 + Math.random() * 2, rockT: 2 + Math.random() * 2,
     lvl: lvl, ranged: !!T.ranged, shot: 1.2, windup: false, mAtk: null, stunT: 0, dotT: 0, dotDps: 0, dotCol: 0, dyn: !!opt.dyn,
     xp: Math.round((T.xp || 12) * (1 + 0.5 * (lvl - 1)) * (elite ? 2.5 : 1)),
     tKey: opt.type || 'sentinel', tName: elite ? T.name + ' Alpha' : T.name
@@ -205,14 +208,17 @@ function setCharEmissive(e, hex) {
    Les lourds (Colosse, Titan) préviennent longtemps et frappent large ;
    les rapides (Traqueur, Écho) mordent vite mais pour peu de dégâts.
    ================================================================ */
+/* v8.3 : temps de recharge resserrés sur toute la ligne (les ombres
+   enchaînent) et bonds allongés des lourds — le Colosse et le Titan
+   RATTRAPENT enfin ce qu'ils visent au lieu de frapper dans le vide. */
 const MELEE = {
-  sentinel: { wind: 0.5,  strike: 0.16, rec: 0.45, reach: 2.2, lunge: 2.4, cool: 1.5, col: 0xb08cff },
-  wraith:   { wind: 0.3,  strike: 0.12, rec: 0.35, reach: 2.0, lunge: 3.4, cool: 1.1, col: 0x5affc8 },
-  brute:    { wind: 0.8,  strike: 0.2,  rec: 0.7,  reach: 2.8, lunge: 2.0, cool: 2.3, col: 0xff8a4a, ring: true },
-  caster:   { wind: 0.5,  strike: 0.16, rec: 0.5,  reach: 2.2, lunge: 2.0, cool: 1.7, col: 0xff8a5a },
-  seraph:   { wind: 0.45, strike: 0.16, rec: 0.5,  reach: 2.2, lunge: 2.2, cool: 1.6, col: 0xffe9a8 },
-  echo:     { wind: 0.26, strike: 0.12, rec: 0.3,  reach: 2.0, lunge: 3.8, cool: 1.0, col: 0xfff2b0 },
-  obsidian: { wind: 0.9,  strike: 0.22, rec: 0.8,  reach: 3.2, lunge: 1.8, cool: 2.5, col: 0xff5a2a, ring: true }
+  sentinel: { wind: 0.5,  strike: 0.16, rec: 0.45, reach: 2.2, lunge: 2.6, cool: 1.15, col: 0xb08cff },
+  wraith:   { wind: 0.3,  strike: 0.12, rec: 0.35, reach: 2.0, lunge: 3.6, cool: 0.85, col: 0x5affc8 },
+  brute:    { wind: 0.75, strike: 0.2,  rec: 0.65, reach: 2.8, lunge: 2.8, cool: 1.9,  col: 0xff8a4a, ring: true },
+  caster:   { wind: 0.5,  strike: 0.16, rec: 0.5,  reach: 2.2, lunge: 2.2, cool: 1.35, col: 0xff8a5a },
+  seraph:   { wind: 0.45, strike: 0.16, rec: 0.5,  reach: 2.2, lunge: 2.4, cool: 1.25, col: 0xffe9a8 },
+  echo:     { wind: 0.26, strike: 0.12, rec: 0.3,  reach: 2.0, lunge: 4.0, cool: 0.8,  col: 0xfff2b0 },
+  obsidian: { wind: 0.85, strike: 0.22, rec: 0.75, reach: 3.2, lunge: 2.6, cool: 2.1,  col: 0xff5a2a, ring: true }
 };
 function meleeProf(e) { return MELEE[e.tKey] || MELEE.sentinel; }
 function startMelee(e) {
@@ -278,6 +284,77 @@ function stepMelee(e, dt, tp, tgt2) {
     if (m.t >= P.rec) { e.g.rotation.x = 0; e.mAtk = null; e.atk = P.cool; }
   }
 }
+
+/* ================================================================
+   v8.3 — CHARGE DÉVASTATRICE & JET DE ROCHE des lourds
+   Le Colosse et le Titan d'obsidienne ont désormais un « double
+   pouvoir » : de loin, ils ARRACHENT UN BLOC et le lancent (voir le
+   jet dans updateEnemies) ; à mi-distance, ils CHARGENT — préparation
+   télégraphiée (anneau au sol, crépitement), puis ruée rectiligne qui
+   percute pour de très lourds dégâts + projection. Comme la mêlée, la
+   charge se lit et s'esquive (un pas de côté, un Pas du vent) — mais
+   rester dans la ligne coûte très cher.
+   ================================================================ */
+const CHARGE = {
+  brute:    { wind: 0.55, speed: 16, range: 12, dmgMul: 1.25, cool: 5.5, col: 0xff8a4a },
+  obsidian: { wind: 0.65, speed: 15, range: 13, dmgMul: 1.3,  cool: 6,   col: 0xff5a2a }
+};
+function startCharge(e) {
+  const P = CHARGE[e.tKey];
+  e.charge = { P, ph: 'wind', t: 0, dx: 0, dz: 0, traveled: 0, hitDone: false };
+  // télégraphe appuyé : anneau au sol + gerbe — la ruée s'annonce de loin
+  groundRing(e.g.position.x, e.floorY, e.g.position.z, P.col, 3.2);
+  spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, P.col, 12);
+  A.alert();
+}
+function stepCharge(e, dt, tp, tgt2) {
+  const c = e.charge, P = c.P;
+  c.t += dt;
+  if (c.ph === 'wind') {
+    // le lourd se ramasse sur lui-même, rivé sur sa cible
+    e.g.rotation.y = Math.atan2(tp.x - e.g.position.x, tp.z - e.g.position.z);
+    e.g.rotation.x = -0.3 * Math.min(1, c.t / P.wind);
+    if (Math.random() < dt * 14)
+      spawnBurst(e.g.position.x, e.g.position.y + 0.6, e.g.position.z, P.col, 2);
+    if (c.t >= P.wind) {
+      /* direction FIGÉE au départ de la ruée : l'esquive latérale marche */
+      c.ph = 'rush'; c.t = 0;
+      const dx = tp.x - e.g.position.x, dz = tp.z - e.g.position.z;
+      const l = Math.hypot(dx, dz) || 1;
+      c.dx = dx / l; c.dz = dz / l;
+      e.g.rotation.x = 0.3;
+      A.dash();
+    }
+  } else if (c.ph === 'rush') {
+    const step = P.speed * dt;
+    const ey = e.floorY + 1.0;
+    const nx = e.g.position.x + c.dx * step, nz = e.g.position.z + c.dz * step;
+    let moved = false;
+    if (!pointSolid(nx, ey, e.g.position.z)) { e.g.position.x = nx; moved = true; }
+    if (!pointSolid(e.g.position.x, ey, nz)) { e.g.position.z = nz; moved = true; }
+    c.traveled += step;
+    if (Math.random() < dt * 22)
+      spawnBurst(e.g.position.x, e.g.position.y + 0.3, e.g.position.z, P.col, 2);
+    if (!c.hitDone) {
+      const d = Math.hypot(tp.x - e.g.position.x, tp.z - e.g.position.z);
+      if (d < 1.8 && Math.abs(tp.y - e.floorY) < 3) {
+        // PERCUTÉ : très lourds dégâts + l'impact se voit et s'entend
+        c.hitDone = true;
+        impactFlash(tp.x, tp.y + 1, tp.z, P.col, 1.6);
+        groundRing(tp.x, tp.y, tp.z, P.col, 3.4);
+        A.impact();
+        const dmgN = Math.round(e.dmg * P.dmgMul * S.nightMul);
+        if (tgt2) hurtP2(dmgN, e.g.position); else hurt(dmgN, e.g.position);
+        c.ph = 'rec'; c.t = 0;
+      }
+    }
+    // mur percuté ou course terminée : la bête s'arrête, sonnée un instant
+    if (c.ph === 'rush' && (!moved || c.traveled >= P.range + 2)) { c.ph = 'rec'; c.t = 0; }
+  } else { // récupération : le mastodonte reprend son souffle, punissable
+    e.g.rotation.x = 0.3 * (1 - Math.min(1, c.t / 0.7));
+    if (c.t >= 0.7) { e.g.rotation.x = 0; e.charge = null; e.chargeT = P.cool; }
+  }
+}
 export function updateEnemies(dt) {
   S.combatT = Math.max(0, S.combatT - dt);
   /* période de grâce post-chargement : les ombres restent à leurs postes
@@ -290,7 +367,7 @@ export function updateEnemies(dt) {
     if (e.state === 'chase' &&
         Math.hypot(player.pos.x - e.g.position.x, player.pos.z - e.g.position.z) < 16 &&
         Math.abs(player.pos.y - e.floorY) < 5) S.combatT = 0.8;
-    e.atk -= dt; e.hitT -= dt;
+    e.atk -= dt; e.hitT -= dt; e.chargeT -= dt; e.rockT -= dt;
     if (e.mixer && e.stunT <= 0) e.mixer.update(dt);
     if (e.dotT > 0) {
       e.dotT -= dt; e.hp -= e.dotDps * dt;
@@ -301,6 +378,7 @@ export function updateEnemies(dt) {
       e.stunT -= dt;
       // l'étourdissement INTERROMPT l'attaque en préparation (contre-jeu)
       if (e.mAtk) { e.mAtk = null; e.g.rotation.x = 0; }
+      if (e.charge) { e.charge = null; e.g.rotation.x = 0; e.chargeT = 2.5; }
       e.cloakMat.emissive.setHex(0x1a3a6a);
       setCharEmissive(e, 0x1a3a6a);
       e.g.position.y = e.floorY + 0.95;
@@ -323,13 +401,17 @@ export function updateEnemies(dt) {
     const tSafe = !e.fsm && safeZoneAt(tp);
     if (tSafe && e.state === 'chase') e.state = 'return';
 
-    if (e.mAtk) {
+    if (e.charge) {
+      /* charge dévastatrice en cours (préparation → ruée → récupération) :
+         comme la mêlée, elle pilote seule position et posture */
+      stepCharge(e, dt, tp, tgt2);
+    } else if (e.mAtk) {
       /* attaque de mêlée en cours (préparation → bond → récupération) :
          elle pilote seule position et posture, pas de déplacement normal */
       stepMelee(e, dt, tp, tgt2);
     } else if (e.state === 'patrol') {
       /* S.graceT : période de grâce post-écran de chargement — pas d'aggro */
-      if (distP < 9 && sameLevel && !tSafe && S.graceT <= 0) {
+      if (distP < 11 && sameLevel && !tSafe && S.graceT <= 0) {
         e.state = 'chase';
         if (!e.alerted) { e.alerted = true; A.alert(); }
       }
@@ -339,7 +421,7 @@ export function updateEnemies(dt) {
     } else if (e.state === 'chase') {
       // la nuit, les ombres pressent le pas (+18 % au plus noir de la nuit)
       sp = e.chaseSpeed * (1 + 0.18 * S.nightK);
-      if (e.ranged && !e.fsm && distP < 15 && sameLevel) {
+      if (e.ranged && !e.fsm && distP < 17 && sameLevel) {
         e.shot -= dt;
         /* télégraphe du tir ALLONGÉ (0,55 s) et continu : l'ombre crépite
            de rouge tant qu'elle charge — on a le temps de rompre la ligne */
@@ -349,9 +431,19 @@ export function updateEnemies(dt) {
         }
         if (e.windup && Math.random() < dt * 16)
           spawnBurst(e.g.position.x, e.g.position.y + 0.7, e.g.position.z, 0xff2a4a, 2);
-        if (e.shot <= 0) { e.shot = 2.4; e.windup = false; fireHostile(e, tp); }
+        if (e.shot <= 0) { e.shot = 1.9; e.windup = false; fireHostile(e, tp); }
       }
-      if (!e.fsm && (distP > 16 || (!sameLevel && distP > 7))) e.state = 'return';
+      /* v8.3 — double pouvoir des lourds : hors de portée de charge, le
+         Colosse/Titan ARRACHE UN BLOC du sol et le lance (projectile lourd) */
+      const CH = !e.fsm && CHARGE[e.tKey];
+      if (CH && sameLevel && distP > CH.range && distP < 18 && e.rockT <= 0) {
+        e.rockT = 4.5;
+        spawnBurst(e.g.position.x, e.g.position.y + 1, e.g.position.z, CH.col, 10);
+        fireHostile(e, tp, { speed: 11, size: 0.36, dmgMul: 0.7, color: CH.col });
+      }
+      if (!e.fsm && (distP > 22 || (!sameLevel && distP > 8))) e.state = 'return';
+      /* à mi-distance et prête : la CHARGE télégraphiée des lourds s'arme */
+      else if (CH && e.chargeT <= 0 && sameLevel && distP > 4 && distP < CH.range) startCharge(e);
       /* à portée de coup et prêt : la mêlée télégraphiée s'arme (les Maîtres
          d'Étage — e.fsm — gardent leur propre FSM d'attaque, voir Tower.js) */
       else if (e.atk <= 0 && !e.fsm && sameLevel && distP < meleeProf(e).reach) startMelee(e);
@@ -360,7 +452,7 @@ export function updateEnemies(dt) {
       const rd = Math.hypot(e.spawn.x - e.g.position.x, e.spawn.z - e.g.position.z);
       if (rd < 0.8) { e.state = 'patrol'; e.alerted = false; e.hp = Math.min(e.maxHp, e.hp + 12); }
       else { tx = e.spawn.x; tz = e.spawn.z; }
-      if (distP < 6 && sameLevel && !tSafe && S.graceT <= 0) e.state = 'chase';
+      if (distP < 8 && sameLevel && !tSafe && S.graceT <= 0) e.state = 'chase';
     }
     if (tx !== null) {
       const mdx = tx - e.g.position.x, mdz = tz - e.g.position.z;
@@ -382,8 +474,9 @@ export function updateEnemies(dt) {
     // la nuit, les ombres luisent d'une braise sanguine : le danger se voit
     const baseEm = S.nightK > 0.5 ? 0x2a0a18 : 0x0d0820;
     /* télégraphe : le manteau CLIGNOTE rouge pendant toute préparation
-       d'attaque (mêlée en wind-up ou tir de Tisseur en charge) */
-    const tele = ((e.mAtk && e.mAtk.ph === 'wind') || e.windup) && Math.sin(G.time * 26) > 0;
+       d'attaque (mêlée en wind-up, tir de Tisseur ou charge des lourds) */
+    const tele = ((e.mAtk && e.mAtk.ph === 'wind') || e.windup ||
+      (e.charge && e.charge.ph === 'wind')) && Math.sin(G.time * 26) > 0;
     e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : tele ? 0x8a1a1a : baseEm);
     setCharEmissive(e, e.hitT > 0 ? 0x992233 : tele ? 0x8a1a1a : null);
   }
@@ -481,18 +574,21 @@ export function killEnemy(e) {
   }
 }
 
-/* ---- Projectile hostile des Tisseurs ---- */
-export function fireHostile(e, tp) {
+/* ---- Projectile hostile : tir des Tisseurs / Séraphins, et (v8.3, via
+   opt) bloc de roche des lourds — opt = { speed, size, color, dmgMul } ---- */
+export function fireHostile(e, tp, opt) {
+  opt = opt || {};
   A.hostileBolt();
+  const col = opt.color || 0xff2a4a;
   const start = new THREE.Vector3(e.g.position.x, e.g.position.y + 0.6, e.g.position.z);
   const tgt = new THREE.Vector3(tp.x, tp.y + 1.1, tp.z);
   const dir = tgt.sub(start).normalize();
-  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0),
-    new THREE.MeshStandardMaterial({ color: 0x3a0a1a, emissive: 0xff2a4a, emissiveIntensity: 1.4, roughness: 0.4 }));
-  core.add(glow(0xff2a4a, 2.4, 0.85));
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(opt.size || 0.22, 0),
+    new THREE.MeshStandardMaterial({ color: 0x3a0a1a, emissive: col, emissiveIntensity: 1.4, roughness: 0.4 }));
+  core.add(glow(col, 2.4, 0.85));
   core.position.copy(start); S.scene.add(core);
-  projectiles.push({ mesh: core, vel: dir.multiplyScalar(13 + e.lvl * 1.3), life: 2.6,
-    dmg: Math.round(e.dmg * S.nightMul), hostile: true, spin: 6 + Math.random() * 4 });
+  projectiles.push({ mesh: core, vel: dir.multiplyScalar(opt.speed || (13 + e.lvl * 1.3)), life: 2.6,
+    dmg: Math.round(e.dmg * (opt.dmgMul || 1) * S.nightMul), hostile: true, spin: 6 + Math.random() * 4 });
 }
 /* ---- Chaîne d'éclairs (Mage) ---- */
 export function chainLightning(from, dmg, n, stun) {
@@ -556,10 +652,10 @@ export function updateDirector(dt) {
   }
   S.dirT -= dt;
   if (S.dirT > 0) return;
-  /* Rythme des renforts calé sur les 18 quêtes de la refonte : très calme
-     au début (20 s+ vers la quête du levier), soutenu en fin de partie (9 s).
+  /* Rythme des renforts calé sur les 18 quêtes de la refonte : calme au
+     début (15 s+ vers la quête du levier), pressant en fin de partie (7 s).
      La nuit, le flot s'accélère (jusqu'à -40 % d'intervalle). */
-  S.dirT = Math.max(9, 26 - S.questI) * (1 - 0.4 * S.nightK);
+  S.dirT = Math.max(7, 21 - S.questI) * (1 - 0.4 * S.nightK);
   /* Purge des renforts morts (tableau `enemies` sinon jamais réduit : une
      longue partie accumulerait des centaines d'entrées mortes, ralentissant
      peu à peu chaque boucle qui parcourt `enemies`). On ne touche jamais aux

@@ -590,11 +590,12 @@ export function updatePlayer(dt) {
   if (p.mixer) p.mixer.update(dt);
   G.mana = Math.min(G.maxMana, G.mana + (hasN('g_wis') ? 10 : 6) * dt);
   // Aura du Premier Foyer (Observatoire de l'Aube) : le foyer répare la chair
-  if (G.tower.aura) G.hp = Math.min(G.maxHp, G.hp + 1.2 * dt);
+  // (v8.3 : régénération adoucie — le porteur ne doit plus être immortel)
+  if (G.tower.aura) G.hp = Math.min(G.maxHp, G.hp + 0.7 * dt);
   // Couronne de l'Aube (v8) : le foyer veille aussi sur l'esprit
   if (G.tower.crown) {
-    G.hp = Math.min(G.maxHp, G.hp + 0.8 * dt);
-    G.mana = Math.min(G.maxMana, G.mana + 3 * dt);
+    G.hp = Math.min(G.maxHp, G.hp + 0.45 * dt);
+    G.mana = Math.min(G.maxMana, G.mana + 2 * dt);
   }
   // Sanctuaire d'un feu de bivouac : la chaleur régénère lentement le porteur
   if (safeZoneAt(p.pos)) G.hp = Math.min(G.maxHp, G.hp + 2.5 * dt);
