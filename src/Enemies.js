@@ -2,12 +2,32 @@
    ENNEMIS — spectres d'ombre, IA, directeur de renforts par zone
    ================================================================ */
 import * as THREE from 'three';
-import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, zoneSeen } from './state.js';
+import { G, S, ETYPES, LVL_HALO, ZONES, enemies, projectiles, player, p2, tut, zoneSeen,
+  gearScore, GEAR_THRESHOLDS } from './state.js';
 import { A } from './Audio.js';
 import { showMsg, dmgText } from './UI.js';
 import { slashArc, groundRing, impactFlash } from './Animations.js';
 import { spawnBurst, addPickup, pointSolid, openDoor, safeZoneAt } from './World.js';
-import { glow } from './AssetManager.js';
+import { glow, overchargeMat } from './AssetManager.js';
+import { gearLootFrom } from './Crafting.js';
+
+/* ================================================================
+   v9 — MENACE ADAPTATIVE : le monde répond au Gear Score du joueur.
+   · Niveau 0 : IA d'origine.
+   · Niveau 1 (GS ≥ GEAR_THRESHOLDS.threat) : les archétypes s'éveillent —
+     Traqueur EVADE, Ombre BLOCK, Colosse à l'onde élargie/rapide — et
+     s'auréolent d'une « Surcharge de Lumière » (wireframe + vapeur).
+   · Niveau 2 (GS ≥ GEAR_THRESHOLDS.legend) : le directeur de renforts
+     remplace la moitié des patrouilles basiques par des Tisseurs d'élite,
+     même dans les zones de début de jeu.
+   ================================================================ */
+export function calculateEnemyThreatLevel() {
+  const gs = gearScore();
+  if (gs >= GEAR_THRESHOLDS.legend) return 2;
+  if (gs >= GEAR_THRESHOLDS.threat) return 1;
+  return 0;
+}
+let threatLvl = 0; // recalculé une fois par image (updateEnemies)
 import { gainXP, hasN } from './SkillTree.js';
 import { hurt, hurtP2 } from './Player.js';
 import { questReach } from './Quests.js';
@@ -214,7 +234,14 @@ const MELEE = {
   echo:     { wind: 0.26, strike: 0.12, rec: 0.3,  reach: 2.0, lunge: 3.8, cool: 1.0, col: 0xfff2b0 },
   obsidian: { wind: 0.9,  strike: 0.22, rec: 0.8,  reach: 3.2, lunge: 1.8, cool: 2.5, col: 0xff5a2a, ring: true }
 };
-function meleeProf(e) { return MELEE[e.tKey] || MELEE.sentinel; }
+function meleeProf(e) {
+  const base = MELEE[e.tKey] || MELEE.sentinel;
+  /* v9 — Colosse sous menace adaptative : onde au sol ÉLARGIE (+1 m de
+     portée, l'anneau visuel suit) et récupération réduite de 40 %. */
+  if (threatLvl >= 1 && e.tKey === 'brute' && !e.fsm)
+    return Object.assign({}, base, { reach: base.reach + 1.0, cool: base.cool * 0.6 });
+  return base;
+}
 function startMelee(e) {
   e.mAtk = { P: meleeProf(e), ph: 'wind', t: 0, hitDone: false, dx: 0, dz: 0 };
   // télégraphe immédiat : éclat rouge + grondement sourd dès la préparation
@@ -283,6 +310,7 @@ export function updateEnemies(dt) {
   /* période de grâce post-chargement : les ombres restent à leurs postes
      quelques secondes, le temps que le joueur se repère dans la salle */
   S.graceT = Math.max(0, S.graceT - dt);
+  threatLvl = calculateEnemyThreatLevel(); // v9 : une lecture par image
   for (const e of enemies) {
     if (e.dead) continue;
     /* isPlayerInCombat : une ombre en chasse à portée verrouille le voyage
@@ -305,6 +333,55 @@ export function updateEnemies(dt) {
       setCharEmissive(e, 0x1a3a6a);
       e.g.position.y = e.floorY + 0.95;
       continue;
+    }
+    if (e.blockT > 0) e.blockT -= dt; // fenêtre de BLOCAGE de l'Ombre adaptative
+    /* ---- v9 : « SURCHARGE DE LUMIÈRE » ----
+       Les archétypes dont l'IA s'éveille (Traqueur, Colosse, Ombre) face à
+       un Gear Score critique portent une coquille wireframe émissive et
+       exhalent une vapeur claire : la difficulté adaptative SE VOIT. */
+    const overWant = threatLvl >= 1 && !e.fsm &&
+      (e.tKey === 'wraith' || e.tKey === 'brute' || e.tKey === 'sentinel');
+    if (overWant && !e.overG) {
+      e.overG = new THREE.Mesh(new THREE.ConeGeometry(0.62 * e.s, 1.78 * e.s, 6), overchargeMat());
+      e.overG.position.y = 0.06 * e.s;
+      e.g.add(e.overG);
+    } else if (!overWant && e.overG) {
+      e.g.remove(e.overG);
+      e.overG = null;
+    }
+    if (e.overG) {
+      e.overG.rotation.y += dt * 0.8; // l'énergie craquelée rampe sur la coquille
+      if (Math.random() < dt * 1.8)
+        spawnBurst(e.g.position.x + (Math.random() - 0.5) * 0.6, e.g.position.y + 0.9 + Math.random() * 0.7,
+          e.g.position.z + (Math.random() - 0.5) * 0.6, 0xbfe8ff, 1); // vapeur de surcharge
+    }
+    /* ---- v9 : EVADE du Traqueur ----
+       Sous menace adaptative, le Traqueur ESQUIVE latéralement le premier
+       projectile du joueur qui file sur lui (une fois par aggro). */
+    if (e.evadeT > 0) {
+      e.evadeT -= dt;
+      const ey = e.floorY + 1.0;
+      const nx = e.g.position.x + e.evX * 9 * dt, nz = e.g.position.z + e.evZ * 9 * dt;
+      if (!pointSolid(nx, ey, e.g.position.z)) e.g.position.x = nx;
+      if (!pointSolid(e.g.position.x, ey, nz)) e.g.position.z = nz;
+      e.g.position.y = e.floorY + 0.95;
+      continue; // le pas de côté remplace le déplacement normal de l'image
+    }
+    if (threatLvl >= 1 && e.tKey === 'wraith' && !e.fsm && e.state === 'chase' && !e.mAtk && !e.evaded) {
+      for (const pr of projectiles) {
+        if (pr.hostile || !pr.owner) continue; // seuls les tirs des porteurs de flamme
+        const dx = e.g.position.x - pr.mesh.position.x, dz = e.g.position.z - pr.mesh.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 6 || d < 0.001) continue;
+        const vl = Math.hypot(pr.vel.x, pr.vel.z) || 1;
+        if ((pr.vel.x * dx + pr.vel.z * dz) / (vl * d) < 0.85) continue; // pas dirigé sur lui
+        e.evaded = true; e.evadeT = 0.26;
+        const side = Math.random() < 0.5 ? 1 : -1;
+        e.evX = -pr.vel.z / vl * side;
+        e.evZ = pr.vel.x / vl * side;
+        spawnBurst(e.g.position.x, e.g.position.y + 0.6, e.g.position.z, 0x5affc8, 8);
+        break;
+      }
     }
     // Coop : la sentinelle poursuit le porteur de flamme le plus proche
     let tp = player.pos, tgt2 = false;
@@ -358,7 +435,7 @@ export function updateEnemies(dt) {
       else if (distP > (e.ranged ? 7 : 1.7)) { tx = px; tz = pz; }
     } else {
       const rd = Math.hypot(e.spawn.x - e.g.position.x, e.spawn.z - e.g.position.z);
-      if (rd < 0.8) { e.state = 'patrol'; e.alerted = false; e.hp = Math.min(e.maxHp, e.hp + 12); }
+      if (rd < 0.8) { e.state = 'patrol'; e.alerted = false; e.evaded = false; e.hp = Math.min(e.maxHp, e.hp + 12); }
       else { tx = e.spawn.x; tz = e.spawn.z; }
       if (distP < 6 && sameLevel && !tSafe && S.graceT <= 0) e.state = 'chase';
     }
@@ -384,12 +461,28 @@ export function updateEnemies(dt) {
     /* télégraphe : le manteau CLIGNOTE rouge pendant toute préparation
        d'attaque (mêlée en wind-up ou tir de Tisseur en charge) */
     const tele = ((e.mAtk && e.mAtk.ph === 'wind') || e.windup) && Math.sin(G.time * 26) > 0;
-    e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : tele ? 0x8a1a1a : baseEm);
+    // v9 : la fenêtre de BLOCAGE de l'Ombre adaptative teinte le voile d'acier bleu
+    e.cloakMat.emissive.setHex(e.hitT > 0 ? 0x992233 : e.blockT > 0 ? 0x2a5a8a : tele ? 0x8a1a1a : baseEm);
     setCharEmissive(e, e.hitT > 0 ? 0x992233 : tele ? 0x8a1a1a : null);
   }
 }
 export function damageEnemy(e, d, knock, opts) {
   if (e.dead) return;
+  /* v9 — BLOCK de l'Ombre adaptative : sous menace (Gear Score critique),
+     l'Ombre de base a 25 % de chance d'ANNULER une attaque FRONTALE — le
+     coup de face rebondit sur son voile (contourner ou frapper le dos). */
+  if (threatLvl >= 1 && e.tKey === 'sentinel' && !e.fsm && e.stunT <= 0 && knock &&
+      Math.random() < 0.25) {
+    const l = Math.hypot(knock.x, knock.z) || 1;
+    const fx = Math.sin(e.g.rotation.y), fz = Math.cos(e.g.rotation.y);
+    if ((knock.x / l) * fx + (knock.z / l) * fz < -0.3) { // poussée contraire au regard = coup de face
+      e.blockT = 0.5;
+      dmgText(e.g.position.x, e.g.position.y + 0.9 * e.s, e.g.position.z, 'BLOQUÉ !', 'label');
+      spawnBurst(e.g.position.x, e.g.position.y + 0.8, e.g.position.z, 0x9fdcff, 10);
+      A.impact();
+      return;
+    }
+  }
   /* Hitboxes asymétriques des Maîtres d'Étage : le boss peut moduler les
      dégâts selon son état (armure de face, os exposés dans le dos, fenêtre
      de vulnérabilité...) — voir les contrôleurs FSM dans Tower.js. */
@@ -460,6 +553,9 @@ export function killEnemy(e) {
   }
   /* les Maîtres d'Étage (Tour) lâchent TOUJOURS un Cœur de nuit : la récompense est garantie */
   if (e.fsm || Math.random() < 0.03 + 0.01 * (e.lvl || 1)) drop('nightheart', 0, -0.9);
+  /* v9 — butin d'ÉQUIPEMENT (rangé au sac de forge) : chance selon le
+     niveau, garanti et de haute rareté pour les Maîtres d'Étage */
+  gearLootFrom(e.lvl || 1, !!e.fsm);
   S.scene.remove(e.g);
   // la nuit paie mieux : +50 % d'expérience au plus noir (risque → récompense)
   const xpGain = Math.round((e.xp || 12) * (1 + 0.5 * S.nightK));
@@ -584,7 +680,11 @@ export function updateDirector(dt) {
     const x = player.pos.x + Math.cos(a) * d, zz = player.pos.z + Math.sin(a) * d;
     if (Math.hypot(x - z.x, zz - z.z) > z.r) continue;
     if (pointSolid(x, z.y + 1.2, zz)) continue;
-    const type = z.types[Math.floor(Math.random() * z.types.length)];
+    let type = z.types[Math.floor(Math.random() * z.types.length)];
+    /* v9 — Gear Score frôlant le Légendaire : le directeur remplace une
+       patrouille basique sur deux par un TISSEUR d'élite, même dans les
+       zones de début de jeu — le monde répond à votre lumière. */
+    if (calculateEnemyThreatLevel() >= 2 && Math.random() < 0.5) type = 'caster';
     /* +1 niveau de renforts seulement après le passage scellé (fin de partie) */
     const lvl = z.lvl + (S.questI >= 14 ? 1 : 0);
     /* renforts nocturnes : +40 % de PV au plus noir de la nuit */

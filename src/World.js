@@ -10,11 +10,12 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   G, S, IS_TOUCH, POWERS, QUESTS, HINTS, tut, STEP_HEIGHT, LIGHT_SCALE,
   colliders, doors, pickups, inter, spinners, flames, parts,
-  tkCubes, pedestals, PLATES, CAMPS, player, p2
+  tkCubes, pedestals, PLATES, CAMPS, player, p2,
+  equipItem, unequipSlot
 } from './state.js';
 import { assets, matFor, glow } from './AssetManager.js';
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, openTravel } from './UI.js';
+import { $, showMsg, refreshPowers, openTravel, toggleForge } from './UI.js';
 import { questReach, openDialog, guide, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
@@ -1327,4 +1328,98 @@ export function buildHerbs() {
   [[6, 52], [-8, 48], [12, 40], [-14, 46], [20, 60], [5, 70], [-4, 66], [26, 44], [18, 72], [-18, 40],
    [-51, -69], [39, -57], [9, -81], [33, -57]]
     .forEach(p => addPickup('herb', p[0], 0, p[1]));
+}
+
+/* ================================================================
+   v9 — L'ENCLUME DE FORGE (ouvre le panneau de Forge, UI.js) et le
+   CORPSE RUN : à la mort (solo), l'équipement porté tombe dans une
+   TOMBE D'AUBE aux coordonnées du trépas — 5 minutes RÉELLES pour
+   revenir le chercher, sinon il se dissout dans la nuit.
+   ================================================================ */
+export function mkAnvil(x, y, z) {
+  mkBox(0.9, 0.55, 0.6, x, y, z, 'iron');
+  const top = mkBox(1.25, 0.22, 0.42, x, y + 0.55, z, 'iron', false);
+  top.castShadow = true;
+  const halo = glow(0xffb84a, 2, 0.35);
+  halo.position.set(x, y + 1.2, z);
+  S.scene.add(halo);
+  addInter(x, y, z, 2.8, '⚒ Forge — façonner et fusionner l\'équipement', () => toggleForge());
+}
+
+let tombG = null; // mesh de la Tombe d'Aube actuellement posée (ou null)
+function mkTombMesh() {
+  const g = new THREE.Group();
+  const mat = matFor('stoneR', 1, 1);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.2, 0.22), mat);
+  slab.position.y = 0.6; slab.castShadow = true;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.22, 10, 1, false, 0, Math.PI), mat);
+  cap.rotation.z = Math.PI / 2; cap.rotation.y = Math.PI / 2;
+  cap.position.y = 1.2;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.25, 0.8), mat);
+  base.position.y = 0.12;
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+    new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
+  core.position.set(0, 1.55, 0);
+  g.add(slab, cap, base, core, glow(0xffd97a, 3, 0.6));
+  return g;
+}
+/* Transfère l'équipement porté dans G.deathDrop (appelé par hurt(), Player.js,
+   au moment du Game Over solo). Contexte (palier/salle) mémorisé : la Tombe
+   ne se matérialise que dans le BON espace instancié. */
+export function dropEquipmentOnDeath() {
+  const items = [];
+  for (const slot of ['weapon', 'armor', 'accessory']) {
+    const it = unequipSlot(slot);
+    if (it) items.push(it);
+  }
+  if (!items.length) return;
+  G.deathDrop = {
+    items,
+    x: player.pos.x, y: Math.max(0, player.pos.y), z: player.pos.z,
+    palier: S.inTower ? S.palier : -1, room: S.roomId || null,
+    expire: Date.now() + 300000 // 5 minutes RÉELLES
+  };
+  showMsg('⚰ Votre équipement gît où vous êtes tombé — une TOMBE D\'AUBE le garde 5 minutes !', 5);
+}
+/* Boucle du Corpse Run (appelée par main.js) : matérialise/retire la Tombe
+   selon le contexte, gère l'expiration réelle et la récupération de proximité. */
+export function updateDeathDrop() {
+  const D = G.deathDrop;
+  if (!D || !D.items || !D.items.length) {
+    if (tombG) { S.scene.remove(tombG); tombG = null; }
+    return;
+  }
+  if (Date.now() > D.expire) {
+    G.deathDrop = null;
+    if (tombG) { S.scene.remove(tombG); tombG = null; }
+    showMsg('La Tombe d\'Aube s\'est éteinte... votre ancien équipement appartient à la nuit.', 4.5);
+    return;
+  }
+  /* la Tombe n'existe que dans l'espace où l'on est mort (monde / palier / salle) */
+  const hereCtx = S.inTower ? S.palier : -1;
+  const ctxOk = (D.palier === hereCtx) && ((D.room || null) === (S.roomId || null));
+  if (!ctxOk) { if (tombG) { S.scene.remove(tombG); tombG = null; } return; }
+  if (!tombG) {
+    tombG = mkTombMesh();
+    tombG.position.set(D.x, D.y, D.z);
+    S.scene.add(tombG);
+  }
+  tombG.children[3].rotation.y += 0.03; // l'éclat doré tournoie doucement
+  /* récupération par PROXIMITÉ (pas d'addInter : les instances tronquent
+     la liste des interactions au déchargement — la Tombe doit y survivre) */
+  if (Math.hypot(player.pos.x - D.x, player.pos.z - D.z) < 2.2 &&
+      Math.abs(player.pos.y - D.y) < 3) {
+    for (const it of D.items) {
+      const prev = equipItem(it);
+      if (prev) { // un slot déjà rempli entre-temps : l'ancien va au sac de forge
+        if (G.gearBag.length < 15) G.gearBag.push(prev);
+        else G.shadows += 2;
+      }
+    }
+    G.deathDrop = null;
+    S.scene.remove(tombG); tombG = null;
+    A.power();
+    spawnBurst(D.x, D.y + 1.2, D.z, 0xffd97a, 26);
+    showMsg('⚰ → ⚔ Équipement RÉCUPÉRÉ ! La Tombe d\'Aube vous rend ce qui est vôtre.', 4);
+  }
 }

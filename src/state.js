@@ -83,6 +83,11 @@ export const G = {
      voie s'ADDITIONNENT à l'arme (classAtk, SkillTree.js), l'armure passe
      par des rendements décroissants (armorReduction, appliquée dans hurt). */
   equipment: { weapon: null, armor: null, accessory: null },
+  /* Sac de forge (butin d'équipement non porté, 15 pièces max), panneau de
+     Forge ouvert (enclumes), et Corpse Run : à la mort (solo), l'équipement
+     porté tombe dans une Tombe d'Aube — { items, x, y, z, palier, room,
+     expire } — à récupérer sous 5 minutes RÉELLES (Date.now). */
+  gearBag: [], forgeOpen: false, deathDrop: null,
   /* v8 — SALLES INSTANCIÉES : chaque intérieur du château (grand hall,
      bibliothèque, aile est, salle du trône, catacombes) est chargé seul en
      mémoire derrière un écran de chargement (voir Rooms.js). On ne garde ici

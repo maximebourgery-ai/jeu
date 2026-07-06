@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { G, S, IS_TOUCH, IS_IOS, IS_STANDALONE, POWERS, keys, p2, tut, gpMove, tmMove, enemies, settings, saveSettings } from './state.js';
 import { updateDayNight } from './DayNight.js'; // (cycle sûr : appel différé, curseur de luminosité)
 import { A } from './Audio.js';
-import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots, updatePadLegend } from './UI.js';
+import { $, showMsg, refreshPowers, toggleInv, closeTravel, updateTouchSlots, updatePadLegend, toggleForge } from './UI.js';
 import { dlgNext } from './Quests.js';
 import { craftAction } from './Crafting.js';
 import { toggleTree } from './SkillTree.js';
@@ -62,6 +62,7 @@ export function initControls() {
     if (e.code === 'Escape' && !document.pointerLockElement) {
       if (G.mapOpen) { closeMap(); return; }
       if (G.travelOpen) { closeTravel(); return; }
+      if (G.forgeOpen) { toggleForge(); return; }
       if (G.treeOpen) { toggleTree(); return; }
       if (G.inv) { toggleInv(); return; }
       G.paused = !G.paused;
@@ -103,7 +104,7 @@ export function initControls() {
   addEventListener('mousedown', e => {
     if (!G.started || G.over) return;
     if (G.dialog) { dlgNext(); return; }
-    if (G.paused || G.inv || G.treeOpen || G.travelOpen) return; // clics réservés aux boutons de ces panneaux
+    if (G.paused || G.inv || G.treeOpen || G.travelOpen || G.forgeOpen) return; // clics réservés aux boutons de ces panneaux
     if (IS_TOUCH) return; // sur mobile, l'attaque passe par le bouton tactile
     if (document.pointerLockElement) {
       if (e.button === 0 && !G.inv) castPower();
@@ -121,7 +122,7 @@ export function initControls() {
     }
   });
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen) {
+    if (!document.pointerLockElement && G.started && !G.over && !G.dialog && !G.inv && !G.treeOpen && !G.travelOpen && !G.mapOpen && !G.forgeOpen) {
       G.paused = true; $('pause').classList.remove('hidden');
     }
   });
@@ -263,6 +264,7 @@ const PANEL_DEFS = {
   settings: { sel: '#settings input, #settings button', close: '#btn-settings-close' },
   inv:      { sel: '#inv button', close: '#btn-invclose' },
   tree:     { sel: '#tree button', close: '#treeclose' },
+  forge:    { sel: '#forge button', close: '#forgeclose' },
   travel:   { sel: '#travel button', close: '#btn-travelclose' },
   gameover: { sel: '#golist button' },
   win:      { sel: '#win button' }
@@ -273,6 +275,7 @@ function activePanel() {
   if (G.paused && vis('pause')) return 'pause';
   if (G.mapOpen) return 'map';
   if (G.inv) return 'inv';
+  if (G.forgeOpen) return 'forge';
   if (G.treeOpen) return 'tree';
   if (G.travelOpen) return 'travel';
   if (G.dead && vis('gameover')) return 'gameover';
@@ -625,7 +628,7 @@ export function setupTouch() {
     S.tmBoltHeld = true; // toujours l'attaque de base, jamais le dernier sort débloqué
     /* le coup part dès l'appui : un tap bref frappe aussi (le maintien,
        lui, enchaîne via la boucle principale — la recharge fait le tri) */
-    if (G.started && !G.paused && !G.over && !G.inv && !G.treeOpen && !G.travelOpen) castSpecific('bolt');
+    if (G.started && !G.paused && !G.over && !G.inv && !G.treeOpen && !G.travelOpen && !G.forgeOpen) castSpecific('bolt');
   });
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== atkId) return;
@@ -666,7 +669,7 @@ export function setupTouch() {
     btn.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
       if (G.dialog) { dlgNext(); return; }
-      if (!G.started || G.paused || G.over || G.inv) return;
+      if (!G.started || G.paused || G.over || G.inv || G.forgeOpen) return;
       castSpecific(btn.dataset.power);
       try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
     });

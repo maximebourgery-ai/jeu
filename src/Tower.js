@@ -28,15 +28,15 @@
    ================================================================ */
 import * as THREE from 'three';
 import {
-  G, S, POWERS,
+  G, S, POWERS, gearScore,
   colliders, doors, pickups, inter, enemies, projectiles, tkCubes,
   spinners, flames, pedestals, player, p2
 } from './state.js';
 import { A } from './Audio.js';
-import { showMsg, withLoading } from './UI.js';
+import { showMsg, withLoading, gearWarning } from './UI.js';
 import {
   mkBox, mkCyl, addInter, addPickup, torch, bivouac, spawnBurst, mkTkCube,
-  pedestal, mkDoor, openDoor, pointSolid
+  pedestal, mkDoor, openDoor, pointSolid, mkAnvil
 } from './World.js';
 import { lightPillar } from './Animations.js';
 import { matFor, glow } from './AssetManager.js';
@@ -314,6 +314,8 @@ export function leaveTower(silent) {
 /* Rebâtit un palier donné SANS fondu (le voyage rapide, déjà sous écran de
    chargement, s'en sert pour rejoindre un bivouac de la Tour). */
 export function enterPalier(n) { gotoPalier(n); }
+/* v9 — Gear Score CONSEILLÉ par palier (gear check à l'entrée) */
+const PALIER_GEAR = [0, 30, 60, 100, 0, 180, 240];
 function gotoPalier(n) {
   unloadPalier();
   beginBuild();
@@ -326,6 +328,19 @@ function gotoPalier(n) {
     else if (n === 5) buildPalier5();
     else buildPalier6();
   } finally { endBuild(); }
+  /* v9 — GEAR CHECK : très sous-équipé pour l'étage (< 40 % du Score
+     conseillé) → alerte claire, et les ombres du palier sont ×3 en PV et
+     dégâts. Les Maîtres d'Étage, calibrés à la main, restent inchangés. */
+  const rec = PALIER_GEAR[n] || 0;
+  if (rec && gearScore() < rec * 0.4) {
+    for (let i = snap.enemies; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (e.dead || e.fsm) continue;
+      e.hp *= 3; e.maxHp *= 3; e.dmg = Math.round(e.dmg * 3);
+    }
+    gearWarning('☠ ZONE DANGEREUSE — Équipement insuffisant (Score ' + gearScore() + ' / ' + rec
+      + ' conseillé) : les ombres y frappent TROIS FOIS plus fort. Forgez votre panoplie à une enclume !');
+  }
   S.inTower = true; S.palier = n;
   const e = ENTRY[n];
   player.pos.set(e.x, e.y, e.z); player.vel.set(0, 0, 0);
@@ -371,6 +386,7 @@ function buildVestibule() {
   addInter(TX, 0, TZ - 2, 3, 'Lire le fronton du vestibule', () => {
     showMsg('« Chaque palier possède ses règles, son Maître d\'Étage et sa clef. Les portails n\'obéissent qu\'aux flags du destin : boss vaincu, clef en main. »', 4.5);
   });
+  mkAnvil(TX + 12, 0, TZ - 2); // v9 : la Forge du vestibule (façonnage & fusion)
 
   // retour à la terrasse
   mkPortal(TX, 0, TZ + 16.5, 0x8fe8ff, 'Revenir à la terrasse', () => true, () => '', () => leaveTower(false));
@@ -538,6 +554,7 @@ function buildPalier2() {
   addPickup('herb', TX - 11, 3.25, TZ - 6);
   addPickup('mana', TX - 19, 3.25, TZ - 12);
   bivouac(TX - 14, 3.25, TZ - 4.5, 'la Salle de l\'Alchimiste', 'alchimiste', false, 4.5);
+  mkAnvil(TX - 9.5, 3.25, TZ - 13); // v9 : l'enclume de l'Alchimiste
 
   /* étage 7 (y 6) : corniche nord — montée par piliers taillés, avec une
      marche intermédiaire (l'ascension se fait en petits sauts lisibles) */

@@ -139,3 +139,18 @@ export function glow(color, scale, opacity) {
   sp.scale.set(scale, scale, 1);
   return sp;
 }
+
+/* v9 — « Surcharge de Lumière » : matériau wireframe émissif PARTAGÉ,
+   posé en coquille par-dessus les ombres dont l'IA s'éveille face à un
+   Gear Score critique (voir updateEnemies, Enemies.js). Un seul matériau
+   pour toutes les coquilles : zéro coût par ennemi supplémentaire. */
+let _overMat = null;
+export function overchargeMat() {
+  if (!_overMat) {
+    _overMat = new THREE.MeshBasicMaterial({
+      color: 0x9fe8ff, wireframe: true, transparent: true, opacity: 0.32,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    });
+  }
+  return _overMat;
+}

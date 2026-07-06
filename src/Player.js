@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { G, S, PATHS, keys, gpMove, tmMove, player, p2, colliders, enemies, tut, LIGHT_SCALE, armorReduction, equipTotals } from './state.js';
 import { A } from './Audio.js';
 import { showMsg, gameOver } from './UI.js';
-import { slide, slideP, rayAABB, spawnBurst, safeZoneAt } from './World.js';
+import { slide, slideP, rayAABB, spawnBurst, safeZoneAt, dropEquipmentOnDeath } from './World.js';
 import { matFor, glow } from './AssetManager.js';
 import { hasN } from './SkillTree.js';
 import { tkToggle, gainRage } from './Powers.js';
@@ -771,7 +771,10 @@ export function hurt(d, src) {
       player.pos.set(G.checkpoint.x, G.checkpoint.y, G.checkpoint.z); player.vel.set(0, 0, 0);
       showMsg('Les ombres vous ont submergé... Vous rouvrez les yeux près du dernier feu de bivouac.', 4.5);
     } else {
-      /* Solo : écran GAME OVER — latence, puis choix du feu de renaissance */
+      /* Solo : CORPSE RUN — l'équipement porté tombe dans une Tombe d'Aube
+         aux coordonnées du trépas (5 min réelles pour le récupérer), PUIS
+         écran GAME OVER — latence, choix du feu de renaissance. */
+      dropEquipmentOnDeath();
       gameOver();
     }
   }
