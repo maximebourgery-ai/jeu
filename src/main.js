@@ -95,7 +95,19 @@ function loop() {
     S.renderer.setScissorTest(false);
     S.renderer.setViewport(0, 0, innerWidth, innerHeight);
     S.composer.render();
-    S.composer2.render();
+    /* v9.2 (retour joueur : « ça bug énormément côté J2 ») — calculer DEUX
+       scènes 3D complètes (bloom compris) à CHAQUE image double le coût GPU
+       par rapport au solo. Sur une machine modeste, l'image de l'hôte
+       elle-même se met à ramer — la capture qui en résulte est saccadée
+       AVANT même d'être compressée en vidéo : ce n'est pas un problème
+       réseau. Le rendu du J2 (jamais vu localement, seulement diffusé)
+       est donc mis à jour une image sur deux : le GAMEPLAY (physique,
+       combats) continue à pleine cadence pour tout le monde, seule
+       l'image ENVOYÉE se rafraîchit deux fois moins souvent — invisible
+       après compression vidéo, et ça rend au J1 la moitié du coût GPU
+       qu'il avait perdu. */
+    S.p2SkipFrame = !S.p2SkipFrame;
+    if (S.p2SkipFrame) S.composer2.render();
   } else if (S.COOP) {
     /* Coop LOCALE (manette/téléphone sur LA MÊME machine, un seul écran
        physique) : rendu scissor multi-caméra d'origine (le bloom plein

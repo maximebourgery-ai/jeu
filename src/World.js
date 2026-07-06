@@ -187,11 +187,17 @@ export function setCamAspects() {
 export function ensureP2Renderer() {
   if (S.renderer2) return;
   const { w, h } = netP2Size();
-  S.renderer2 = new THREE.WebGLRenderer({ antialias: true });
+  /* v9.2 (retour joueur : « ça bug énormément côté J2 ») — ce rendu n'est
+     JAMAIS vu localement, seulement compressé en vidéo : l'antialiasing
+     (lissage des bords) et les ombres portées disparaissent quasiment dans
+     la compression, mais coûtent cher au GPU. Les couper ici (SEULEMENT ce
+     second rendu — le J1 garde les siennes) rend une bonne partie du coût
+     GPU perdu en calculant deux scènes complètes chaque image, sans toucher
+     à la résolution ni à la netteté du flux envoyé. */
+  S.renderer2 = new THREE.WebGLRenderer({ antialias: false });
   S.renderer2.setPixelRatio(1);
   S.renderer2.setSize(w, h);
-  S.renderer2.shadowMap.enabled = true;
-  S.renderer2.shadowMap.type = THREE.PCFSoftShadowMap;
+  S.renderer2.shadowMap.enabled = false;
   S.renderer2.outputColorSpace = THREE.SRGBColorSpace;
   S.renderer2.toneMapping = THREE.ACESFilmicToneMapping;
   S.renderer2.toneMappingExposure = 1.05;

@@ -561,6 +561,7 @@ export const S = {
      Joueur 2 EN LIGNE : chacun voit alors son écran plein, sans scission
      (voir World.ensureP2Renderer / coopNetP2, Network.startNetVideo). */
   renderer2: null, composer2: null, renderPass2: null, bloomPass2: null,
+  p2SkipFrame: false, // v9.2 : le rendu diffusé au J2 en ligne alterne 1 image sur 2 (coût GPU)
   shieldMesh: null, dirLight: null, beacon: null, lumen: null,
   // portes / éléments nommés du monde
   libDoor: null, basementDoor: null, throneDoor: null, beyondDoor: null,

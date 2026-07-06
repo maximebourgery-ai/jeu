@@ -894,9 +894,12 @@ export function updateDirector(dt) {
   S.dirT -= dt;
   if (S.dirT > 0) return;
   /* Rythme des renforts calé sur les 18 quêtes de la refonte : calme au
-     début (15 s+ vers la quête du levier), pressant en fin de partie (7 s).
-     La nuit, le flot s'accélère (jusqu'à -40 % d'intervalle). */
-  S.dirT = Math.max(7, 21 - S.questI) * (1 - 0.4 * S.nightK);
+     début, pressant en fin de partie. La nuit, le flot s'accélère.
+     v9.2 (retour joueur : « ça respawn beaucoup trop vite ») — plancher et
+     base relevés (7→10 s / 21→24 s) et accélération nocturne adoucie
+     (-40 %→-25 %) : les ombres reviennent toujours, mais laissent de
+     vraies pauses entre deux vagues. */
+  S.dirT = Math.max(10, 24 - S.questI) * (1 - 0.25 * S.nightK);
   /* Purge des renforts morts (tableau `enemies` sinon jamais réduit : une
      longue partie accumulerait des centaines d'entrées mortes, ralentissant
      peu à peu chaque boucle qui parcourt `enemies`). On ne touche jamais aux
