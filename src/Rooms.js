@@ -86,6 +86,28 @@ function presetOpen(dr) {
 const darkMat = () => new THREE.MeshStandardMaterial({ color: 0x141828, roughness: 1 });
 function stubCap(w, h, d, x, y, z) { mkBox(w, h, d, x, y, z, darkMat()); }
 
+/* Cache secrète : un repère discret (petit cairn lumineux) qui, une seule
+   fois, livre une pièce d'équipement forgée. Persistant par flag ; une fois
+   pillée, il ne reste que le cairn éteint. Récompense l'exploration hors du
+   chemin balisé — le sel des salles profondes. */
+function secretCache(id, key, x, y, z, label, msg, slot, rarity) {
+  const taken = flag(id, key);
+  const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+    new THREE.MeshBasicMaterial({ color: taken ? 0x40382a : 0xffe9a0 }));
+  marker.position.set(x, y + 0.5, z);
+  if (!taken) marker.add(glow(0xffe9a0, 1.1, 0.4));
+  S.scene.add(marker);
+  mkCyl(0.3, 0.4, 0.6, x, y, z, 'stoneR', true, 6); // petit cairn de pierres
+  if (taken) return;
+  addInter(x, y, z, 2.2, label, it => {
+    it.on = false; setFlag(id, key);
+    marker.material.color.setHex(0x40382a);
+    addGearToBag(rollEquipment(slot || 'accessory', rarity || 'epic', G.path));
+    spawnBurst(x, y + 0.8, z, 0xffd97a, 22);
+    showMsg(msg, 4.5);
+  });
+}
+
 /* ================================================================
    INSTANCIATION — capture & déchargement (même contrat que la Tour)
    ================================================================ */
@@ -901,6 +923,9 @@ function buildMuraille() {
   rPickup('maxhp', twX, twTopY, twZ - 1.2, 'muraille_belvedere_vit');
   bivouac(cyX - 3, 0, z, 'la Cour d\'Armes', 'mur_cour', true, 5);
   const murCamp = CAMPS.find(c => c.id === 'mur_cour'); if (murCamp) murCamp.room = 'muraille';
+  mkAnvil(cyX - 7, 0, z + 4); // forge de la cour : reposer ET forger avant de repartir
+  secretCache('muraille', 'secret', cyX - 8, 0, z - 12,
+    'Un cairn descellé derrière les décombres', 'Sous le cairn, une réserve oubliée des gardes du ciel — une pièce forgée, intacte.', 'armor', 'epic');
   addInter(cyX + 6, 0, z - 12, 2.6, 'Fouiller le râtelier d\'armes', () => {
     showMsg('Un râtelier renversé, des piques rouillées : les gardes ont défendu cette cour jusqu\'au dernier, puis le silence.', 4.5);
   });
@@ -1022,6 +1047,8 @@ function buildValMurmures() {
   }
   bivouac(PX, 0, mcz, 'le Cercle des Menhirs', 'val_menhirs', true, 5.5);
   const valCamp = CAMPS.find(c => c.id === 'val_menhirs'); if (valCamp) valCamp.room = 'val_murmures';
+  secretCache('val_murmures', 'secret', PX - 6, 0, mcz + 5,
+    'Une pierre du cercle qui sonne creux', 'Le menhir bascule : dessous, une offrande scellée par les pèlerins pour qui trouverait le cercle.', 'weapon', 'epic');
   addInter(PX + 6, 0, mcz - 6, 2.6, 'Déchiffrer les pierres levées', () => {
     showMsg('Sept menhirs, un par ordre de porteurs de flamme. Les runes gravées invoquent la paix des morts — et, dit-on, protègent le feu qu\'elles entourent.', 4.5);
   });
@@ -1134,6 +1161,10 @@ function buildCarriereSel() {
   torch(PX + 18, 0, z - 18, 0xf4ecd6, 1.2, 18); torch(PX + 30, 0, z + 18, 0xf4ecd6, 1.2, 18);
   bivouac(PX + 24, 0, z, 'la Halle d\'Extraction', 'carr_halle', true, 5);
   const carrCamp = CAMPS.find(c => c.id === 'carr_halle'); if (carrCamp) carrCamp.room = 'carriere_sel';
+  mkAnvil(PX + 28, 0, z - 12); // forge des mineurs, au fond de la halle
+  // secret au fond de la crevasse (-7,5 m) : récompense qui vaut la descente
+  secretCache('carriere_sel', 'secret', PX - 11, -7.5, z + 2,
+    'Un filon de sel étrangement régulier', 'Le filon cède sous la main : une cache de mineur, gardée par le sel depuis un siècle — et son butin.', 'accessory', 'epic');
   addInter(PX + 30, 0, z - 6, 2.6, 'Examiner une veine de sel d\'aube', () => {
     showMsg('La veine luit d\'une lumière laiteuse : du sel d\'aube, si pur qu\'il éclaire seul. C\'est lui qui donnait sa clarté aux pierres du château.', 4.5);
   });
@@ -1243,6 +1274,9 @@ function buildCanyonLames() {
   // bivouac au sol, dans un renfoncement du mur ouest
   bivouac(PX - 10, 0, z - 18, 'le Champ de Lames', 'canyon_biv', true, 5);
   const canCamp = CAMPS.find(c => c.id === 'canyon_biv'); if (canCamp) canCamp.room = 'canyon_lames';
+  // secret perché sur le belvédère : la vue récompense, la cache aussi
+  secretCache('canyon_lames', 'secret', PX - 6, 11.8, z + 24,
+    'Une lame fichée dans la corniche, à part des autres', 'La lame descellée révèle un creux : une dague de rechange d\'un maître d\'armes, encore affûtée.', 'weapon', 'epic');
   addPickup('heart', PX - 11, 0, z - 22);
   rEnemy(PX + 9, z - 18, 0, [[PX + 4, z - 22], [PX + 12, z - 12]], { type: 'wraith', lvl: 13 });
 
@@ -1352,6 +1386,9 @@ function buildAqueducColossal() {
   torch(rcx - 6, H, rz - 6, 0x8fc8ff, 1.3, 18); torch(rcx - 6, H, rz + 6, 0x8fc8ff, 1.3, 18);
   bivouac(rcx - 6, H, rz, 'le Château d\'Eau', 'aque_cuve', true, 5);
   const aqueCamp = CAMPS.find(c => c.id === 'aque_cuve'); if (aqueCamp) aqueCamp.room = 'aqueduc_colossal';
+  mkAnvil(rcx - 2, H, rz - 6); // forge de la cuve : dernier havre avant les zones profondes
+  secretCache('aqueduc_colossal', 'secret', rcx + 5, H, rz + 6,
+    'Une dalle du fond de cuve qui bouge', 'Sous la dalle, la réserve personnelle d\'un bâtisseur de l\'aqueduc — scellée contre le vide et le temps.', 'armor', 'epic');
   addInter(rcx, H, rz + 4, 2.6, 'Toucher la lumière liquide', () => {
     showMsg('Le bassin retient encore un fond de lumière liquide — tiède, vivante, comme de l\'eau qui aurait appris à briller. C\'est elle qui irriguait Ombreciel.', 5);
   });
@@ -1490,6 +1527,9 @@ function buildForetObsidienne() {
   addPickup('shadow', ghx - 4, 0, ghz - 4);
   bivouac(PX - 16, 0, z - 16, 'le Cœur de la Forêt', 'foret_biv', true, 5);
   const foretCamp = CAMPS.find(c => c.id === 'foret_biv'); if (foretCamp) foretCamp.room = 'foret_obsidienne';
+  mkAnvil(PX - 20, 0, z - 18); // forge auprès du feu, au cœur de la forêt
+  secretCache('foret_obsidienne', 'secret', PX + 18, 0, z + 22,
+    'Un tronc de verre creux, à l\'écart du sentier', 'Le verre noir se fend : un talisman oublié y dormait, poli par le seul éclat vivant de la forêt.', 'accessory', 'epic');
   addPickup('heart', PX - 18, 0, z - 12);
   rEnemy(ghx, ghz, 0, [[ghx - 4, ghz - 4], [ghx + 4, ghz + 4]], { type: 'caster', lvl: 20 });
   // densité supplémentaire : d'autres arbres de verre noir dispersés
@@ -1612,8 +1652,17 @@ function buildBastionCendres() {
   }
   bivouac(PX - 14, 0, z + 18, 'le Bastion des Cendres', 'bastion_biv', true, 5);
   const bastCamp = CAMPS.find(c => c.id === 'bastion_biv'); if (bastCamp) bastCamp.room = 'bastion_cendres';
+  mkAnvil(PX - 11, 0, z + 16); // dernière forge du Pèlerinage, au pied du rempart
   addPickup('heart', PX - 16, 0, z + 22);
   rEnemy(PX + 6, z - 20, 0, [[PX, z - 24], [PX + 12, z - 16]], { type: 'wraith', lvl: 23 });
+  /* LE SECRET DU PÈLERINAGE : l'Éclat d'Aube étoilée manquant du monde (seuls
+     la fontaine et la lucane en portaient un ; sans ce troisième, la Faveur
+     des Étoiles restait à jamais incomplète). Les derniers Porteurs de Flamme
+     l'avaient scellé dans leur crypte — la vraie récompense de qui va au bout. */
+  addInter(bcx - 5, 0, bcz - 3, 2.4, 'Déchiffrer l\'épitaphe la plus soignée', () => {
+    showMsg('« Nous avons rendu à la terre le dernier Éclat, pour qu\'aucune Ombre ne le porte. Que seul le porteur de flamme qui parvient jusqu\'ici le relève. »', 5.5);
+  });
+  rPickup('star', bcx, 0, bcz - 5.5, 'bastion_star');
 
   /* récompense de fin de route : une pièce d'équipement rare, adaptée à la Voie */
   if (!flag('bastion_cendres', 'reward')) {
