@@ -52,7 +52,7 @@ export function startNetClient(code) {
   const st = { player: 2, path: 'mage', joined: false, treeOpen: false, forgeOpen: false };
   let welcome = null;
   let myWho = 2;
-  let conn = null, peer = null, tries = 0, videoAskedNoop = false;
+  let conn = null, peer = null, tries = 0;
   let latestSnap = null, hourSynced = false, booted = false;
 
   /* ================= écran de configuration (avant de jouer) =================
@@ -211,7 +211,17 @@ export function startNetClient(code) {
       myWho = st.player;
       el('nsetup').style.display = 'none';
       setStatus('✓ Joueur ' + st.player + ' — partie ' + code);
-      if (!videoAskedNoop) { videoAskedNoop = true; send({ t: 'startsync' }); }
+      /* v9.3 — TOUJOURS renvoyé, y compris après une reconnexion : sur une
+         vraie connexion internet (deux machines distinctes), la liaison
+         PeerJS peut se couper puis se rétablir (Wi-Fi, NAT, etc.) — l'hôte
+         reçoit alors un TOUT NOUVEL objet de connexion, dont le flag
+         `c.net` repart à zéro. Ne renvoyer 'startsync' qu'une seule fois
+         (garde videoAskedNoop) laissait ce flag à jamais faux après la
+         moindre coupure : plus aucun instantané du monde (pushWorldSnap)
+         n'était alors diffusé — ombres et second porteur figés à l'écran,
+         tandis que la prédiction locale continuait, sans jamais être
+         recalée (« les commandes ne répondent plus »). */
+      send({ t: 'startsync' });
       bootGame();
       return;
     }
