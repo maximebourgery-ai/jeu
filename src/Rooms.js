@@ -824,7 +824,8 @@ function buildMuraille() {
   const z = 0;
   // chemin de ronde principal, élargi (18 m, contre 8 m avant la refonte)
   mkBox(18, 1, 74, PX, -1, z, 'stoneD');
-  mkBox(0.7, 5.6, 74, PX - 9, 0, z, 'stoneR');
+  // mur ouest percé d'un vrai seuil (z 0) vers la Cour d'Armes
+  mkBox(0.7, 5.6, 34.5, PX - 9, 0, z - 19.75, 'stoneR'); mkBox(0.7, 5.6, 34.5, PX - 9, 0, z + 19.75, 'stoneR');
   mkBox(0.7, 5.6, 41, PX + 9, 0, z - 16.5, 'stoneR'); mkBox(0.7, 5.6, 29, PX + 9, 0, z + 22.5, 'stoneR');
   // seuils réels aux deux bouts (portes déjà levées, cadre de pierre visible),
   // flanqués de pans de mur pleins couvrant toute la largeur du chemin de ronde
@@ -868,6 +869,46 @@ function buildMuraille() {
   });
   addPickup('shadow', gx + 5, 0, gz + 3); addPickup('mana', gx + 16, 0, gz - 3);
   rEnemy(gx + 10, gz, 0, [[gx + 5, gz - 4], [gx + 17, gz + 4]], { type: 'caster', lvl: 6 });
+
+  /* ---- grande aile ouest : LA COUR D'ARMES — une seconde enceinte, aussi
+     vaste que le chemin de ronde, avec ses barricades de repli, sa tour de
+     guet à gravir et un bivouac (point de renaissance) ---- */
+  zoneGate(PX - 9, 0, z, 5, 5.4, 'stoneR', 'x');       // seuil réel depuis le chemin de ronde
+  const cyX = PX - 21;                                  // centre de la cour
+  mkBox(24, 1, 32, cyX, -1, z, 'stoneD');               // dallage de la cour
+  mkBox(0.8, 6, 32, PX - 33, 0, z, 'stoneR');           // mur ouest (fond)
+  mkBox(24, 6, 0.8, cyX, 0, z - 16, 'stoneR'); mkBox(24, 6, 0.8, cyX, 0, z + 16, 'stoneR'); // murs nord/sud
+  // barricades de repli (couvert bas — on les contourne, aucun cul-de-sac)
+  mkBox(6, 2.6, 0.8, cyX + 2, 0, z - 6, 'stoneD'); mkBox(6, 2.6, 0.8, cyX - 4, 0, z + 6, 'stoneD');
+  mkBox(0.8, 2.6, 6, cyX - 8, 0, z - 3, 'stoneD'); mkBox(0.8, 2.6, 6, cyX + 6, 0, z + 4, 'stoneD');
+  // caisses et tonneaux épars
+  for (let i = 0; i < 5; i++) mkBox(1.1, 1.1, 1.1, cyX - 9 + ((i * 47) % 20), 0.05, z - 12 + ((i * 29) % 24), 'woodD');
+  torch(cyX + 8, 0, z - 12, 0x8fc8ff, 1.15, 18); torch(cyX - 10, 0, z + 12, 0x8fc8ff, 1.15, 18);
+  // tour de guet : escalier en colimaçon jusqu'à un belvédère crénelé
+  const twX = cyX - 8, twZ = z + 11;
+  mkBox(5.5, 1, 5.5, twX, -1, twZ, 'stoneR');          // socle de la tour
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6, sx = twX + Math.cos(a) * 1.35, sz = twZ + Math.sin(a) * 1.35;
+    mkBox(1.7, 0.5, 1.7, sx, i * 0.72, sz, 'stoneR');
+  }
+  const twTopY = 12 * 0.72;                             // ≈ 8,6 m
+  mkBox(4, 0.6, 4, twX, twTopY - 0.3, twZ, 'stoneR');   // belvédère
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; mkBox(0.5, 1, 0.5, twX + Math.cos(a) * 1.7, twTopY + 0.3, twZ + Math.sin(a) * 1.7, 'stoneR'); }
+  torch(twX, twTopY, twZ, 0x8fc8ff, 1.3, 16);
+  addInter(twX, twTopY, twZ, 2.4, 'Contempler Ombreciel depuis le belvédère', () => {
+    showMsg('D\'ici, tout le Pèlerinage se déroule sous vos yeux, jusqu\'aux nuages où flotte encore, dit-on, la cité perdue.', 5);
+  });
+  rPickup('maxhp', twX, twTopY, twZ - 1.2, 'muraille_belvedere_vit');
+  bivouac(cyX - 3, 0, z, 'la Cour d\'Armes', 'mur_cour', true, 5);
+  const murCamp = CAMPS.find(c => c.id === 'mur_cour'); if (murCamp) murCamp.room = 'muraille';
+  addInter(cyX + 6, 0, z - 12, 2.6, 'Fouiller le râtelier d\'armes', () => {
+    showMsg('Un râtelier renversé, des piques rouillées : les gardes ont défendu cette cour jusqu\'au dernier, puis le silence.', 4.5);
+  });
+  addPickup('heart', cyX - 6, 0, z - 10); addPickup('mana', cyX + 8, 0, z + 10);
+  addPickup('shadow', cyX - 10, 0, z + 2);
+  rEnemy(cyX + 4, z - 8, 0, [[cyX, z - 12], [cyX + 8, z - 4]], { type: 'sentinel', lvl: 5 });
+  rEnemy(cyX - 6, z + 8, 0, [[cyX - 10, z + 4], [cyX - 2, z + 12]], { type: 'wraith', lvl: 6 });
+  rEnemy(cyX - 2, z, 0, [[cyX - 8, z - 2], [cyX + 6, z + 2]], { type: 'brute', lvl: 6 });
 
   /* ---- chambre secrète n°1 : ORDRE À DEVINER (indice lu dans la salle
      principale, trois flammes à éveiller dans le bon ordre) ---- */
