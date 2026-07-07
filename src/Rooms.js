@@ -108,6 +108,44 @@ function secretCache(id, key, x, y, z, label, msg, slot, rarity) {
   });
 }
 
+/* ---------------- helpers d'AMBIANCE (beauté, budget-friendly) ----------------
+   Aucune lumière réelle (budget GPU) : uniquement des sprites additifs (glow)
+   et des matériaux émissifs. Les « poussières » scintillent en tournant via
+   la liste spinners (rotation par frame, gratuite). Rien de tout cela ne
+   possède de collider — pure décoration, aucun risque de blocage. */
+function motes(cx, cy, cz, rx, rz, ry, n, color, size) {
+  size = size || 0.09;
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.399963, rr = Math.sqrt((i + 0.5) / n);
+    const x = cx + Math.cos(a) * rx * rr, z = cz + Math.sin(a) * rz * rr;
+    const y = cy + ((i * 37) % 100) / 100 * (ry || 3) + 0.3;
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(size), new THREE.MeshBasicMaterial({ color }));
+    m.position.set(x, y, z); m.add(glow(color, size * 7, 0.45));
+    S.scene.add(m); spinners.push(m);
+  }
+}
+/* Amas de cristaux émissifs : un point focal lumineux (décor, sans collider). */
+function crystals(x, y, z, color, n, s) {
+  s = s || 1; n = n || 5;
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.15, metalness: 0.35, emissive: color, emissiveIntensity: 0.6 });
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.399963, r = s * (0.2 + (i % 3) * 0.22), h = s * (0.7 + (i % 4) * 0.45);
+    const c = new THREE.Mesh(new THREE.ConeGeometry(s * 0.16, h, 5), mat);
+    c.position.set(x + Math.cos(a) * r, y + h / 2, z + Math.sin(a) * r);
+    c.rotation.set(Math.sin(a) * 0.25, a, Math.cos(a) * 0.25);
+    S.scene.add(c);
+  }
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(s * 0.26), new THREE.MeshBasicMaterial({ color }));
+  core.position.set(x, y + s * 0.8, z); core.add(glow(color, s * 2.2, 0.6));
+  S.scene.add(core); spinners.push(core);
+}
+/* Fanion / oriflamme suspendu (tissu émissif discret), pur décor. */
+function banner(x, y, z, color, w, h) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w || 1.4, h || 2.6),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.9, side: THREE.DoubleSide, emissive: color, emissiveIntensity: 0.12 }));
+  m.position.set(x, y, z); S.scene.add(m);
+}
+
 /* ================================================================
    INSTANCIATION — capture & déchargement (même contrat que la Tour)
    ================================================================ */
@@ -869,6 +907,11 @@ function buildMuraille() {
   }
   torch(PX - 7, 0, z - 27, 0x8fc8ff, 1.1, 18); torch(PX + 7, 0, z - 9, 0x8fc8ff, 1.1, 18);
   torch(PX - 7, 0, z + 9, 0x8fc8ff, 1.1, 18); torch(PX + 7, 0, z + 27, 0x8fc8ff, 1.1, 18);
+  // AMBIANCE — poussière d'étoiles bleutée dérivant le long du chemin de ronde,
+  // oriflammes des gardes du ciel, brûle-encens de lumière aux créneaux
+  motes(PX, 1.5, z, 8, 34, 4.5, 22, 0x9fd4ff);
+  for (const bz of [z - 26, z - 6, z + 14, z + 30]) banner(PX + 8.6, 3.6, bz, 0x2a5a9a, 1.3, 2.8);
+  for (const bz of [z - 30, z - 10, z + 10, z + 30]) crystals(PX - 8.4, 0, bz, 0x8fc8ff, 3, 0.55);
   addInter(PX, 0, z - 30.5, 3, 'Lire les gravures du rempart', () => {
     showMsg('« Ici veillaient les gardes du ciel. » Les lignes de lumière courent encore le long de la pierre, comme un souvenir qui refuse de s\'éteindre.', 4.5);
   });
@@ -992,6 +1035,11 @@ function buildValMurmures() {
     r.position.set(rx, 0.2, rz); r.rotation.set(i, i * 2, i * 3); r.castShadow = true; r.receiveShadow = true;
     S.scene.add(r);
   }
+  // AMBIANCE — pollen lunaire flottant au-dessus de la plaine, touffes de
+  // roseaux cristallins qui luisent d'argent, semées entre les rochers
+  motes(PX, 1.2, z, 22, 27, 3.5, 26, 0xbfe8ff);
+  for (const [cx, cz] of [[PX - 16, z - 20], [PX + 12, z - 22], [PX - 20, z + 12], [PX + 18, z + 22], [PX - 4, z + 26]])
+    crystals(cx, 0, cz, 0x9fe8ff, 4, 0.5);
   // la première enclume abandonnée, sur la route des pèlerins
   mkAnvil(PX + 14, 0, z + 10);
   torch(PX - 18, 0, z - 20, 0x9fe8ff, 1.1, 18); torch(PX + 18, 0, z + 18, 0x9fe8ff, 1.1, 18);
@@ -1120,6 +1168,11 @@ function buildCarriereSel() {
     mkBox(4, 0.6, 2.4, PX - 3, -7.5 + i * 1.35, z - 25 + i * 2.1, 'slabW');
   }
   torch(PX - 20, -7.5, z - 20, 0xf4ecd6, 1.1, 16); torch(PX + 20, -7.5, z + 20, 0xf4ecd6, 1.1, 16);
+  // AMBIANCE — poussière de sel d'aube en suspension dans la lumière blanche,
+  // amas de cristaux de sel qui luisent au fond de la crevasse et sur les rives
+  motes(PX, -6, z, 6, 28, 12, 26, 0xfdf4dc);
+  for (const [cx, cy, cz] of [[PX - 2, -7.5, z - 18], [PX + 2, -7.5, z + 16], [PX - 3, -7.5, z], [PX - 27, 0, z - 16], [PX + 27, 0, z + 14]])
+    crystals(cx, cy, cz, 0xeaf2ff, 5, 0.7);
   addInter(PX, 0, z, 3, 'Contempler la crevasse', () => {
     showMsg('Le sel ronge jusqu\'au métal. C\'est d\'ici que fut extraite chaque pierre du château — et, dit-on, l\'entrée des catacombes dort quelque part sous ce blanc aveuglant.', 5);
   });
@@ -1230,6 +1283,11 @@ function buildCanyonLames() {
     }
   }
   torch(PX - 10, 0, z - 20, 0x9a6cff, 1.1, 18); torch(PX + 10, 0, z + 16, 0x9a6cff, 1.1, 18);
+  // AMBIANCE — braises d'onirisme violet montant entre les lames, gemmes
+  // améthyste affleurant la roche au pied des épées
+  motes(PX, 1.5, z, 11, 28, 8, 26, 0xb08cff);
+  for (const [cx, cz] of [[PX - 9, z - 22], [PX + 9, z - 8], [PX - 9, z + 8], [PX + 9, z + 22]])
+    crystals(cx, 0, cz, 0x9a6cff, 4, 0.6);
   addInter(PX, 0, z, 3, 'Observer les lames plantées', () => {
     showMsg('Des dizaines d\'épées monumentales, faites d\'un verre sombre parcouru de motifs oniriques. Le site d\'une bataille que nul ne raconte plus.', 4.5);
   });
@@ -1339,6 +1397,10 @@ function buildAqueducColossal() {
     mkBox(22, 1.2, 1.8, PX, H - 1, az, 'stoneD', false);
   }
   torch(PX - 3, H, z - 20, 0x8fc8ff, 1.2, 20); torch(PX + 3, H, z + 4, 0x8fc8ff, 1.2, 20); torch(PX - 3, H, z + 22, 0x8fc8ff, 1.2, 20);
+  // AMBIANCE — la lumière liquide qui suintait de l'aqueduc dérive encore en
+  // gouttes lumineuses le long de la passerelle et remonte du vide
+  motes(PX, H - 3, z, 3.5, 28, 8, 26, 0x9fd8ff);
+  motes(PX, H - 8, z, 9, 24, 6, 14, 0x7ec0ff, 0.13);
   addInter(PX, H, z, 3, 'Regarder par-dessus la rambarde', () => {
     showMsg('Rien que des nuages, à perte de vue. Cet aqueduc ne transportait pas de l\'eau, mais de la lumière liquide vers Ombreciel.', 4.5);
   });
@@ -1470,6 +1532,12 @@ function buildForetObsidienne() {
     mkBox(0.5, 1.1, 0.5, PX - 12 + Math.cos(a) * 3.2, 0.55, z + 20 + Math.sin(a) * 3.2, 'stoneR');
   }
   torch(PX - 16, 0, z - 16, 0x6a3aff, 1.05, 16); torch(PX + 16, 0, z + 14, 0x6a3aff, 1.05, 16);
+  // AMBIANCE — spores de lumière morte, améthystes brutes affleurant le verre,
+  // et quelques éclats verts encore vivants disséminés comme le cœur du bosquet
+  motes(PX, 1.6, z, 22, 27, 4, 24, 0x8a5cff);
+  for (const [cx, cz] of [[PX - 18, z - 18], [PX + 16, z - 22], [PX - 20, z + 20], [PX + 14, z + 8]])
+    crystals(cx, 0, cz, 0x6a3aff, 4, 0.55);
+  crystals(PX - 4, 0, z - 24, 0x7ade5a, 3, 0.5);
   addInter(PX, 0, z, 3, 'Toucher un arbre de verre noir', () => {
     showMsg('Tranchant comme un rasoir, froid comme la nuit sans lune. Rien ne pourrit ici : tout est figé depuis un siècle.', 4.5);
   });
@@ -1604,6 +1672,11 @@ function buildBastionCendres() {
   }
   torch(PX - 14, 0, z - 12, 0xff5a2a, 1.3, 18); torch(PX + 14, 0, z + 12, 0xff5a2a, 1.3, 18);
   torch(PX, 0, z, 0xff8a3a, 1.2, 20);
+  // AMBIANCE — braises montant des cendres éternelles, foyers de charbon ardent
+  // entre les décombres, sous un plafond de fumée rougeoyante
+  motes(PX, 1, z, 18, 28, 8, 30, 0xff7a3a);
+  for (const [cx, cz] of [[PX - 12, z - 16], [PX + 12, z - 8], [PX - 10, z + 14], [PX + 8, z + 20], [PX, z - 6]])
+    crystals(cx, 0, cz, 0xff5a2a, 4, 0.5);
   addInter(PX, 0, z - 20, 3, 'Se recueillir parmi les cendres', () => {
     showMsg('Ici tomba la dernière résistance de l\'ordre. Les fantômes des Porteurs de Flamme y affrontent encore les Ombres, chaque nuit, pour l\'éternité.', 5);
   });
