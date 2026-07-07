@@ -1468,6 +1468,41 @@ function buildForetObsidienne() {
   });
   addPickup('shadow', fgx - 3, 0, fgz + 3); addPickup('mana', fgx + 3, 0, fgz - 3);
   rEnemy(fgx, fgz, 0, [[fgx - 2, fgz - 2], [fgx + 2, fgz + 2]], { type: 'wraith', lvl: 19 });
+
+  /* ---- LE CŒUR DE LA FORÊT — un bosquet dense cerclant un éclat de verre
+     encore vivant, et un bivouac pour souffler avant le Bastion ---- */
+  const ghx = PX + 10, ghz = z - 18;
+  for (let i = 0; i < 7; i++) {
+    const a = i * Math.PI * 2 / 7, tx = ghx + Math.cos(a) * 4, tz = ghz + Math.sin(a) * 4;
+    const h = 3.4 + (i % 3) * 0.5;
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, h, 6), obsMat);
+    tr.position.set(tx, h / 2, tz); S.scene.add(tr); addCol2(tr);
+    const cr = new THREE.Mesh(new THREE.ConeGeometry(1, 1.7, 5), obsMat);
+    cr.position.set(tx, h + 0.6, tz); S.scene.add(cr);
+  }
+  const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0x7ade5a }));
+  shard.position.set(ghx, 1.4, ghz); shard.add(glow(0x7ade5a, 2, 0.5)); S.scene.add(shard); spinners.push(shard);
+  torch(ghx, 0, ghz + 4, 0x6a3aff, 1.2, 16);
+  addInter(ghx, 0, ghz - 3, 2.8, 'Le cœur vivant de la forêt', () => {
+    showMsg('Au milieu du verre mort, un seul éclat bat encore, vert et chaud. Tant qu\'il brille, la forêt n\'est pas tout à fait morte — et quelque chose, ici, veille encore.', 5);
+  });
+  rPickup('maxhp', ghx + 1.5, 0, ghz, 'foret_coeur_vit');
+  addPickup('shadow', ghx - 4, 0, ghz - 4);
+  bivouac(PX - 16, 0, z - 16, 'le Cœur de la Forêt', 'foret_biv', true, 5);
+  const foretCamp = CAMPS.find(c => c.id === 'foret_biv'); if (foretCamp) foretCamp.room = 'foret_obsidienne';
+  addPickup('heart', PX - 18, 0, z - 12);
+  rEnemy(ghx, ghz, 0, [[ghx - 4, ghz - 4], [ghx + 4, ghz + 4]], { type: 'caster', lvl: 20 });
+  // densité supplémentaire : d'autres arbres de verre noir dispersés
+  for (let i = 0; i < 10; i++) {
+    const tx = PX - 20 + ((i * 197) % 42), tz = z - 26 + ((i * 151) % 52);
+    if (Math.abs(tx - ghx) < 6 && Math.abs(tz - ghz) < 6) continue;
+    const h = 2.4 + ((i * 41) % 8) * 0.35;
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, h, 6), obsMat);
+    tr.position.set(tx, h / 2, tz); tr.rotation.z = ((i * 5) % 5 - 2) * 0.04; S.scene.add(tr); addCol2(tr);
+    const cr = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.4, 5), obsMat);
+    cr.position.set(tx, h + 0.4, tz); S.scene.add(cr);
+  }
+
   /* ---- chambre secrète n°6 : LE BON ARBRE PARMI LES LEURRES — un indice
      décrit un détail précis ; se tromper réveille une ombre embusquée
      (pas de simple bloc-sur-plaque : de l'observation, avec une sanction) ---- */
