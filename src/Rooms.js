@@ -1589,6 +1589,32 @@ function buildBastionCendres() {
   });
   addPickup('gold', bcx - 4, 0, bcz - 5); addPickup('heart', bcx + 4, 0, bcz - 5);
   rEnemy(bcx, bcz, 0, [[bcx - 3, bcz - 1], [bcx + 3, bcz - 1]], { type: 'brute', lvl: 23 });
+
+  /* ---- LE CHEMIN DE RONDE DU BASTION — un escalier fiable monte à une
+     coursive haute d'où les derniers Porteurs tenaient le rempart : le point
+     culminant du Pèlerinage, avec sa vue, sa relique et son guetteur ---- */
+  for (let i = 0; i < 9; i++) mkBox(3, 0.5, 2.2, PX + 13, i * 0.75, z + 24 - i * 1.6, 'stoneD');
+  mkBox(8, 0.6, 24, PX + 15, 5.7, z + 14, 'stoneD');                // coursive haute (est, sud)
+  for (let i = 0; i < 5; i++) mkBox(0.6, 1.1, 0.6, PX + 11.3, 6.3, z + 4 + i * 5, 'stoneR'); // merlons
+  torch(PX + 16, 6, z + 8, 0xff7a3a, 1.3, 16);
+  addInter(PX + 16, 6, z + 14, 2.6, 'Tenir le rempart une dernière fois', () => {
+    showMsg('Du chemin de ronde, on voit toute la route du Pèlerinage se dérouler en arrière — la Muraille, le Val, la Carrière — jusqu\'aux Terres Perdues. Ici s\'acheva la garde du ciel.', 5.5);
+  });
+  rPickup('maxhp', PX + 16, 6, z + 20, 'bastion_ronde_vit');
+  addPickup('mana', PX + 14, 6, z + 6);
+  rEnemy(PX + 15, z + 14, 6, [[PX + 12, z + 8], [PX + 18, z + 20]], { type: 'caster', lvl: 23, ranged: true });
+  // tours éventrées et bannières calcinées : grandeur d'une forteresse tombée
+  mkCyl(1.6, 1.9, 7, PX - 17, 0, z - 26, 'stoneR', true, 8); mkCyl(1.4, 1.7, 5, PX + 17, 0, z - 27, 'stoneR', true, 8);
+  for (const [bx, bz] of [[PX - 12, z - 24], [PX + 6, z + 24], [PX - 6, z + 2]]) {
+    const ban = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 1.6), new THREE.MeshStandardMaterial({ color: 0x5a1810, roughness: 0.9 }));
+    ban.position.set(bx, 2.4, bz); S.scene.add(ban);
+    mkCyl(0.12, 0.12, 5, bx, 0, bz, 'iron', true, 6);
+  }
+  bivouac(PX - 14, 0, z + 18, 'le Bastion des Cendres', 'bastion_biv', true, 5);
+  const bastCamp = CAMPS.find(c => c.id === 'bastion_biv'); if (bastCamp) bastCamp.room = 'bastion_cendres';
+  addPickup('heart', PX - 16, 0, z + 22);
+  rEnemy(PX + 6, z - 20, 0, [[PX, z - 24], [PX + 12, z - 16]], { type: 'wraith', lvl: 23 });
+
   /* récompense de fin de route : une pièce d'équipement rare, adaptée à la Voie */
   if (!flag('bastion_cendres', 'reward')) {
     setFlag('bastion_cendres', 'reward');
