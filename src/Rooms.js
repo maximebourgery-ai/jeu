@@ -734,6 +734,27 @@ function buildCata() {
    ================================================================ */
 const PX = -900; // ancre commune ; chaque salle a SA bande de z, largement espacée
 
+/* v9.6 — REFONTE : les 7 salles du Pèlerinage étaient de simples couloirs
+   fermés par une fente de 2 m entre deux blocs (aucune porte visible) —
+   retour joueur : « on est dans un vide, pas de vraies portes, c'est
+   petit ». zoneGate() bâtit un VRAI seuil (cadre de pierre + vantail qui
+   s'est déjà levé, comme la herse ou la porte d'or) au lieu d'une fente
+   invisible ; chaque salle gagne une aile latérale reliée par un seuil
+   réel, pour une empreinte au sol comparable aux Catacombes. */
+function zoneGate(x, y, z, w, h, mat, axis) {
+  w = w || 5; h = h || 6.4;
+  if (axis === 'x') { // seuil percé dans un mur EST/OUEST (bloque le passage en X)
+    mkBox(1.3, 1.2, w + 1.6, x, y + h + 0.2, z, mat); // linteau
+    const gate = mkDoor(1, h, w, x, y, z, mat);
+    presetOpen(gate);
+    return gate;
+  }
+  mkBox(w + 1.6, 1.2, 1.3, x, y + h + 0.2, z, mat); // linteau, au-dessus du vantail
+  const gate = mkDoor(w, h, 1, x, y, z, mat);
+  presetOpen(gate);
+  return gate;
+}
+
 /* ---- Chambres secrètes (une par salle du Pèlerinage) ----
    v9.4 — sept énigmes DIFFÉRENTES (plus l'ancien bloc-sur-plaque recopié
    sept fois) : ordre à deviner, portage en hauteur à la Main céleste,
@@ -797,30 +818,57 @@ function vaultShell(id, vz, entry, opts) {
   return { vx, vz, half, solved, solve, door: vaultDoor };
 }
 
-/* ---- 1. LA MURAILLE CÉLESTE (niv 4-7) — chemin de ronde d'un rempart titanesque ---- */
+/* ---- 1. LA MURAILLE CÉLESTE (niv 4-7) — chemin de ronde d'un rempart titanesque,
+   avec le poste de garde de l'Aube en aile latérale ---- */
 function buildMuraille() {
   const z = 0;
-  mkBox(8, 1, 66, PX, -1, z, 'stoneD');
-  mkBox(0.7, 1.6, 66, PX - 4, 0, z, 'stoneR');
-  mkBox(0.7, 1.6, 66, PX + 4, 0, z, 'stoneR');
-  // murs de bout (sud = retour, nord = suite) avec passage étroit
-  mkBox(3, 8, 1, PX - 2.5, 0, z - 33, 'stoneD'); mkBox(3, 8, 1, PX + 2.5, 0, z - 33, 'stoneD');
-  mkBox(3, 8, 1, PX - 2.5, 0, z + 33, 'stoneD'); mkBox(3, 8, 1, PX + 2.5, 0, z + 33, 'stoneD');
+  // chemin de ronde principal, élargi (18 m, contre 8 m avant la refonte)
+  mkBox(18, 1, 74, PX, -1, z, 'stoneD');
+  mkBox(0.7, 5.6, 74, PX - 9, 0, z, 'stoneR');
+  mkBox(0.7, 5.6, 41, PX + 9, 0, z - 16.5, 'stoneR'); mkBox(0.7, 5.6, 29, PX + 9, 0, z + 22.5, 'stoneR');
+  // seuils réels aux deux bouts (portes déjà levées, cadre de pierre visible),
+  // flanqués de pans de mur pleins couvrant toute la largeur du chemin de ronde
+  mkBox(6.5, 5.6, 1, PX - 5.75, 0, z - 37, 'stoneD'); mkBox(6.5, 5.6, 1, PX + 5.75, 0, z - 37, 'stoneD');
+  zoneGate(PX, 0, z - 37, 5, 5.4, 'stoneD');
+  mkBox(6.5, 5.6, 1, PX - 5.75, 0, z + 37, 'stoneD'); mkBox(6.5, 5.6, 1, PX + 5.75, 0, z + 37, 'stoneD');
+  zoneGate(PX, 0, z + 37, 5, 5.4, 'stoneD');
+  // colonnade et créneaux : plus de présence architecturale que l'ancien couloir nu
+  for (let i = -3; i <= 3; i++) {
+    const rz = z + i * 10;
+    mkBox(0.6, 1.4, 0.6, PX - 8.5, 4.2, rz, 'stoneD'); mkBox(0.6, 1.4, 0.6, PX + 8.5, 4.2, rz, 'stoneD');
+  }
   // lignes de lumière gravées, fines et oniriques, courant le long du mur ouest
-  for (let i = 0; i < 11; i++) {
-    const rz = z - 30 + i * 6;
+  for (let i = 0; i < 13; i++) {
+    const rz = z - 33 + i * 5.5;
     const line = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 3.4), new THREE.MeshBasicMaterial({ color: 0x8fc8ff }));
-    line.position.set(PX - 3.9, 1.1, rz); line.add(glow(0x8fc8ff, 1.1, 0.4));
+    line.position.set(PX - 8.9, 1.1, rz); line.add(glow(0x8fc8ff, 1.1, 0.4));
     S.scene.add(line);
   }
-  torch(PX - 3, 0, z - 24, 0x8fc8ff, 1.1, 18); torch(PX + 3, 0, z, 0x8fc8ff, 1.1, 18); torch(PX - 3, 0, z + 24, 0x8fc8ff, 1.1, 18);
+  torch(PX - 7, 0, z - 27, 0x8fc8ff, 1.1, 18); torch(PX + 7, 0, z - 9, 0x8fc8ff, 1.1, 18);
+  torch(PX - 7, 0, z + 9, 0x8fc8ff, 1.1, 18); torch(PX + 7, 0, z + 27, 0x8fc8ff, 1.1, 18);
   addInter(PX, 0, z - 30.5, 3, 'Lire les gravures du rempart', () => {
     showMsg('« Ici veillaient les gardes du ciel. » Les lignes de lumière courent encore le long de la pierre, comme un souvenir qui refuse de s\'éteindre.', 4.5);
   });
-  addPickup('heart', PX - 2, 0, z - 10);
-  addPickup('mana', PX + 2, 0, z + 8);
-  rEnemy(PX, z - 8, 0, [[PX, z - 20], [PX, z + 5]], { type: 'sentinel', lvl: 5 });
-  rEnemy(PX, z + 18, 0, [[PX, z + 8], [PX, z + 28]], { type: 'wraith', lvl: 6 });
+  addPickup('heart', PX - 5, 0, z - 15);
+  addPickup('mana', PX + 5, 0, z + 12);
+  rEnemy(PX, z - 12, 0, [[PX - 4, z - 20], [PX + 4, z - 5]], { type: 'sentinel', lvl: 5 });
+  rEnemy(PX, z + 20, 0, [[PX - 4, z + 10], [PX + 4, z + 28]], { type: 'wraith', lvl: 6 });
+
+  /* ---- aile latérale : LE POSTE DE GARDE DE L'AUBE (est, via un vrai seuil) ---- */
+  const gx = PX + 9, gz = z + 6;
+  zoneGate(gx, 0, gz, 4, 5, 'stoneR', 'x');
+  mkBox(20, 1, 18, gx + 10, -1, gz, 'stoneD');
+  mkBox(0.7, 5.6, 18, gx + 20, 0, gz, 'stoneR');
+  mkBox(20, 5.6, 0.7, gx + 10, 0, gz - 9, 'stoneR'); mkBox(20, 5.6, 0.7, gx + 10, 0, gz + 9, 'stoneR');
+  mkCyl(0.5, 0.5, 4.4, gx + 6, 0, gz - 5, 'stoneD', true, 8); mkCyl(0.5, 0.5, 4.4, gx + 6, 0, gz + 5, 'stoneD', true, 8);
+  mkCyl(0.5, 0.5, 4.4, gx + 15, 0, gz - 5, 'stoneD', true, 8); mkCyl(0.5, 0.5, 4.4, gx + 15, 0, gz + 5, 'stoneD', true, 8);
+  torch(gx + 4, 0, gz, 0x8fc8ff, 1.1, 16); torch(gx + 18, 0, gz, 0x8fc8ff, 1.1, 16);
+  addInter(gx + 10, 0, gz, 3, 'Fouiller le poste de garde', () => {
+    showMsg('Une table renversée, des lances brisées : la garde de l\'aube n\'a pas eu le temps de sonner l\'alarme.', 4.5);
+  });
+  addPickup('shadow', gx + 5, 0, gz + 3); addPickup('mana', gx + 16, 0, gz - 3);
+  rEnemy(gx + 10, gz, 0, [[gx + 5, gz - 4], [gx + 17, gz + 4]], { type: 'caster', lvl: 6 });
+
   /* ---- chambre secrète n°1 : ORDRE À DEVINER (indice lu dans la salle
      principale, trois flammes à éveiller dans le bon ordre) ---- */
   addInter(PX + 3, 0, z - 6, 2.6, 'Lire une gravure effacée par le temps', () => {
@@ -865,9 +913,12 @@ function buildMuraille() {
 function buildValMurmures() {
   const z = -150;
   mkBox(50, 1, 60, PX, -1, z, 'grass');
-  mkBox(1, 9, 60, PX - 25, 0, z, 'stoneD'); mkBox(1, 9, 60, PX + 25, 0, z, 'stoneD');
-  mkBox(24, 9, 1, PX - 13, 0, z - 30, 'stoneD'); mkBox(24, 9, 1, PX + 13, 0, z - 30, 'stoneD');
-  mkBox(24, 9, 1, PX - 13, 0, z + 30, 'stoneD'); mkBox(24, 9, 1, PX + 13, 0, z + 30, 'stoneD');
+  mkBox(1, 9, 32, PX - 25, 0, z - 14, 'stoneD'); mkBox(1, 9, 24, PX - 25, 0, z + 18, 'stoneD');
+  mkBox(1, 9, 60, PX + 25, 0, z, 'stoneD');
+  mkBox(21.5, 9, 1, PX - 14.25, 0, z - 30, 'stoneD'); mkBox(21.5, 9, 1, PX + 14.25, 0, z - 30, 'stoneD');
+  mkBox(21.5, 9, 1, PX - 14.25, 0, z + 30, 'stoneD'); mkBox(21.5, 9, 1, PX + 14.25, 0, z + 30, 'stoneD');
+  zoneGate(PX, 0, z - 30, 7, 6.5, 'stoneD');
+  zoneGate(PX, 0, z + 30, 7, 6.5, 'stoneD');
   // rochers et herbes lunaires cristallisées
   for (let i = 0; i < 16; i++) {
     const rx = PX - 22 + ((i * 173) % 44), rz = z - 27 + ((i * 97) % 54);
@@ -886,6 +937,20 @@ function buildValMurmures() {
   rEnemy(PX - 10, z - 10, 0, [[PX - 16, z - 10], [PX - 2, z - 16]], { type: 'sentinel', lvl: 7 });
   rEnemy(PX + 8, z + 6, 0, [[PX + 4, z + 14], [PX + 14, z + 2]], { type: 'caster', lvl: 7 });
   rEnemy(PX - 4, z + 20, 0, [[PX - 12, z + 22], [PX + 2, z + 18]], { type: 'sentinel', lvl: 8 });
+
+  /* ---- aile latérale : LE REFUGE DES PÈLERINS (ouest, via un vrai seuil) ---- */
+  const rgx = PX - 25, rgz = z + 4;
+  zoneGate(rgx, 0, rgz, 4, 5, 'stoneR', 'x');
+  mkBox(16, 1, 14, rgx - 8, -1, rgz, 'stoneD');
+  mkBox(0.7, 5, 14, rgx - 16, 0, rgz, 'stoneR');
+  mkBox(16, 5, 0.7, rgx - 8, 0, rgz - 7, 'stoneR'); mkBox(16, 5, 0.7, rgx - 8, 0, rgz + 7, 'stoneR');
+  for (let k = 0; k < 3; k++) mkBox(2.4, 0.5, 0.9, rgx - 5 - k * 3.2, 0, rgz - 4, 'woodF'); // couchettes de fortune
+  torch(rgx - 5, 0, rgz + 4, 0x9fe8ff, 1.1, 14); torch(rgx - 14, 0, rgz - 4, 0x9fe8ff, 1.1, 14);
+  addInter(rgx - 8, 0, rgz, 3, 'Fouiller le refuge des pèlerins', () => {
+    showMsg('Des couchettes de fortune, un foyer éteint depuis des lunes : d\'autres porteurs de flamme se sont arrêtés ici avant vous.', 4.5);
+  });
+  addPickup('mana', rgx - 12, 0, rgz - 3); addPickup('heart', rgx - 4, 0, rgz + 3);
+  rEnemy(rgx - 8, rgz, 0, [[rgx - 12, rgz - 3], [rgx - 4, rgz + 3]], { type: 'wraith', lvl: 8 });
   /* ---- chambre secrète n°2 : DEUX BLOCS + L'ÉGIDE (les plaques ne se
      chargent que si l'Égide est active au moment où les deux blocs
      reposent dessus — pas de simple bloc-sur-plaque, il faut savoir QUAND
@@ -929,11 +994,21 @@ function buildCarriereSel() {
   mkBox(20, 8, 60, PX + 24, -8, z, 'slabW');   // rive est (bloc plein)
   mkBox(1, 16.5, 60, PX - 14, -8, z, 'slabW', false);
   mkBox(1, 16.5, 60, PX + 14, -8, z, 'slabW', false);
-  mkBox(38, 9, 1, PX, 0, z - 30, 'stoneD'); mkBox(38, 9, 1, PX, 0, z + 30, 'stoneD');
+  mkBox(13.5, 9, 1, PX - 10.25, 0, z - 30, 'stoneD'); mkBox(13.5, 9, 1, PX + 10.25, 0, z - 30, 'stoneD');
+  mkBox(13.5, 9, 1, PX - 10.25, 0, z + 30, 'stoneD'); mkBox(13.5, 9, 1, PX + 10.25, 0, z + 30, 'stoneD');
+  zoneGate(PX, 0, z - 30, 7, 6.5, 'stoneD');
+  zoneGate(PX, 0, z + 30, 7, 6.5, 'stoneD');
   mkBox(30, 0.6, 60, PX, 8.5, z, 'stoneD');
   // deux ponts de planches suspendus au-dessus du vide
   mkBox(28, 0.35, 3, PX, 0, z - 14, 'woodD');
   mkBox(28, 0.35, 3, PX, 0, z + 14, 'woodD');
+  /* v9.6 — escalier de secours taillé dans le sel : sans lui, quiconque
+     tombe (ou explore) le fond de la crevasse restait bloqué en bas, sans
+     moyen de remonter (retour joueur : « bug quand on tombe »). Relie le
+     fond (-7,5 m) au pont sud (0 m). */
+  for (let i = 0; i < 6; i++) {
+    mkBox(4, 0.6, 2.4, PX - 3, -7.5 + i * 1.35, z - 25 + i * 2.1, 'slabW');
+  }
   torch(PX - 20, -7.5, z - 20, 0xf4ecd6, 1.1, 16); torch(PX + 20, -7.5, z + 20, 0xf4ecd6, 1.1, 16);
   addInter(PX, 0, z, 3, 'Contempler la crevasse', () => {
     showMsg('Le sel ronge jusqu\'au métal. C\'est d\'ici que fut extraite chaque pierre du château — et, dit-on, l\'entrée des catacombes dort quelque part sous ce blanc aveuglant.', 5);
@@ -943,6 +1018,21 @@ function buildCarriereSel() {
   rEnemy(PX - 8, z - 8, 0, [[PX - 12, z - 14], [PX + 4, z - 8]], { type: 'sentinel', lvl: 9 });
   rEnemy(PX + 6, z + 10, 0, [[PX - 4, z + 14], [PX + 10, z + 6]], { type: 'wraith', lvl: 10 });
   rEnemy(PX, z, -7.5, [[PX - 10, z], [PX + 10, z]], { type: 'caster', lvl: 10 });
+
+  /* ---- LA GALERIE DES MINEURS : le fond de la crevasse s'élargit vers
+     l'ouest (comble le vide qui séparait le fond de la rive — plus de
+     gouffre invisible entre les deux), une vraie alcôve creusée dans le
+     sel plutôt qu'un couloir taillé dans le bloc plein de la rive. */
+  mkBox(10, 1, 16, PX - 9, -8, z - 4, 'slabW');
+  mkBox(0.7, 5, 16, PX - 14, -7.5, z - 4, 'slabW');
+  mkBox(10, 5, 0.7, PX - 9, -7.5, z - 12, 'slabW'); mkBox(10, 5, 0.7, PX - 9, -7.5, z + 4, 'slabW');
+  for (let i = 0; i < 3; i++) mkCyl(0.4, 0.5, 4.4, PX - 6 - i * 2.6, -7.5, z - 9, 'slabW', true, 7);
+  torch(PX - 7, -7.5, z - 1, 0xf4ecd6, 1.1, 14); torch(PX - 12, -7.5, z - 8, 0xf4ecd6, 1.1, 14);
+  addInter(PX - 9, -7.5, z - 4, 3, 'Examiner la galerie des mineurs', () => {
+    showMsg('Des pics abandonnés, des paniers renversés : les mineurs ont fui avant d\'achever leur veine. Le sel a tout figé depuis.', 4.5);
+  });
+  addPickup('shadow', PX - 12, -7.5, z + 1); addPickup('mana', PX - 6, -7.5, z - 9);
+  rEnemy(PX - 9, z - 4, -7.5, [[PX - 12, z - 8], [PX - 6, z]], { type: 'sentinel', lvl: 10 });
   /* ---- chambre secrète n°3 : DEUX POUVOIRS EN CHAÎNE — le Pas du vent pour
      franchir le vide jusqu'à la corde, puis le Souffle glacé pour geler le
      bassin de saumure qui bloque le coffre ---- */
@@ -978,9 +1068,13 @@ function buildCarriereSel() {
 /* ---- 4. LE CANYON DES LAMES FILIGRANES (niv 12-15) — épées colossales à escalader ---- */
 function buildCanyonLames() {
   const z = -450;
-  mkBox(24, 1, 60, PX, -1, z, 'stoneD');
-  mkBox(1, 20, 60, PX - 12, 0, z, 'stoneD'); mkBox(1, 20, 60, PX + 12, 0, z, 'stoneD');
-  mkBox(24, 9, 1, PX, 0, z - 30, 'stoneD'); mkBox(24, 9, 1, PX, 0, z + 30, 'stoneD');
+  mkBox(28, 1, 60, PX, -1, z, 'stoneD');
+  mkBox(1, 20, 60, PX - 14, 0, z, 'stoneD');
+  mkBox(1, 20, 40, PX + 14, 0, z - 10, 'stoneD'); mkBox(1, 20, 16, PX + 14, 0, z + 22, 'stoneD');
+  mkBox(10.5, 9, 1, PX - 8.75, 0, z - 30, 'stoneD'); mkBox(10.5, 9, 1, PX + 8.75, 0, z - 30, 'stoneD');
+  mkBox(10.5, 9, 1, PX - 8.75, 0, z + 30, 'stoneD'); mkBox(10.5, 9, 1, PX + 8.75, 0, z + 30, 'stoneD');
+  zoneGate(PX, 0, z - 30, 7, 6.5, 'stoneD');
+  zoneGate(PX, 0, z + 30, 7, 6.5, 'stoneD');
   const bladeMat = new THREE.MeshStandardMaterial({ color: 0x14101f, roughness: 0.35, metalness: 0.6, emissive: 0x2a1a4a, emissiveIntensity: 0.5 });
   /* épées géantes plantées dans la roche : plateformes d'escalade par paliers */
   for (let i = 0; i < 8; i++) {
@@ -1003,6 +1097,20 @@ function buildCanyonLames() {
   rEnemy(PX - 6, z - 12, 0, [[PX - 8, z - 18], [PX - 4, z - 6]], { type: 'brute', lvl: 12 });
   rEnemy(PX + 6, z + 8, 0, [[PX + 4, z + 2], [PX + 8, z + 16]], { type: 'caster', lvl: 13 });
   rEnemy(PX, z + 20, 12.15, [[PX - 4, z + 20], [PX + 4, z + 20]], { type: 'wraith', lvl: 13 });
+
+  /* ---- aile latérale : LA FORGE ABANDONNÉE (est, via un vrai seuil) ---- */
+  const cgx = PX + 14, cgz = z + 12;
+  zoneGate(cgx, 0, cgz, 4, 5, 'stoneD', 'x');
+  mkBox(16, 1, 16, cgx + 8, -1, cgz, 'stoneD');
+  mkBox(0.7, 5, 16, cgx + 16, 0, cgz, 'stoneR');
+  mkBox(16, 5, 0.7, cgx + 8, 0, cgz - 8, 'stoneR'); mkBox(16, 5, 0.7, cgx + 8, 0, cgz + 8, 'stoneR');
+  mkAnvil(cgx + 6, 0, cgz - 4);
+  torch(cgx + 5, 0, cgz + 5, 0x9a6cff, 1.1, 14); torch(cgx + 13, 0, cgz - 5, 0x9a6cff, 1.1, 14);
+  addInter(cgx + 12, 0, cgz + 4, 3, 'Examiner l\'enclume brisée', () => {
+    showMsg('Une forge de bataille, montée à la hâte pour réparer les lames avant l\'assaut. Elle n\'a pas eu le temps de refroidir.', 4.5);
+  });
+  addPickup('bone', cgx + 5, 0, cgz + 4); addPickup('shadow', cgx + 13, 0, cgz + 3);
+  rEnemy(cgx + 9, cgz, 0, [[cgx + 5, cgz - 4], [cgx + 13, cgz + 4]], { type: 'brute', lvl: 13 });
   /* ---- chambre secrète n°4 : DEUX GARDES À VAINCRE, PUIS PORTAGE VERTICAL —
      la Main céleste doit guider le bloc runique jusqu'en haut d'un escalier
      de plateformes (même principe que les lames à escalader de la salle
@@ -1046,23 +1154,47 @@ function buildCanyonLames() {
 function buildAqueducColossal() {
   const z = -600;
   const H = 15; // altitude de la passerelle : le vide en dessous est mortel
-  mkBox(6, 1, 60, PX, H - 0.5, z, 'stoneD');
-  mkBox(0.6, 1.3, 60, PX - 3, H, z, 'stoneR'); mkBox(0.6, 1.3, 60, PX + 3, H, z, 'stoneR');
-  mkBox(8, 9, 1, PX, H, z - 30, 'stoneD'); mkBox(8, 9, 1, PX, H, z + 30, 'stoneD');
+  mkBox(8, 1, 60, PX, H - 0.5, z, 'stoneD');
+  mkBox(0.6, 1.3, 24, PX - 4, H, z - 18, 'stoneR'); mkBox(0.6, 1.3, 32, PX - 4, H, z + 14, 'stoneR');
+  mkBox(0.6, 1.3, 24, PX + 4, H, z - 18, 'stoneR'); mkBox(0.6, 1.3, 32, PX + 4, H, z + 14, 'stoneR');
+  /* portes monumentales aux deux bouts de la passerelle */
+  mkBox(2, 9, 1, PX - 4, H, z - 30, 'stoneD'); mkBox(2, 9, 1, PX + 4, H, z - 30, 'stoneD');
+  zoneGate(PX, H, z - 30, 6, 6.4, 'stoneD');
+  mkBox(2, 9, 1, PX - 4, H, z + 30, 'stoneD'); mkBox(2, 9, 1, PX + 4, H, z + 30, 'stoneD');
+  zoneGate(PX, H, z + 30, 6, 6.4, 'stoneD');
   /* arches cyclopéennes soutenant la passerelle, plongeant dans le vide */
   for (let i = 0; i < 5; i++) {
     const az = z - 24 + i * 12;
-    mkBox(1.6, H + 1, 1.6, PX - 9, -1, az, 'stoneD');
-    mkBox(1.6, H + 1, 1.6, PX + 9, -1, az, 'stoneD');
-    mkBox(20, 1.2, 1.6, PX, H - 1, az, 'stoneD', false);
+    mkBox(1.8, H + 1, 1.8, PX - 10, -1, az, 'stoneD');
+    mkBox(1.8, H + 1, 1.8, PX + 10, -1, az, 'stoneD');
+    mkBox(22, 1.2, 1.8, PX, H - 1, az, 'stoneD', false);
   }
-  torch(PX - 2.5, H, z - 20, 0x8fc8ff, 1.2, 20); torch(PX + 2.5, H, z + 4, 0x8fc8ff, 1.2, 20); torch(PX - 2.5, H, z + 22, 0x8fc8ff, 1.2, 20);
+  torch(PX - 3, H, z - 20, 0x8fc8ff, 1.2, 20); torch(PX + 3, H, z + 4, 0x8fc8ff, 1.2, 20); torch(PX - 3, H, z + 22, 0x8fc8ff, 1.2, 20);
   addInter(PX, H, z, 3, 'Regarder par-dessus la rambarde', () => {
     showMsg('Rien que des nuages, à perte de vue. Cet aqueduc ne transportait pas de l\'eau, mais de la lumière liquide vers Ombreciel.', 4.5);
   });
   addPickup('mana', PX - 2, H, z - 10); addPickup('heart', PX + 2, H, z + 12);
   rEnemy(PX, z - 10, H, [[PX, z - 20], [PX, z]], { type: 'caster', lvl: 16, ranged: true });
   rEnemy(PX, z + 14, H, [[PX, z + 6], [PX, z + 24]], { type: 'wraith', lvl: 16 });
+
+  /* ---- annexe : LE POSTE DU GUETTEUR — une échauguette accrochée au flanc
+     de l'aqueduc, reliée par une brèche dans la rambarde et un pont, avec
+     sa propre porte réelle avant la salle ---- */
+  const wgx = PX + 16, wgz = z - 4;
+  mkBox(7.5, 1, 5, PX + 7.75, H - 0.5, wgz, 'stoneD');
+  mkBox(7.5, 1.3, 0.5, PX + 7.75, H, wgz - 2.5, 'stoneR'); mkBox(7.5, 1.3, 0.5, PX + 7.75, H, wgz + 2.5, 'stoneR');
+  mkBox(1.8, H + 1, 1.8, wgx, -1, wgz, 'stoneD');
+  mkBox(9, 1, 9, wgx, H - 0.5, wgz, 'stoneD');
+  mkBox(9, 9, 1, wgx, H, wgz - 4.5, 'stoneD'); mkBox(9, 9, 1, wgx, H, wgz + 4.5, 'stoneD');
+  mkBox(1, 9, 9, wgx + 4.5, H, wgz, 'stoneD');
+  mkBox(1, 9, 2.5, PX + 11.5, H, wgz - 3.25, 'stoneD'); mkBox(1, 9, 2.5, PX + 11.5, H, wgz + 3.25, 'stoneD');
+  zoneGate(PX + 11.5, H, wgz, 4, 6.4, 'stoneD', 'x');
+  torch(wgx - 3, H, wgz - 3, 0xffb15c, 1.1, 18); torch(wgx + 3, H, wgz + 3, 0xffb15c, 1.1, 18);
+  addInter(wgx, H, wgz - 2, 2.4, 'Examiner le poste du guetteur', () => {
+    showMsg('Une échauguette de guet, accrochée au flanc de l\'aqueduc. Le guetteur qui l\'occupait a disparu depuis longtemps — mais son arme est restée.', 4.5);
+  });
+  addPickup('mana', wgx - 2.5, H, wgz + 2); addPickup('gold', wgx + 2.5, H, wgz - 2.5);
+  rEnemy(wgx, wgz, H, [[wgx - 1.5, wgz - 1.5], [wgx + 1.5, wgz + 1.5]], { type: 'caster', lvl: 17, ranged: true });
   /* ---- chambre secrète n°5 : ÉPREUVE DE RÉFLEXE — un rayon tourne sans
      relâche (le même mécanisme d'auto-rotation que les gemmes du monde
      ouvert) ; il faut frapper chacune des trois gemmes exactement quand
@@ -1110,8 +1242,12 @@ function buildAqueducColossal() {
 function buildForetObsidienne() {
   const z = -750;
   mkBox(46, 1, 60, PX, -1, z, 'stoneD');
-  mkBox(1, 10, 60, PX - 23, 0, z, 'stoneD'); mkBox(1, 10, 60, PX + 23, 0, z, 'stoneD');
-  mkBox(46, 9, 1, PX, 0, z - 30, 'stoneD'); mkBox(46, 9, 1, PX, 0, z + 30, 'stoneD');
+  mkBox(1, 10, 60, PX - 23, 0, z, 'stoneD');
+  mkBox(1, 10, 22, PX + 23, 0, z - 19, 'stoneD'); mkBox(1, 10, 34, PX + 23, 0, z + 13, 'stoneD');
+  mkBox(19.5, 9, 1, PX - 13.25, 0, z - 30, 'stoneD'); mkBox(19.5, 9, 1, PX + 13.25, 0, z - 30, 'stoneD');
+  zoneGate(PX, 0, z - 30, 7, 6.5, 'stoneD');
+  mkBox(19.5, 9, 1, PX - 13.25, 0, z + 30, 'stoneD'); mkBox(19.5, 9, 1, PX + 13.25, 0, z + 30, 'stoneD');
+  zoneGate(PX, 0, z + 30, 7, 6.5, 'stoneD');
   const obsMat = new THREE.MeshStandardMaterial({ color: 0x0a0812, roughness: 0.2, metalness: 0.3, emissive: 0x1a0a2a, emissiveIntensity: 0.35 });
   for (let i = 0; i < 22; i++) {
     const tx = PX - 20 + ((i * 137) % 40), tz = z - 27 + ((i * 211) % 54);
@@ -1122,15 +1258,51 @@ function buildForetObsidienne() {
     const crown = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.6, 5), obsMat);
     crown.position.set(tx, h + 0.5, tz); crown.castShadow = true; S.scene.add(crown);
   }
+  /* une arche brisée, vestige d'un portail effondré au cœur de la forêt */
+  mkBox(1.2, 5, 1.2, PX - 3, 2.5, z - 4, 'stoneR');
+  mkBox(4.5, 1, 1.2, PX, 4.9, z - 4, 'stoneR');
+  mkBox(1.2, 2.6, 1.2, PX + 3, 1.3, z - 4.6, 'stoneR');
+  /* un cercle de duel, stèles de verre noir plantées en rond */
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    mkBox(0.5, 1.1, 0.5, PX - 12 + Math.cos(a) * 3.2, 0.55, z + 20 + Math.sin(a) * 3.2, 'stoneR');
+  }
   torch(PX - 16, 0, z - 16, 0x6a3aff, 1.05, 16); torch(PX + 16, 0, z + 14, 0x6a3aff, 1.05, 16);
   addInter(PX, 0, z, 3, 'Toucher un arbre de verre noir', () => {
     showMsg('Tranchant comme un rasoir, froid comme la nuit sans lune. Rien ne pourrit ici : tout est figé depuis un siècle.', 4.5);
+  });
+  addInter(PX - 12, 0, z + 20, 2.6, 'Le cercle de duel', () => {
+    showMsg('Ici, les novices de l\'Ordre s\'affrontaient à l\'aube, sous le regard des maîtres. Le verre noir garde encore, dit-on, l\'écho des lames.', 4.5);
   });
   addPickup('shadow', PX - 12, 0, z - 10); addPickup('shadow', PX + 10, 0, z + 8);
   addPickup('heart', PX, 0, z + 20);
   rEnemy(PX - 10, z - 14, 0, [[PX - 16, z - 18], [PX - 4, z - 8]], { type: 'wraith', lvl: 18 });
   rEnemy(PX + 8, z + 6, 0, [[PX + 2, z + 12], [PX + 16, z]], { type: 'brute', lvl: 19 });
   rEnemy(PX, z + 18, 0, [[PX - 8, z + 22], [PX + 8, z + 16]], { type: 'caster', lvl: 19 });
+
+  /* ---- annexe : LA CLAIRIÈRE DES REFLETS — une poche cachée derrière le
+     mur est, ouverte par une vraie porte, où le verre noir reflète une
+     étrange lumière ---- */
+  const fgx = PX + 35, fgz = z - 6;
+  mkBox(4, 1, 4, PX + 25, -1, fgz, 'stoneD');
+  zoneGate(PX + 23, 0, fgz, 4, 6.4, 'stoneD', 'x');
+  mkBox(16, 1, 16, fgx, -1, fgz, 'stoneD');
+  mkBox(16, 9, 1, fgx, 0, fgz - 8, 'stoneD'); mkBox(16, 9, 1, fgx, 0, fgz + 8, 'stoneD');
+  mkBox(1, 9, 16, fgx + 8, 0, fgz, 'stoneD');
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    const tx = fgx + Math.cos(a) * 4.5, tz = fgz + Math.sin(a) * 4.5;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 2.8, 6), obsMat);
+    trunk.position.set(tx, 1.4, tz); S.scene.add(trunk); addCol2(trunk);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.5, 5), obsMat);
+    crown.position.set(tx, 3.2, tz); S.scene.add(crown);
+  }
+  torch(fgx - 5, 0, fgz - 5, 0x6a3aff, 1.1, 16); torch(fgx + 5, 0, fgz + 5, 0x6a3aff, 1.1, 16);
+  addInter(fgx, 0, fgz, 2.8, 'Le miroir de verre noir', () => {
+    showMsg('Une poche oubliée de la forêt, où le verre noir semble refléter un autre ciel que le nôtre.', 4.5);
+  });
+  addPickup('shadow', fgx - 3, 0, fgz + 3); addPickup('mana', fgx + 3, 0, fgz - 3);
+  rEnemy(fgx, fgz, 0, [[fgx - 2, fgz - 2], [fgx + 2, fgz + 2]], { type: 'wraith', lvl: 19 });
   /* ---- chambre secrète n°6 : LE BON ARBRE PARMI LES LEURRES — un indice
      décrit un détail précis ; se tromper réveille une ombre embusquée
      (pas de simple bloc-sur-plaque : de l'observation, avec une sanction) ---- */
@@ -1177,8 +1349,12 @@ function buildForetObsidienne() {
 function buildBastionCendres() {
   const z = -900;
   mkBox(40, 1, 50, PX, -1, z, 'stoneD');
-  mkBox(1, 11, 50, PX - 20, 0, z, 'stoneD'); mkBox(1, 11, 50, PX + 20, 0, z, 'stoneD');
-  mkBox(40, 9, 1, PX, 0, z - 25, 'stoneD'); mkBox(40, 9, 1, PX, 0, z + 25, 'stoneD');
+  mkBox(1, 11, 31, PX - 20, 0, z - 9.5, 'stoneD'); mkBox(1, 11, 15, PX - 20, 0, z + 17.5, 'stoneD');
+  mkBox(1, 11, 50, PX + 20, 0, z, 'stoneD');
+  mkBox(16.5, 9, 1, PX - 11.75, 0, z - 25, 'stoneD'); mkBox(16.5, 9, 1, PX + 11.75, 0, z - 25, 'stoneD');
+  zoneGate(PX, 0, z - 25, 7, 6.5, 'stoneD');
+  mkBox(16.5, 9, 1, PX - 11.75, 0, z + 25, 'stoneD'); mkBox(16.5, 9, 1, PX + 11.75, 0, z + 25, 'stoneD');
+  zoneGate(PX, 0, z + 25, 7, 6.5, 'stoneD');
   mkBox(42, 0.6, 52, PX, 11, z, 'stoneD');
   // ruines militaires éventrées : blocs de décombres épars
   for (let i = 0; i < 10; i++) {
@@ -1195,6 +1371,23 @@ function buildBastionCendres() {
   rEnemy(PX + 8, z + 8, 0, [[PX + 2, z + 4], [PX + 14, z + 14]], { type: 'brute', lvl: 22 });
   rEnemy(PX, z + 16, 0, [[PX - 10, z + 18], [PX + 10, z + 14]], { type: 'caster', lvl: 22 });
   rEnemy(PX - 4, z - 16, 0, [[PX - 10, z - 20], [PX + 2, z - 12]], { type: 'wraith', lvl: 22 });
+
+  /* ---- annexe : LA CRYPTE DES PORTEURS DE FLAMME — un caveau derrière le
+     mur ouest, ouvert par une vraie porte, où reposent les derniers
+     défenseurs du Bastion ---- */
+  const bcx = PX - 32, bcz = z + 8;
+  mkBox(5, 1, 4, PX - 22.5, -1, bcz, 'stoneD');
+  zoneGate(PX - 20, 0, bcz, 4, 6.4, 'stoneD', 'x');
+  mkBox(14, 1, 14, bcx, -1, bcz, 'stoneD');
+  mkBox(14, 9, 1, bcx, 0, bcz - 7, 'stoneD'); mkBox(14, 9, 1, bcx, 0, bcz + 7, 'stoneD');
+  mkBox(1, 9, 14, bcx - 7, 0, bcz, 'stoneD');
+  for (let i = 0; i < 3; i++) mkBox(1.2, 1, 3, bcx - 4 + i * 4, 0.5, bcz - 3, 'stoneR');
+  torch(bcx - 4, 0, bcz + 4, 0xff5a2a, 1.15, 16); torch(bcx + 4, 0, bcz + 4, 0xff5a2a, 1.15, 16);
+  addInter(bcx, 0, bcz + 3, 2.8, 'Les tombeaux des derniers défenseurs', () => {
+    showMsg('Trois Porteurs de Flamme reposent ici, leurs armes brisées posées sur la pierre. Ils n\'ont pas fui, même face aux Ombres.', 4.5);
+  });
+  addPickup('gold', bcx - 4, 0, bcz - 5); addPickup('heart', bcx + 4, 0, bcz - 5);
+  rEnemy(bcx, bcz, 0, [[bcx - 3, bcz - 1], [bcx + 3, bcz - 1]], { type: 'brute', lvl: 23 });
   /* récompense de fin de route : une pièce d'équipement rare, adaptée à la Voie */
   if (!flag('bastion_cendres', 'reward')) {
     setFlag('bastion_cendres', 'reward');
