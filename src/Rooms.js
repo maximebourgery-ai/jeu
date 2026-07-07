@@ -1236,6 +1236,139 @@ function addCol2(m) {
   colliders.push({ min: b.min.clone(), max: b.max.clone(), on: true, mesh: m });
 }
 
+/* ================================================================
+   v9.5 — LE SANCTUAIRE OUBLIÉ : salle secrète débloquée en éveillant les
+   six pierres du Sanctuaire de l'Arbre (Confins d'Ombre, World.js) avec
+   les six dons de base. Site dédié (x ≈ -1400), loin de tout. Trois
+   épreuves avant la relique : l'ordre des saisons, le rythme de la sève,
+   puis le Gardien de Racine — une arme légendaire garantie au bout.
+   ================================================================ */
+const NX = -1400, NZ = 0;
+function buildSanctuaireAncien() {
+  /* ---- chambre d'entrée ---- */
+  mkBox(14, 1, 20, NX, -1, NZ, 'stoneD');
+  mkBox(0.7, 4.4, 20, NX - 7, 0, NZ, 'trunk'); mkBox(0.7, 4.4, 20, NX + 7, 0, NZ, 'trunk');
+  mkBox(14, 4.4, 0.7, NX, 0, NZ - 10, 'trunk');
+  torch(NX - 5, 0, NZ - 6, 0x7ade5a, 1.1, 16); torch(NX + 5, 0, NZ + 6, 0x7ade5a, 1.1, 16);
+  addInter(NX, 0, NZ - 6, 3, 'Lire les racines gravées', () => {
+    showMsg('« Avant la pierre, la sève. Trois épreuves gardent ce qui fut caché : l\'ordre, le rythme, et le courage. »', 5);
+  });
+  addInter(NX, 0, NZ + 9, 2.6, 'Revenir au Sanctuaire de l\'Arbre', () => {
+    exitToWorld('Les Confins d\'Ombre', -40, 0.2, -8, Math.PI, 'La sève ancienne vous rend au grand air.');
+  });
+
+  /* ---- épreuve 1 : L'ORDRE DES SAISONS (z 10..30) ---- */
+  const z1 = NZ + 20;
+  mkBox(18, 1, 20, NX, -1, z1, 'stoneD');
+  mkBox(0.7, 4.4, 20, NX - 9, 0, z1, 'trunk'); mkBox(0.7, 4.4, 20, NX + 9, 0, z1, 'trunk');
+  const seasonDoor = mkDoor(3, 4.4, 0.7, NX, 0, z1 + 10, 'trunk');
+  const seasonDone = flag('sanctuaire_ancien', 'season');
+  if (seasonDone) presetOpen(seasonDoor);
+  else {
+    mkBox(7.5, 4.4, 0.7, NX - 5.25, 0, z1 + 10, 'trunk');
+    mkBox(7.5, 4.4, 0.7, NX + 5.25, 0, z1 + 10, 'trunk');
+  }
+  addInter(NX, 0, z1 - 8, 2.8, 'Lire l\'inscription des saisons', () => {
+    showMsg('« Le printemps s\'éveille, l\'été embrase, l\'automne consume, l\'hiver endort : que la ronde suive son cours. »', 5);
+  });
+  if (!seasonDone) {
+    const seasonOrder = ['spring', 'summer', 'autumn', 'winter'];
+    let seasonProgress = 0;
+    [
+      { key: 'spring', x: NX - 6, z: z1 - 2, color: 0x7ade5a, label: 'Toucher la pierre du printemps' },
+      { key: 'summer', x: NX - 2, z: z1 + 3, color: 0xffd97a, label: 'Toucher la pierre de l\'été' },
+      { key: 'autumn', x: NX + 2, z: z1 - 2, color: 0xff8a3a, label: 'Toucher la pierre de l\'automne' },
+      { key: 'winter', x: NX + 6, z: z1 + 3, color: 0x9fe8ff, label: 'Toucher la pierre de l\'hiver' }
+    ].forEach(sc => {
+      torch(sc.x, 0, sc.z, sc.color, 1.1, 12);
+      addInter(sc.x, 0, sc.z, 2, sc.label, () => {
+        if (seasonOrder[seasonProgress] === sc.key) {
+          seasonProgress++;
+          if (seasonProgress === seasonOrder.length) {
+            setFlag('sanctuaire_ancien', 'season');
+            openDoor(seasonDoor);
+            spawnBurst(NX, 1.4, z1 + 10, 0x9fdcff, 24);
+            showMsg('La ronde des saisons s\'achève : les racines s\'écartent.', 4);
+          } else showMsg('La sève frémit... une autre saison doit suivre.', 2);
+        } else {
+          seasonProgress = 0;
+          showMsg('La ronde se brise : ce n\'était pas la bonne saison.', 2.5);
+        }
+      });
+    });
+  }
+  rEnemy(NX - 5, z1 + 4, 0, [[NX - 7, z1], [NX - 2, z1 + 6]], { type: 'wraith', lvl: 13 });
+  rEnemy(NX + 5, z1 - 4, 0, [[NX + 2, z1 - 6], [NX + 7, z1]], { type: 'caster', lvl: 13 });
+
+  /* ---- épreuve 2 : LE RYTHME DE LA SÈVE (z 30..50) — réflexe, même
+     principe que le rayon tournant de l'Aqueduc Colossal, réemployé ici
+     avec un thème distinct (la sève qui pulse plutôt que le vent) ---- */
+  const z2 = NZ + 40;
+  mkBox(18, 1, 20, NX, -1, z2, 'stoneD');
+  mkBox(0.7, 4.4, 20, NX - 9, 0, z2, 'trunk'); mkBox(0.7, 4.4, 20, NX + 9, 0, z2, 'trunk');
+  const rhythmDoor = mkDoor(3, 4.4, 0.7, NX, 0, z2 + 10, 'trunk');
+  const rhythmDone = flag('sanctuaire_ancien', 'rhythm');
+  if (rhythmDone) presetOpen(rhythmDoor);
+  else {
+    mkBox(7.5, 4.4, 0.7, NX - 5.25, 0, z2 + 10, 'trunk');
+    mkBox(7.5, 4.4, 0.7, NX + 5.25, 0, z2 + 10, 'trunk');
+    addInter(NX, 0, z2 - 8, 2.8, 'Lire l\'inscription du rythme', () => {
+      showMsg('« La sève bat comme un cœur : frappez les trois racines quand la lumière les visite, ni trop tôt, ni trop tard. »', 5);
+    });
+    const pulse = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 3.4), new THREE.MeshBasicMaterial({ color: 0x9fffc0 }));
+    pulse.position.set(NX, 1.2, z1 + 20);
+    pulse.add(glow(0x9fffc0, 1.4, 0.4));
+    S.scene.add(pulse); spinners.push(pulse);
+    const caught = [false, false, false];
+    [0, Math.PI * 2 / 3, Math.PI * 4 / 3].forEach((ang, i) => {
+      const gx = NX + Math.sin(ang) * 3.2, gz = (z1 + 20) + Math.cos(ang) * 3.2;
+      const root = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0x2a4a2a }));
+      root.position.set(gx, 1.2, gz); S.scene.add(root);
+      addInter(gx, 0, gz, 1.8, 'Frapper la racine au bon rythme', () => {
+        const cur = ((pulse.rotation.y % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        let diff = Math.abs(cur - ang); if (diff > Math.PI) diff = Math.PI * 2 - diff;
+        if (diff < 0.35) {
+          if (!caught[i]) { caught[i] = true; root.material.color.setHex(0x4ae08a); spawnBurst(gx, 1.2, gz, 0x9fffc0, 10); }
+          if (caught.every(Boolean)) {
+            setFlag('sanctuaire_ancien', 'rhythm');
+            openDoor(rhythmDoor);
+            spawnBurst(NX, 1.4, z2 + 10, 0x9fdcff, 24);
+            showMsg('Les trois racines battent enfin ensemble : le passage s\'ouvre.', 4);
+          } else showMsg('La racine s\'éveille ! Il en reste ' + (3 - caught.filter(Boolean).length) + '.', 2);
+        } else showMsg('Trop tôt, ou trop tard : le rythme n\'y est pas encore.', 1.6);
+      });
+    });
+  }
+  rEnemy(NX, z2 - 4, 0, [[NX - 4, z2 - 6], [NX + 4, z2 - 2]], { type: 'seraph', lvl: 14 });
+
+  /* ---- épreuve 3 : LE GARDIEN DE RACINE + la relique (z 50..65) ---- */
+  const z3 = NZ + 58;
+  mkBox(16, 1, 16, NX, -1, z3, 'stoneD');
+  mkBox(0.7, 4.4, 16, NX - 8, 0, z3, 'trunk'); mkBox(0.7, 4.4, 16, NX + 8, 0, z3, 'trunk');
+  mkBox(16, 4.4, 0.7, NX, 0, z3 - 8, 'trunk', false);
+  torch(NX - 6, 0, z3 - 4, 0xff8a3a, 1.2, 16); torch(NX + 6, 0, z3 + 4, 0xff8a3a, 1.2, 16);
+  const relicDone = flag('sanctuaire_ancien', 'relicTaken');
+  if (!relicDone) {
+    const boss = mkEnemy(NX, z3 + 2, 0, [[NX - 4, z3 + 2], [NX + 4, z3 + 2]], { type: 'obsidian', lvl: 16, tag: 'guardian' });
+    addInter(NX, 0, z3 - 4, 2.8, 'Une présence ancienne veille ici', () => {
+      showMsg('Le Gardien de Racine ne cède qu\'au combat : la relique se mérite.', 4);
+    });
+    boss.onKilled = () => {
+      setFlag('sanctuaire_ancien', 'guardianDown');
+      showMsg('Le Gardien de Racine s\'effondre en poussière de sève : la relique n\'est plus gardée.', 4);
+    };
+  }
+  addInter(NX, 0, z3 + 6, 2.8, relicDone ? 'Le socle est vide' : 'Recueillir la relique du Sanctuaire', it => {
+    if (relicDone) { showMsg('La relique a déjà quitté ce lieu.', 2.5); return; }
+    if (!flag('sanctuaire_ancien', 'guardianDown')) { showMsg('Le Gardien de Racine garde encore ce socle.', 3); return; }
+    it.on = false;
+    setFlag('sanctuaire_ancien', 'relicTaken');
+    addGearToBag(rollEquipment('weapon', 'legendary', G.path));
+    spawnBurst(NX, 1.4, z3 + 6, 0xffd97a, 32);
+    showMsg('Percenuit, la première lame jamais forgée — la sève ancienne vous la confie.', 5.5);
+  });
+}
+
 /* ---------------- registre des salles ---------------- */
 const ROOMS = {
   hall:   { name: 'Le Grand Hall', build: buildHall,
@@ -1262,5 +1395,13 @@ const ROOMS = {
   foret_obsidienne: { name: 'La Forêt d\'Obsidienne', build: buildForetObsidienne,
                       entry: { x: PX, y: 0.2, z: -750 - 29.3, yaw: 0 } },
   bastion_cendres:  { name: 'Le Bastion des Cendres', build: buildBastionCendres,
-                      entry: { x: PX, y: 0.2, z: -900 - 24.3, yaw: 0 } }
+                      entry: { x: PX, y: 0.2, z: -900 - 24.3, yaw: 0 } },
+
+  sanctuaire_ancien: { name: 'Le Sanctuaire Oublié', build: buildSanctuaireAncien,
+                       entry: { x: NX, y: 0.2, z: NZ - 6, yaw: 0 } }
 };
+/* Seuil appelé par le Sanctuaire de l'Arbre (World.js), une fois les six
+   pierres éveillées avec les six dons de base. */
+export function enterSanctuaireAncien() {
+  gotoRoom('sanctuaire_ancien', { x: NX, y: 0.2, z: NZ - 6, yaw: 0 });
+}

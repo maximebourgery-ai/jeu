@@ -20,7 +20,7 @@ import { questReach, openDialog, guide, applyQuest } from './Quests.js';
 import { mkEnemy } from './Enemies.js';
 import { saveGame } from './SaveSystem.js'; // (cycle sûr : appel différé au repos)
 /* Seuils des salles instanciées (cycle sûr : appels différés, voir Rooms.js) */
-import { enterCastleHall, enterThroneFromLostLands, enterPilgrimage, beyondOpened } from './Rooms.js';
+import { enterCastleHall, enterThroneFromLostLands, enterPilgrimage, enterSanctuaireAncien, beyondOpened } from './Rooms.js';
 
 /* ---------------- SCÈNE ---------------- */
 export function initScene() {
@@ -1191,9 +1191,42 @@ export function buildOpenWorld() {
   // Le Sanctuaire de l'Arbre : shrine circulaire de pierre, bâti à la main
   const sx = -40, sz = -14;
   mkCyl(3.4, 3.6, 0.4, sx, 0, sz, 'stoneR', true, 12);
+  /* v9.5 — les six pierres levées répondent chacune à l'un des six dons de
+     base (Trait astral, Pas du vent, Main céleste, Égide, Souffle glacé,
+     Bénédiction) : les présenter toutes réveille le Cœur de Sève, qui
+     ouvre un passage vers le Sanctuaire Oublié (Rooms.js) — trois
+     épreuves et une arme légendaire garantie au bout. */
+  /* Persistance : chaque pierre est une addInter comme une autre — son
+     flag .on (vrai/faux) est déjà sauvegardé et restauré par le système
+     générique (SaveSystem.js, tableau `inter`), exactement comme les
+     éclats secrets ou l'offrande de la fontaine. Pas besoin d'un système
+     de flags séparé : on lit simplement pillarInter.on pour savoir si
+     une pierre a déjà été éveillée lors d'une partie précédente. */
+  const shrinePowers = ['bolt', 'dash', 'tk', 'shield', 'frost', 'heal'];
+  const shrineColors = { bolt: 0xffd97a, dash: 0x9fe8ff, tk: 0xb08cff, shield: 0x66c8ff, frost: 0xbfe8ff, heal: 0x9fffc0 };
+  const shrinePillars = [];
   for (let k = 0; k < 6; k++) {
     const a = k * Math.PI / 3;
-    mkBox(0.55, 3.2, 0.55, sx + Math.cos(a) * 2.9, 0.4, sz + Math.sin(a) * 2.9, 'stoneR');
+    const px = sx + Math.cos(a) * 2.9, pz = sz + Math.sin(a) * 2.9;
+    mkBox(0.55, 3.2, 0.55, px, 0.4, pz, 'stoneR');
+    const powerId = shrinePowers[k];
+    const col = shrineColors[powerId];
+    const gemMat = new THREE.MeshBasicMaterial({ color: col });
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22), gemMat);
+    gem.position.set(px, 2.2, pz); gem.add(glow(col, 1.2, 0.4));
+    S.scene.add(gem);
+    const pw = POWERS.find(p => p.id === powerId);
+    const slotN = POWERS.indexOf(pw) + 1;
+    const it = addInter(px, 0, pz, 1.8, 'Présenter ' + pw.name + ' à la pierre', it2 => {
+      if (!it2.on) return; // déjà éveillée (cette partie ou une précédente)
+      if (!G.powers[powerId]) { showMsg('Cette pierre ne répond qu\'à un don que vous ne possédez pas encore.', 3); return; }
+      if (G.sel !== powerId) { showMsg('Sélectionnez d\'abord ' + pw.name + ' (touche ' + slotN + '), puis présentez-vous à nouveau à la pierre.', 3.8); return; }
+      it2.on = false;
+      gemMat.color.setHex(0x4ae08a);
+      spawnBurst(px, 1.5, pz, col, 14);
+      showMsg('La pierre s\'éveille : ' + pw.name + ' résonne dans la sève ancienne.', 3);
+    });
+    shrinePillars.push(it);
   }
   mkCyl(0.4, 0.55, 2.4, sx, 0.4, sz, 'trunk', false, 7);
   const shrineCrown = new THREE.Mesh(new THREE.OctahedronGeometry(0.4),
@@ -1206,6 +1239,18 @@ export function buildOpenWorld() {
   addPickup('heart', sx, 0, sz - 9.5);
   addInter(sx, 0, sz - 8, 3.2, 'Se recueillir au Sanctuaire de l\'Arbre', () => {
     showMsg('« Avant le château, avant les Larmes, un arbre veillait déjà sur la vallée. Son sanctuaire tient encore debout — la Nuit n\'ose pas y entrer. »', 5);
+  });
+  addInter(sx, 0, sz + 3, 2.4, 'Toucher le Cœur de Sève', () => {
+    const remaining = shrinePowers.filter((p, i) => shrinePillars[i].on);
+    if (remaining.length) {
+      const names = remaining.map(id => POWERS.find(p => p.id === id).name).join(', ');
+      showMsg('Le Cœur de Sève reste éteint : ' + remaining.length + ' pierre(s) attendent encore leur don (' + names + ').', 4);
+      return;
+    }
+    spawnBurst(sx, 3.2, sz, 0x7ade5a, 40);
+    A.power();
+    showMsg('Le Cœur de Sève s\'embrase : un passage s\'ouvre dans les racines...', 4);
+    enterSanctuaireAncien();
   });
   // Flèche des Confins — repère visuel du champ d'est
   const spireMat = new THREE.MeshStandardMaterial({ color: 0x241a3a, roughness: 0.7, emissive: 0x140a24 });
