@@ -1330,6 +1330,36 @@ function buildAqueducColossal() {
   });
   addPickup('mana', wgx - 2.5, H, wgz + 2); addPickup('gold', wgx + 2.5, H, wgz - 2.5);
   rEnemy(wgx, wgz, H, [[wgx - 1.5, wgz - 1.5], [wgx + 1.5, wgz + 1.5]], { type: 'caster', lvl: 17, ranged: true });
+
+  /* ---- LE CHÂTEAU D'EAU — à l'ouest, une brèche de la rambarde (jusque-là
+     un simple bord ouvert au-dessus du vide) ouvre sur un pont menant à la
+     grande cuve d'où l'aqueduc tirait sa lumière liquide : chambre close
+     (aucune chute possible), bivouac, relique de vitalité ---- */
+  const rz = z - 4, rcx = PX - 24;
+  mkBox(1.8, H + 1, 1.8, PX - 12, -1, rz, 'stoneD');                // pilier de soutien du pont
+  mkBox(11, 1, 5, PX - 9.5, H - 0.5, rz, 'stoneD');                 // pont de dérivation
+  mkBox(11, 1.3, 0.4, PX - 9.5, H, rz - 2.5, 'stoneR'); mkBox(11, 1.3, 0.4, PX - 9.5, H, rz + 2.5, 'stoneR');
+  mkBox(1.8, H + 1, 1.8, rcx - 4, -1, rz - 6, 'stoneD'); mkBox(1.8, H + 1, 1.8, rcx + 4, -1, rz + 6, 'stoneD'); // soutiens de la cuve
+  mkBox(18, 1, 18, rcx, H - 0.5, rz, 'stoneD');                     // fond de la cuve
+  mkBox(1, 6, 18, rcx - 9, H, rz, 'stoneD');                        // paroi ouest
+  mkBox(18, 6, 1, rcx, H, rz - 9, 'stoneD'); mkBox(18, 6, 1, rcx, H, rz + 9, 'stoneD'); // parois nord/sud
+  mkBox(1, 6, 6.5, rcx + 9, H, rz - 5.75, 'stoneD'); mkBox(1, 6, 6.5, rcx + 9, H, rz + 5.75, 'stoneD'); // paroi est (brèche du pont)
+  // bassin de lumière liquide au centre (décor, non solide)
+  const poolMat = new THREE.MeshBasicMaterial({ color: 0x8fd6ff, transparent: true, opacity: 0.7 });
+  const pool = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 0.25, 24), poolMat);
+  pool.position.set(rcx, H + 0.15, rz); pool.add(glow(0x8fc8ff, 3, 0.6)); S.scene.add(pool);
+  mkCyl(0.7, 0.9, 6, rcx - 5, H, rz - 5, 'stoneR', true, 8); mkCyl(0.7, 0.9, 6, rcx - 5, H, rz + 5, 'stoneR', true, 8);
+  torch(rcx - 6, H, rz - 6, 0x8fc8ff, 1.3, 18); torch(rcx - 6, H, rz + 6, 0x8fc8ff, 1.3, 18);
+  bivouac(rcx - 6, H, rz, 'le Château d\'Eau', 'aque_cuve', true, 5);
+  const aqueCamp = CAMPS.find(c => c.id === 'aque_cuve'); if (aqueCamp) aqueCamp.room = 'aqueduc_colossal';
+  addInter(rcx, H, rz + 4, 2.6, 'Toucher la lumière liquide', () => {
+    showMsg('Le bassin retient encore un fond de lumière liquide — tiède, vivante, comme de l\'eau qui aurait appris à briller. C\'est elle qui irriguait Ombreciel.', 5);
+  });
+  rPickup('maxhp', rcx - 7, H, rz, 'aque_cuve_vit');
+  addPickup('mana', rcx + 3, H, rz - 5); addPickup('heart', rcx + 3, H, rz + 5);
+  rEnemy(rcx, rz - 5, H, [[rcx - 4, rz - 6], [rcx + 4, rz - 4]], { type: 'wraith', lvl: 17 });
+  rEnemy(rcx - 3, rz + 5, H, [[rcx - 6, rz + 4], [rcx, rz + 6]], { type: 'caster', lvl: 18, ranged: true });
+
   /* ---- chambre secrète n°5 : ÉPREUVE DE RÉFLEXE — un rayon tourne sans
      relâche (le même mécanisme d'auto-rotation que les gemmes du monde
      ouvert) ; il faut frapper chacune des trois gemmes exactement quand
