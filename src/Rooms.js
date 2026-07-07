@@ -992,6 +992,42 @@ function buildValMurmures() {
   });
   addPickup('mana', rgx - 12, 0, rgz - 3); addPickup('heart', rgx - 4, 0, rgz + 3);
   rEnemy(rgx - 8, rgz, 0, [[rgx - 12, rgz - 3], [rgx - 4, rgz + 3]], { type: 'wraith', lvl: 8 });
+
+  /* ---- LE DÉDALE DE ROSEAUX LUNAIRES — la plaine, jadis vide, se hérisse
+     d'un labyrinthe de hautes herbes cristallisées (serpentine toujours
+     franchissable, jamais de cul-de-sac scellé) ; sa récompense dort au
+     fond, une relique de vitalité ---- */
+  asciiWalls([
+    '#######.',
+    '........',
+    '.#######',
+    '........',
+    '#######.',
+    '........'
+  ], PX - 12, z + 28, 3, 2.8, 0, 'hedge');
+  torch(PX - 10, 0, z + 24, 0x9fe8ff, 1.05, 14); torch(PX + 10, 0, z + 14, 0x9fe8ff, 1.05, 14);
+  rPickup('maxhp', PX + 10.5, 0, z + 26.5, 'val_dedale_vit');
+  addPickup('shadow', PX - 7, 0, z + 17); addPickup('mana', PX + 4, 0, z + 20);
+  addInter(PX, 0, z + 12, 2.6, 'Écouter les roseaux de lune', () => {
+    showMsg('Les hautes herbes cristallisées tintent au vent comme des cloches lointaines. On dit qu\'elles répètent les derniers mots des pèlerins perdus.', 4.5);
+  });
+  rEnemy(PX + 6, z + 22, 0, [[PX + 2, z + 18], [PX + 10, z + 24]], { type: 'wraith', lvl: 8 });
+
+  /* ---- LE CERCLE DES MENHIRS — au sud de la plaine, sept pierres levées
+     autour d'un foyer : le bivouac (renaissance + voyage rapide) ---- */
+  const mcz = z - 18;
+  for (let i = 0; i < 7; i++) {
+    const a = i * Math.PI * 2 / 7;
+    mkCyl(0.6, 0.8, 4.2 + (i % 3) * 0.6, PX + Math.cos(a) * 6, 0, mcz + Math.sin(a) * 6, 'stoneR', true, 6);
+  }
+  bivouac(PX, 0, mcz, 'le Cercle des Menhirs', 'val_menhirs', true, 5.5);
+  const valCamp = CAMPS.find(c => c.id === 'val_menhirs'); if (valCamp) valCamp.room = 'val_murmures';
+  addInter(PX + 6, 0, mcz - 6, 2.6, 'Déchiffrer les pierres levées', () => {
+    showMsg('Sept menhirs, un par ordre de porteurs de flamme. Les runes gravées invoquent la paix des morts — et, dit-on, protègent le feu qu\'elles entourent.', 4.5);
+  });
+  addPickup('shadow', PX - 6, 0, mcz + 4);
+  rEnemy(PX - 8, mcz, 0, [[PX - 12, mcz - 4], [PX - 4, mcz + 4]], { type: 'caster', lvl: 8 });
+
   /* ---- chambre secrète n°2 : DEUX BLOCS + L'ÉGIDE (les plaques ne se
      chargent que si l'Égide est active au moment où les deux blocs
      reposent dessus — pas de simple bloc-sur-plaque, il faut savoir QUAND
