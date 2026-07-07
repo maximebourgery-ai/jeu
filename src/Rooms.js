@@ -1116,6 +1116,32 @@ function buildCarriereSel() {
   });
   addPickup('shadow', PX - 12, -7.5, z + 1); addPickup('mana', PX - 6, -7.5, z - 9);
   rEnemy(PX - 9, z - 4, -7.5, [[PX - 12, z - 8], [PX - 6, z]], { type: 'sentinel', lvl: 10 });
+
+  /* ---- LA HALLE D'EXTRACTION — la rive est, jadis un simple bloc nu, devient
+     une grande halle de taille du sel : colonnes de sel, veines cristallines
+     qui luisent, un bivouac (renaissance) au milieu des ruines minières.
+     On y accède par les ponts ; le vide côté ouest reste ouvert (les rives
+     s'y rejoignent par les débarcadères des deux seuils). ---- */
+  mkBox(1, 9, 60, PX + 34, 0, z, 'stoneD');                         // fond est
+  mkBox(20, 9, 1, PX + 24, 0, z - 30, 'stoneD'); mkBox(20, 9, 1, PX + 24, 0, z + 30, 'stoneD'); // bouts nord/sud de la halle
+  for (const [px, pz] of [[PX + 20, z - 14], [PX + 30, z - 14], [PX + 20, z + 14], [PX + 30, z + 14]])
+    mkCyl(0.7, 0.9, 8, px, 0, pz, 'slabW', true, 8);                // colonnes de sel
+  // veines de sel qui luisent le long du fond
+  for (let i = 0; i < 7; i++) {
+    const cy = new THREE.Mesh(new THREE.OctahedronGeometry(0.28 + (i % 3) * 0.08), new THREE.MeshBasicMaterial({ color: 0xdff4ff }));
+    cy.position.set(PX + 33, 0.6 + (i % 2) * 1.4, z - 24 + i * 8); cy.add(glow(0xbfe8ff, 1.1, 0.4)); S.scene.add(cy);
+  }
+  torch(PX + 18, 0, z - 18, 0xf4ecd6, 1.2, 18); torch(PX + 30, 0, z + 18, 0xf4ecd6, 1.2, 18);
+  bivouac(PX + 24, 0, z, 'la Halle d\'Extraction', 'carr_halle', true, 5);
+  const carrCamp = CAMPS.find(c => c.id === 'carr_halle'); if (carrCamp) carrCamp.room = 'carriere_sel';
+  addInter(PX + 30, 0, z - 6, 2.6, 'Examiner une veine de sel d\'aube', () => {
+    showMsg('La veine luit d\'une lumière laiteuse : du sel d\'aube, si pur qu\'il éclaire seul. C\'est lui qui donnait sa clarté aux pierres du château.', 4.5);
+  });
+  rPickup('maxhp', PX + 31, 0, z, 'carr_halle_vit');
+  addPickup('heart', PX + 20, 0, z - 20); addPickup('mana', PX + 28, 0, z + 20);
+  rEnemy(PX + 24, z - 10, 0, [[PX + 18, z - 16], [PX + 30, z - 4]], { type: 'brute', lvl: 11 });
+  rEnemy(PX + 26, z + 12, 0, [[PX + 20, z + 6], [PX + 32, z + 18]], { type: 'caster', lvl: 11 });
+
   /* ---- chambre secrète n°3 : DEUX POUVOIRS EN CHAÎNE — le Pas du vent pour
      franchir le vide jusqu'à la corde, puis le Souffle glacé pour geler le
      bassin de saumure qui bloque le coffre ---- */
