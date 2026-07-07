@@ -943,7 +943,7 @@ function buildMuraille() {
     });
   }
   addInter(PX, 0, z + 32.3, 2.6, 'Poursuivre vers le Val des Murmures', () => {
-    gotoRoom('val_murmures', { x: PX, y: 0.2, z: -150 + 32.3, yaw: Math.PI });
+    gotoRoom('val_murmures', { x: PX, y: 0.2, z: -150 + 29.3, yaw: Math.PI });
   });
   addInter(PX, 0, z - 32.3, 2.6, 'Revenir vers les Terres Perdues', () => {
     exitToWorld('Les Terres Perdues', 55, 0.2, -14, -Math.PI / 2, 'Le vent des Terres Perdues vous accueille de nouveau.');
@@ -1076,6 +1076,12 @@ function buildCarriereSel() {
   zoneGate(PX, 0, z - 30, 7, 6.5, 'stoneD');
   zoneGate(PX, 0, z + 30, 7, 6.5, 'stoneD');
   mkBox(30, 0.6, 60, PX, 8.5, z, 'stoneD');
+  /* débarcadères pleins aux deux seuils : sans eux, les portes des deux bouts
+     flottaient au-dessus du vide et l'arrivée par la porte tombait dans la
+     crevasse (« bug quand on tombe / on est dans un vide »). Ils relient aussi
+     les deux rives par-dessus la faille. */
+  mkBox(30, 1, 6, PX, -1, z - 30, 'stoneD');
+  mkBox(30, 1, 6, PX, -1, z + 30, 'stoneD');
   // deux ponts de planches suspendus au-dessus du vide
   mkBox(28, 0.35, 3, PX, 0, z - 14, 'woodD');
   mkBox(28, 0.35, 3, PX, 0, z + 14, 'woodD');
@@ -1138,7 +1144,7 @@ function buildCarriereSel() {
     gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -450 + 29.3, yaw: Math.PI });
   });
   addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers le Val des Murmures', () => {
-    gotoRoom('val_murmures', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+    gotoRoom('val_murmures', { x: PX, y: 0.2, z: -150 - 29.3, yaw: 0 });
   });
 }
 
@@ -1220,10 +1226,10 @@ function buildCanyonLames() {
     });
   }
   addInter(PX, 0, z + 29.3, 2.6, 'Poursuivre vers l\'Aqueduc Colossal', () => {
-    gotoRoom('aqueduc_colossal', { x: PX, y: 0.2, z: -600 + 29.3, yaw: Math.PI });
+    gotoRoom('aqueduc_colossal', { x: PX, y: 15, z: -600 + 29.3, yaw: Math.PI });
   });
   addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers la Carrière de Sel', () => {
-    gotoRoom('carriere_sel', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+    gotoRoom('carriere_sel', { x: PX, y: 0.2, z: -300 - 29.3, yaw: 0 });
   });
 }
 
@@ -1311,7 +1317,7 @@ function buildAqueducColossal() {
     gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -750 + 29.3, yaw: Math.PI });
   });
   addInter(PX, H, z - 29.3, 2.6, 'Revenir vers le Canyon des Lames', () => {
-    gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+    gotoRoom('canyon_lames', { x: PX, y: 0.2, z: -450 - 29.3, yaw: 0 });
   });
 }
 
@@ -1418,21 +1424,22 @@ function buildForetObsidienne() {
     gotoRoom('bastion_cendres', { x: PX, y: 0.2, z: -900 + 29.3, yaw: Math.PI });
   });
   addInter(PX, 0, z - 29.3, 2.6, 'Revenir vers l\'Aqueduc Colossal', () => {
-    gotoRoom('aqueduc_colossal', { x: PX, y: 0.2, z: -29.3, yaw: 0 });
+    gotoRoom('aqueduc_colossal', { x: PX, y: 15, z: -600 - 29.3, yaw: 0 });
   });
 }
 
 /* ---- 7. LE BASTION DES CENDRES (niv 20-23) — dernière résistance, lumière crépusculaire ---- */
 function buildBastionCendres() {
   const z = -900;
-  mkBox(40, 1, 50, PX, -1, z, 'stoneD');
-  mkBox(1, 11, 31, PX - 20, 0, z - 9.5, 'stoneD'); mkBox(1, 11, 15, PX - 20, 0, z + 17.5, 'stoneD');
-  mkBox(1, 11, 50, PX + 20, 0, z, 'stoneD');
-  mkBox(16.5, 9, 1, PX - 11.75, 0, z - 25, 'stoneD'); mkBox(16.5, 9, 1, PX + 11.75, 0, z - 25, 'stoneD');
-  zoneGate(PX, 0, z - 25, 7, 6.5, 'stoneD');
-  mkBox(16.5, 9, 1, PX - 11.75, 0, z + 25, 'stoneD'); mkBox(16.5, 9, 1, PX + 11.75, 0, z + 25, 'stoneD');
-  zoneGate(PX, 0, z + 25, 7, 6.5, 'stoneD');
-  mkBox(42, 0.6, 52, PX, 11, z, 'stoneD');
+  mkBox(40, 1, 60, PX, -1, z, 'stoneD');
+  // mur ouest (z -30..+30) percé du seuil de la Crypte (z +6..+10)
+  mkBox(1, 11, 36, PX - 20, 0, z - 12, 'stoneD'); mkBox(1, 11, 20, PX - 20, 0, z + 20, 'stoneD');
+  mkBox(1, 11, 60, PX + 20, 0, z, 'stoneD');
+  mkBox(16.5, 9, 1, PX - 11.75, 0, z - 30, 'stoneD'); mkBox(16.5, 9, 1, PX + 11.75, 0, z - 30, 'stoneD');
+  zoneGate(PX, 0, z - 30, 7, 6.5, 'stoneD');
+  mkBox(16.5, 9, 1, PX - 11.75, 0, z + 30, 'stoneD'); mkBox(16.5, 9, 1, PX + 11.75, 0, z + 30, 'stoneD');
+  zoneGate(PX, 0, z + 30, 7, 6.5, 'stoneD');
+  mkBox(42, 0.6, 62, PX, 11, z, 'stoneD');
   // ruines militaires éventrées : blocs de décombres épars
   for (let i = 0; i < 10; i++) {
     const rx = PX - 16 + ((i * 173) % 32), rz = z - 18 + ((i * 97) % 36);
@@ -1496,7 +1503,7 @@ function buildBastionCendres() {
     else bastVault.solve(); // revisite : pas de renfort régénéré, la voie reste ouverte
   }
   addInter(PX, 0, z - 24.3, 2.6, 'Revenir vers la Forêt d\'Obsidienne', () => {
-    gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -24.3, yaw: 0 });
+    gotoRoom('foret_obsidienne', { x: PX, y: 0.2, z: -750 - 29.3, yaw: 0 });
   });
 }
 /* petit utilitaire local : collider simple sans passer par mkBox (formes non-boîtes) */
