@@ -146,6 +146,46 @@ function banner(x, y, z, color, w, h) {
   m.position.set(x, y, z); S.scene.add(m);
 }
 
+/* MÉCANIQUE — LA CHASSE AUX BRASIERS : trois brasiers éteints dispersés aux
+   quatre coins de la salle. Les rallumer TOUS (dans n'importe quel ordre)
+   dévoile une récompense forgée. Persistant par flags ; incite à fouiller
+   chaque recoin plutôt qu'à filer vers la sortie. Beau (feux qui s'embrasent)
+   et sans collider piégeux (les vasques sont fines). */
+function beaconHunt(id, spots, color, slot, rarity, hintMsg, doneMsg) {
+  const done = flag(id, 'beaconDone');
+  let lit = 0;
+  const fires = [];
+  spots.forEach((s, i) => {
+    const [x, y, z] = s;
+    mkCyl(0.28, 0.42, 0.75, x, y, z, 'iron', true, 8);          // vasque
+    const on = done || flag(id, 'beacon' + i);
+    const mat = new THREE.MeshBasicMaterial({ color: on ? color : 0x2b2a26 });
+    const fire = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.7, 6), mat);
+    fire.position.set(x, y + 1.05, z);
+    if (on) { fire.add(glow(color, 1.5, 0.5)); lit++; }
+    S.scene.add(fire); fires.push({ fire, mat });
+  });
+  if (done) return;
+  spots.forEach((s, i) => {
+    if (flag(id, 'beacon' + i)) return;
+    const [x, y, z] = s;
+    const it = addInter(x, y, z, 2, 'Rallumer le brasier éteint', () => {
+      if (flag(id, 'beacon' + i)) return;
+      setFlag(id, 'beacon' + i); it.on = false;
+      fires[i].mat.color.setHex(color); fires[i].fire.add(glow(color, 1.5, 0.5));
+      spawnBurst(x, y + 1, z, color, 16); A.door(); lit++;
+      if (lit >= spots.length) {
+        setFlag(id, 'beaconDone');
+        addGearToBag(rollEquipment(slot || 'accessory', rarity || 'epic', G.path));
+        spawnBurst(x, y + 1, z, 0xffd97a, 30);
+        showMsg(doneMsg, 5.5);
+      } else {
+        showMsg((hintMsg || 'Un brasier se rallume') + ' (' + lit + ' / ' + spots.length + ').', 3);
+      }
+    });
+  });
+}
+
 /* ================================================================
    INSTANCIATION — capture & déchargement (même contrat que la Tour)
    ================================================================ */
@@ -912,6 +952,8 @@ function buildMuraille() {
   motes(PX, 1.5, z, 8, 34, 4.5, 22, 0x9fd4ff);
   for (const bz of [z - 26, z - 6, z + 14, z + 30]) banner(PX + 8.6, 3.6, bz, 0x2a5a9a, 1.3, 2.8);
   for (const bz of [z - 30, z - 10, z + 10, z + 30]) crystals(PX - 8.4, 0, bz, 0x8fc8ff, 3, 0.55);
+  beaconHunt('muraille', [[PX + 6, 0, z - 30], [PX - 6, 0, z + 30], [PX - 30, 0, z + 12]], 0x8fc8ff, 'armor', 'epic',
+    'Un feu de veille se rallume', 'Les trois feux de veille brûlent de nouveau : la garde du ciel salue le porteur — et lui laisse son legs.');
   addInter(PX, 0, z - 30.5, 3, 'Lire les gravures du rempart', () => {
     showMsg('« Ici veillaient les gardes du ciel. » Les lignes de lumière courent encore le long de la pierre, comme un souvenir qui refuse de s\'éteindre.', 4.5);
   });
@@ -1040,6 +1082,8 @@ function buildValMurmures() {
   motes(PX, 1.2, z, 22, 27, 3.5, 26, 0xbfe8ff);
   for (const [cx, cz] of [[PX - 16, z - 20], [PX + 12, z - 22], [PX - 20, z + 12], [PX + 18, z + 22], [PX - 4, z + 26]])
     crystals(cx, 0, cz, 0x9fe8ff, 4, 0.5);
+  beaconHunt('val_murmures', [[PX - 20, 0, z - 24], [PX + 20, 0, z + 22], [PX + 18, 0, z - 22]], 0x9fe8ff, 'accessory', 'epic',
+    'Un feu de pèlerin renaît', 'Les trois feux des pèlerins brûlent ensemble : la plaine murmure un remerciement, et rend un présent oublié.');
   // la première enclume abandonnée, sur la route des pèlerins
   mkAnvil(PX + 14, 0, z + 10);
   torch(PX - 18, 0, z - 20, 0x9fe8ff, 1.1, 18); torch(PX + 18, 0, z + 18, 0x9fe8ff, 1.1, 18);
@@ -1173,6 +1217,8 @@ function buildCarriereSel() {
   motes(PX, -6, z, 6, 28, 12, 26, 0xfdf4dc);
   for (const [cx, cy, cz] of [[PX - 2, -7.5, z - 18], [PX + 2, -7.5, z + 16], [PX - 3, -7.5, z], [PX - 27, 0, z - 16], [PX + 27, 0, z + 14]])
     crystals(cx, cy, cz, 0xeaf2ff, 5, 0.7);
+  beaconHunt('carriere_sel', [[PX - 24, 0, z - 20], [PX + 24, 0, z + 20], [PX - 24, 0, z + 18]], 0xf4ecd6, 'weapon', 'epic',
+    'Une lampe de mineur se rallume', 'Les trois lampes de mineur éclairent de nouveau la carrière : au fond, une caisse scellée se laisse enfin trouver.');
   addInter(PX, 0, z, 3, 'Contempler la crevasse', () => {
     showMsg('Le sel ronge jusqu\'au métal. C\'est d\'ici que fut extraite chaque pierre du château — et, dit-on, l\'entrée des catacombes dort quelque part sous ce blanc aveuglant.', 5);
   });
@@ -1288,6 +1334,8 @@ function buildCanyonLames() {
   motes(PX, 1.5, z, 11, 28, 8, 26, 0xb08cff);
   for (const [cx, cz] of [[PX - 9, z - 22], [PX + 9, z - 8], [PX - 9, z + 8], [PX + 9, z + 22]])
     crystals(cx, 0, cz, 0x9a6cff, 4, 0.6);
+  beaconHunt('canyon_lames', [[PX - 10, 0, z - 24], [PX + 10, 0, z + 24], [PX + 10, 0, z - 24]], 0x9a6cff, 'weapon', 'epic',
+    'Un fanal de forge se rallume', 'Les trois fanals de la forge de bataille rougeoient de nouveau : entre les lames, un présent se révèle à qui a tout parcouru.');
   addInter(PX, 0, z, 3, 'Observer les lames plantées', () => {
     showMsg('Des dizaines d\'épées monumentales, faites d\'un verre sombre parcouru de motifs oniriques. Le site d\'une bataille que nul ne raconte plus.', 4.5);
   });
@@ -1401,6 +1449,8 @@ function buildAqueducColossal() {
   // gouttes lumineuses le long de la passerelle et remonte du vide
   motes(PX, H - 3, z, 3.5, 28, 8, 26, 0x9fd8ff);
   motes(PX, H - 8, z, 9, 24, 6, 14, 0x7ec0ff, 0.13);
+  beaconHunt('aqueduc_colossal', [[PX - 2, H, z - 24], [PX + 2, H, z + 22], [PX - 2, H, z - 6]], 0x8fc8ff, 'accessory', 'epic',
+    'Un fanal de l\'aqueduc se rallume', 'Les trois fanals de l\'aqueduc brillent ensemble : la lumière liquide reflue un instant, et dépose un présent sur la pierre.');
   addInter(PX, H, z, 3, 'Regarder par-dessus la rambarde', () => {
     showMsg('Rien que des nuages, à perte de vue. Cet aqueduc ne transportait pas de l\'eau, mais de la lumière liquide vers Ombreciel.', 4.5);
   });
@@ -1538,6 +1588,8 @@ function buildForetObsidienne() {
   for (const [cx, cz] of [[PX - 18, z - 18], [PX + 16, z - 22], [PX - 20, z + 20], [PX + 14, z + 8]])
     crystals(cx, 0, cz, 0x6a3aff, 4, 0.55);
   crystals(PX - 4, 0, z - 24, 0x7ade5a, 3, 0.5);
+  beaconHunt('foret_obsidienne', [[PX - 18, 0, z - 22], [PX - 18, 0, z + 20], [PX + 18, 0, z - 20]], 0x7ade5a, 'accessory', 'epic',
+    'Un feu follet de sève renaît', 'Les trois feux follets de sève verte s\'éveillent : la forêt morte frémit une dernière fois, et livre l\'un de ses secrets.');
   addInter(PX, 0, z, 3, 'Toucher un arbre de verre noir', () => {
     showMsg('Tranchant comme un rasoir, froid comme la nuit sans lune. Rien ne pourrit ici : tout est figé depuis un siècle.', 4.5);
   });
@@ -1677,6 +1729,8 @@ function buildBastionCendres() {
   motes(PX, 1, z, 18, 28, 8, 30, 0xff7a3a);
   for (const [cx, cz] of [[PX - 12, z - 16], [PX + 12, z - 8], [PX - 10, z + 14], [PX + 8, z + 20], [PX, z - 6]])
     crystals(cx, 0, cz, 0xff5a2a, 4, 0.5);
+  beaconHunt('bastion_cendres', [[PX - 14, 0, z - 22], [PX + 14, 0, z + 22], [PX + 14, 0, z - 20]], 0xff7a3a, 'weapon', 'legendary',
+    'Un brasier de la garde se rallume', 'Les trois brasiers de la dernière garde flambent de nouveau : les Porteurs de Flamme reconnaissent l\'un des leurs, et lui confient une arme de légende.');
   addInter(PX, 0, z - 20, 3, 'Se recueillir parmi les cendres', () => {
     showMsg('Ici tomba la dernière résistance de l\'ordre. Les fantômes des Porteurs de Flamme y affrontent encore les Ombres, chaque nuit, pour l\'éternité.', 5);
   });
