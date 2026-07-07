@@ -1220,6 +1220,32 @@ function buildCanyonLames() {
   });
   addPickup('bone', cgx + 5, 0, cgz + 4); addPickup('shadow', cgx + 13, 0, cgz + 3);
   rEnemy(cgx + 9, cgz, 0, [[cgx + 5, cgz - 4], [cgx + 13, cgz + 4]], { type: 'brute', lvl: 13 });
+
+  /* ---- LE NID DU GUETTEUR — un escalier fiable grimpe le long du mur ouest
+     jusqu'à un belvédère perché entre les lames : la récompense qui couronne
+     l'ascension (le canyon n'était qu'un fond plat sans raison de grimper) ---- */
+  for (let i = 0; i < 14; i++) mkBox(4, 0.5, 2, PX - 10, i * 0.85, z + 4 + i * 1.3, 'stoneD');
+  mkBox(7, 0.6, 8, PX - 9, 11.5, z + 22, 'stoneD');                 // belvédère
+  for (let i = 0; i < 3; i++) { mkBox(0.5, 1, 0.5, PX - 12 + i * 3.4, 12, z + 25.5, 'stoneR'); }
+  torch(PX - 9, 11.8, z + 20, 0x9a6cff, 1.3, 16);
+  addInter(PX - 9, 11.8, z + 22, 2.6, 'Contempler le champ de lames d\'en haut', () => {
+    showMsg('D\'ici, les épées plantées dessinent un immense cercle : ce n\'était pas une bataille, mais un rituel. On a fiché mille lames pour sceller quelque chose sous la roche.', 5);
+  });
+  rPickup('maxhp', PX - 9, 11.8, z + 23, 'canyon_nid_vit');
+  addPickup('mana', PX - 11, 11.8, z + 20);
+  rEnemy(PX - 8, z + 22, 11.8, [[PX - 12, z + 20], [PX - 5, z + 24]], { type: 'caster', lvl: 14, ranged: true });
+  // lames supplémentaires basses : plus de densité, plus de couvert au sol
+  for (let i = 0; i < 4; i++) {
+    const bx = PX - 9 + i * 6, bz = z - 26 + (i % 2) * 4;
+    const bl = new THREE.Mesh(new THREE.ConeGeometry(1.1, 4.5, 6), bladeMat);
+    bl.position.set(bx, 1.9, bz); bl.rotation.z = (i % 2 ? 0.2 : -0.2); bl.castShadow = true; S.scene.add(bl); addCol2(bl);
+  }
+  // bivouac au sol, dans un renfoncement du mur ouest
+  bivouac(PX - 10, 0, z - 18, 'le Champ de Lames', 'canyon_biv', true, 5);
+  const canCamp = CAMPS.find(c => c.id === 'canyon_biv'); if (canCamp) canCamp.room = 'canyon_lames';
+  addPickup('heart', PX - 11, 0, z - 22);
+  rEnemy(PX + 9, z - 18, 0, [[PX + 4, z - 22], [PX + 12, z - 12]], { type: 'wraith', lvl: 13 });
+
   /* ---- chambre secrète n°4 : DEUX GARDES À VAINCRE, PUIS PORTAGE VERTICAL —
      la Main céleste doit guider le bloc runique jusqu'en haut d'un escalier
      de plateformes (même principe que les lames à escalader de la salle
